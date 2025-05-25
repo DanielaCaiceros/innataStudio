@@ -89,173 +89,131 @@ export default function BookingPage() {
       {/* Booking Section */}
       <section className="py-16 bg-white">
         <div className="container px-4 md:px-6">
-          <Tabs defaultValue="calendar" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8 bg-gray-100">
-              <TabsTrigger
-                value="calendar"
-                className="text-lg data-[state=active]:bg-brand-sage data-[state=active]:text-white"
-              >
-                Calendario
-              </TabsTrigger>
-              <TabsTrigger
-                value="classes"
-                className="text-lg data-[state=active]:bg-brand-sage data-[state=active]:text-white"
-              >
-                Clases
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="calendar" className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
-                  <CardContent className="p-0">
-                    <div className="p-6 border-b border-gray-100 flex items-center">
-                      <CalendarIcon className="mr-2 h-5 w-5 text-brand-mint" />
-                      <h3 className="text-xl font-bold text-brand-mint-dark">Selecciona Fecha</h3>
-                    </div>
-                    <div className="flex justify-center items-center py-6">
-                      <div className="w-full max-w-[280px]">
-                        <Calendar
-                          mode="single"
-                          selected={date}
-                          onSelect={setDate}
-                          locale={es}
-                          className="bg-white text-zinc-900 w-full"
-                          classNames={{
-                            day_selected: "bg-brand-sage text-white",
-                            day_today: "bg-gray-100 text-zinc-900",
-                            day: "text-zinc-900 hover:bg-gray-100",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
-                  <CardContent className="p-0">
-                    <div className="p-6 border-b border-gray-100 flex items-center">
-                      <Clock className="mr-2 h-5 w-5 text-brand-sage" />
-                      <h3 className="text-xl font-bold text-brand-sage-dark">Selecciona Clase</h3>
-                    </div>
-                    <div className="p-4 space-y-2">
-                      {classes.map((classItem) => (
-                        <Button
-                          key={classItem.id}
-                          variant={selectedClass === classItem.id ? "default" : "outline"}
-                          className={`w-full justify-between rounded-full ${
-                            selectedClass === classItem.id
-                              ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
-                              : "border-brand-burgundy text-brand-sage hover:bg-gray-50"
-                          }`}
-                          onClick={() => handleClassSelect(classItem.id)}
-                        >
-                          <span>{classItem.name}</span>
-                          <span className="text-sm opacity-70">{classItem.duration}</span>
-                        </Button>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
-                  <CardContent className="p-0">
-                    <div className="p-6 border-b border-gray-100 flex items-center">
-                      <Clock className="mr-2 h-5 w-5 text-brand-sage" />
-                      <h3 className="text-xl font-bold text-brand-burgundy-dark">Selecciona Horario</h3>
-                    </div>
-                    <div className="p-4 grid grid-cols-3 gap-2">
-                      {timeSlots.map((time) => (
-                        <Button
-                          key={time}
-                          variant={selectedTime === time ? "default" : "outline"}
-                          className={`rounded-full ${
-                            selectedTime === time
-                              ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
-                              : "border-brand-sage text-brand-sage hover:bg-gray-50"
-                          }`}
-                          onClick={() => setSelectedTime(time)}
-                        >
-                          {time}
-                        </Button>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Card className="bg-brand-yellow/10 border-none rounded-3xl shadow-sm">
-                <CardContent className="p-6">
-                  <h3 className="text-xl font-bold mb-4 text-brand-mint-dark">Resumen de Reserva</h3>
-
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                      <span className="text-zinc-700">Fecha:</span>
-                      <span className="font-medium text-brand-burgundy">
-                        {date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : "No seleccionada"}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                      <span className="text-zinc-700">Clase:</span>
-                      <span className="font-medium text-brand-burgundy">
-                        {selectedClass ? classes.find((c) => c.id === selectedClass)?.name : "No seleccionada"}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                      <span className="text-zinc-700">Instructor:</span>
-                      <span className="font-medium text-brand-burgundy">
-                        {selectedClass ? classes.find((c) => c.id === selectedClass)?.instructor : "No seleccionado"}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                      <span className="text-zinc-700">Horario:</span>
-                      <span className="font-medium text-brand-burgundy">
-                        {selectedTime ? `${selectedTime} hrs` : "No seleccionado"}
-                      </span>
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
+                <CardContent className="p-0">
+                  <div className="p-6 border-b border-gray-100 flex items-center">
+                    <CalendarIcon className="mr-2 h-5 w-5 text-brand-mint" />
+                    <h3 className="text-xl font-bold text-brand-mint-dark">Selecciona Fecha</h3>
+                  </div>
+                  <div className="flex justify-center items-center py-6">
+                    <div className="w-full max-w-[280px]">
+                      <Calendar
+                        mode="single"
+                        selected={date}
+                        onSelect={setDate}
+                        locale={es}
+                        className="bg-white text-zinc-900 w-full"
+                        classNames={{
+                          day_selected: "bg-brand-sage text-white",
+                          day_today: "bg-gray-100 text-zinc-900",
+                          day: "text-zinc-900 hover:bg-gray-100",
+                        }}
+                      />
                     </div>
                   </div>
-
-                  <Button
-                    className="w-full mt-6 bg-brand-mint hover:bg-brand-mint/90 font-bold text-lg py-6 rounded-full text-white"
-                    disabled={!date || !selectedClass || !selectedTime}
-                    onClick={handleConfirmBooking}
-                  >
-                    <span className="flex items-center gap-1">
-                      CONFIRMAR RESERVA <ChevronRight className="h-4 w-4" />
-                    </span>
-                  </Button>
                 </CardContent>
               </Card>
-            </TabsContent>
 
-            <TabsContent value="classes" className="space-y-6">
-              <div className="grid grid-cols-1 gap-4">
-                {classes.map((classItem) => (
-                  <Card key={classItem.id} className="bg-white border-gray-100 rounded-3xl shadow-sm">
-                    <CardContent className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                      <div>
-                        <h3 className="text-xl font-bold text-brand-burgundy-dark">{classItem.name}</h3>
-                        <p className="text-zinc-600">
-                          {classItem.instructor} • {classItem.duration}
-                        </p>
-                      </div>
+              <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
+                <CardContent className="p-0">
+                  <div className="p-6 border-b border-gray-100 flex items-center">
+                    <Clock className="mr-2 h-5 w-5 text-brand-sage" />
+                    <h3 className="text-xl font-bold text-brand-sage-dark">Selecciona Clase</h3>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    {classes.map((classItem) => (
                       <Button
-                        className="bg-brand-burgundy hover:bg-brand-burgundy/90 text-white rounded-full"
-                        onClick={() => handleClassSelect(classItem.id)}
+                        key={classItem.id}
+                        variant={selectedClass === classItem.id ? "default" : "outline"}
+                        className={`w-full justify-between rounded-full ${
+                          selectedClass === classItem.id
+                            ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
+                            : "border-brand-burgundy text-brand-sage hover:bg-gray-50"
+                        }`}
+                        onClick={() => setSelectedClass(classItem.id)}
                       >
-                        <span className="flex items-center gap-1">
-                          RESERVAR <ChevronRight className="h-4 w-4" />
-                        </span>
+                        <span>{classItem.name}</span>
+                        <span className="text-sm opacity-70">{classItem.duration}</span>
                       </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-          </Tabs>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
+                <CardContent className="p-0">
+                  <div className="p-6 border-b border-gray-100 flex items-center">
+                    <Clock className="mr-2 h-5 w-5 text-brand-sage" />
+                    <h3 className="text-xl font-bold text-brand-burgundy-dark">Selecciona Horario</h3>
+                  </div>
+                  <div className="p-4 grid grid-cols-3 gap-2">
+                    {timeSlots.map((time) => (
+                      <Button
+                        key={time}
+                        variant={selectedTime === time ? "default" : "outline"}
+                        className={`rounded-full ${
+                          selectedTime === time
+                            ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
+                            : "border-brand-sage text-brand-sage hover:bg-gray-50"
+                        }`}
+                        onClick={() => setSelectedTime(time)}
+                      >
+                        {time}
+                      </Button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="bg-brand-yellow/10 border-none rounded-3xl shadow-sm">
+              <CardContent className="p-6">
+                <h3 className="text-xl font-bold mb-4 text-brand-mint-dark">Resumen de Reserva</h3>
+
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                    <span className="text-zinc-700">Fecha:</span>
+                    <span className="font-medium text-brand-burgundy">
+                      {date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : "No seleccionada"}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                    <span className="text-zinc-700">Clase:</span>
+                    <span className="font-medium text-brand-burgundy">
+                      {selectedClass ? classes.find((c) => c.id === selectedClass)?.name : "No seleccionada"}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                    <span className="text-zinc-700">Instructor:</span>
+                    <span className="font-medium text-brand-burgundy">
+                      {selectedClass ? classes.find((c) => c.id === selectedClass)?.instructor : "No seleccionado"}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                    <span className="text-zinc-700">Horario:</span>
+                    <span className="font-medium text-brand-burgundy">
+                      {selectedTime ? `${selectedTime} hrs` : "No seleccionado"}
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full mt-6 bg-brand-mint hover:bg-brand-mint/90 font-bold text-lg py-6 rounded-full text-white"
+                  disabled={!date || !selectedClass || !selectedTime}
+                  onClick={handleConfirmBooking}
+                >
+                  <span className="flex items-center gap-1">
+                    CONFIRMAR RESERVA <ChevronRight className="h-4 w-4" />
+                  </span>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </section>
 

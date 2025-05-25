@@ -10,7 +10,6 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Mail, Bell, Shield, CreditCard, Building, Clock, Receipt } from "lucide-react"
-import AdminLayout from "@/components/admin-layout"
 
 export default function SettingsPage() {
   const [emailNotifications, setEmailNotifications] = useState(true)
@@ -18,7 +17,6 @@ export default function SettingsPage() {
   const [reminderTime, setReminderTime] = useState("24")
 
   return (
-    <AdminLayout>
       <div className="p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
@@ -908,6 +906,5 @@ export default function SettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </AdminLayout>
   )
 }

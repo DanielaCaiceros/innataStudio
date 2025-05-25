@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog"
 import { format } from "date-fns"
 import { PlusCircle, Search, Download, CreditCard, DollarSign, Receipt, ArrowUpRight } from "lucide-react"
-import AdminLayout from "@/components/admin-layout"
 
 // Datos de ejemplo
 const payments = [
@@ -131,7 +130,6 @@ export default function PaymentsPage() {
   })
 
   return (
-    <AdminLayout>
       <div className="p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
@@ -372,6 +370,5 @@ export default function PaymentsPage() {
           </CardContent>
         </Card>
       </div>
-    </AdminLayout>
   )
 }

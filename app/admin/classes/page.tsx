@@ -20,7 +20,6 @@ import {
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { PlusCircle, Search, Clock, Users, Edit, Trash2 } from "lucide-react"
-import AdminLayout from "@/components/admin-layout"
 
 // Datos de ejemplo
 const classes = [
@@ -313,7 +312,7 @@ export default function ClassesPage() {
   })
 
   return (
-    <AdminLayout>
+    
       <div className="p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
@@ -729,6 +728,5 @@ export default function ClassesPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </AdminLayout>
   )
 }
