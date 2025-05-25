@@ -32,8 +32,9 @@ export async function registerUser(userData: UserRegistrationData): Promise<{ us
       email: userData.email,
       passwordHash: hashedPassword,
       phone: userData.phone,
-      status: 'pending_verification',
-      role: 'client'
+      status: 'active', // Set as active by default in development
+      role: 'client',
+      emailVerified: true // Set as verified by default in development
     }
   });
 
@@ -98,16 +99,6 @@ export async function loginUser(credentials: LoginCredentials): Promise<AuthResp
 
   if (!user) {
     throw new Error('Credenciales inválidas');
-  }
-
-  // Check if user is verified
-  if (user.status === 'pending_verification') {
-    throw new Error('Por favor verifica tu correo electrónico antes de iniciar sesión');
-  }
-
-  // Check if account is active
-  if (user.status !== 'active') {
-    throw new Error('Tu cuenta no está activa');
   }
 
   // Verify password
