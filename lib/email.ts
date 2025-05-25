@@ -1,200 +1,138 @@
-import { Resend } from 'resend'
+// lib/email.ts
 
-const resend = new Resend(process.env.RESEND_API_KEY!)
+import { Resend } from 'resend';
 
-interface EmailOptions {
-  to: string
-  subject: string
-  html: string
-}
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-export async function sendEmail({ to, subject, html }: EmailOptions) {
+// Función para enviar correo de verificación
+export async function sendVerificationEmail(email: string, name: string, token: string): Promise<void> {
+  const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/verify?token=${token}`;
+  
+  console.log('Sending verification email to:', email);
+  console.log('Using Resend API key:', process.env.RESEND_API_KEY ? 'Present' : 'Missing');
+  
   try {
-    const result = await resend.emails.send({
-      from: process.env.FROM_EMAIL!,
-      to,
-      subject,
-      html,
-    })
-    
-    return { success: true, result }
+    await resend.emails.send({
+      from: 'Innata Studio <onboarding@resend.dev>',
+      to: email,
+      subject: 'Verifica tu cuenta en Innata Studio',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e1e1; border-radius: 5px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 150px;" />
+          </div>
+          <h2 style="color: #4A102A; text-align: center;">¡Bienvenido(a) a Innata Studio!</h2>
+          <p>Hola ${name},</p>
+          <p>Gracias por registrarte en Innata Studio. Para completar tu registro y verificar tu cuenta, haz clic en el siguiente botón:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verificationLink}" style="background-color: #4A102A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 50px; font-weight: bold;">Verificar mi cuenta</a>
+          </div>
+          <p>Si el botón no funciona, puedes copiar y pegar el siguiente enlace en tu navegador:</p>
+          <p style="word-break: break-all; background-color: #f5f5f5; padding: 10px; border-radius: 5px;">${verificationLink}</p>
+          <p>Este enlace expirará en 24 horas.</p>
+          <p>Si no has solicitado este correo, puedes ignorarlo.</p>
+          <hr style="border: none; border-top: 1px solid #e1e1e1; margin: 20px 0;" />
+          <p style="text-align: center; color: #777; font-size: 12px;">
+            © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+          </p>
+        </div>
+      `,
+    });
   } catch (error) {
-    console.error('Error sending email:', error)
-    return { success: false, error }
+    console.error('Error sending verification email:', error);
+    throw new Error('No se pudo enviar el correo de verificación. Por favor intenta más tarde.');
   }
 }
 
-export function getVerificationEmailTemplate(name: string, verificationUrl: string) {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Verifica tu cuenta - Innata Studio</title>
-    </head>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="text-align: center; margin-bottom: 30px;">
-        <img src="${process.env.APP_URL}/innataBlack.png" alt="Innata Studio" style="height: 60px;">
-      </div>
-      
-      <div style="background: linear-gradient(135deg, #4A102A 0%, #85193C 100%); color: white; padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 30px;">
-        <h1 style="margin: 0; font-size: 28px;">¡Bienvenido a Innata Studio!</h1>
-        <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Tu transformación comienza aquí</p>
-      </div>
-      
-      <div style="padding: 0 20px;">
-        <p style="font-size: 16px; margin-bottom: 20px;">Hola <strong>${name}</strong>,</p>
-        
-        <p style="font-size: 16px; margin-bottom: 20px;">
-          ¡Gracias por unirte a nuestra comunidad de fitness! Para completar tu registro y comenzar a reservar clases, 
-          necesitamos verificar tu dirección de correo electrónico.
-        </p>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${verificationUrl}" 
-             style="background: linear-gradient(135deg, #4A102A 0%, #85193C 100%); 
-                    color: white; 
-                    padding: 15px 30px; 
-                    text-decoration: none; 
-                    border-radius: 50px; 
-                    font-weight: bold; 
-                    font-size: 16px; 
-                    display: inline-block;
-                    box-shadow: 0 4px 15px rgba(74, 16, 42, 0.3);">
-            Verificar mi cuenta
-          </a>
-        </div>
-        
-        <p style="font-size: 14px; color: #666; margin-top: 30px;">
-          Si no puedes hacer clic en el botón, copia y pega este enlace en tu navegador:
-        </p>
-        <p style="font-size: 14px; color: #85193C; word-break: break-all;">
-          ${verificationUrl}
-        </p>
-        
-        <div style="border-top: 1px solid #eee; margin-top: 30px; padding-top: 20px;">
-          <p style="font-size: 14px; color: #666; margin-bottom: 10px;">
-            <strong>¿Qué sigue después de verificar tu cuenta?</strong>
+// Función para enviar correo de restablecimiento de contraseña
+export async function sendPasswordResetEmail(email: string, name: string, token: string): Promise<void> {
+  const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+  
+  try {
+    await resend.emails.send({
+      from: 'Innata Studio <onboarding@resend.dev>',
+      to: email,
+      subject: 'Restablece tu contraseña en Innata Studio',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e1e1; border-radius: 5px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 150px;" />
+          </div>
+          <h2 style="color: #4A102A; text-align: center;">Restablece tu contraseña</h2>
+          <p>Hola ${name},</p>
+          <p>Has solicitado restablecer tu contraseña en Innata Studio. Haz clic en el siguiente botón para crear una nueva contraseña:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" style="background-color: #4A102A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 50px; font-weight: bold;">Restablecer contraseña</a>
+          </div>
+          <p>Si el botón no funciona, puedes copiar y pegar el siguiente enlace en tu navegador:</p>
+          <p style="word-break: break-all; background-color: #f5f5f5; padding: 10px; border-radius: 5px;">${resetLink}</p>
+          <p>Este enlace expirará en 1 hora.</p>
+          <p>Si no has solicitado este correo, puedes ignorarlo. Tu contraseña permanecerá sin cambios.</p>
+          <hr style="border: none; border-top: 1px solid #e1e1e1; margin: 20px 0;" />
+          <p style="text-align: center; color: #777; font-size: 12px;">
+            © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
           </p>
-          <ul style="font-size: 14px; color: #666; margin: 0; padding-left: 20px;">
-            <li>Podrás reservar clases</li>
-            <li>Comprar paquetes y membresías</li>
-            <li>Acceder a tu historial de clases</li>
-            <li>Recibir notificaciones importantes</li>
-          </ul>
         </div>
-        
-        <p style="font-size: 14px; color: #666; margin-top: 30px;">
-          Este enlace expira en 24 horas por seguridad. Si no solicitaste esta cuenta, 
-          puedes ignorar este correo.
-        </p>
-      </div>
-      
-      <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee;">
-        <p style="font-size: 14px; color: #666; margin: 5px 0;">
-          © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
-        </p>
-        <p style="font-size: 14px; color: #666; margin: 5px 0;">
-          Av. Principal #123, Ciudad | Tel: 775-357-1894
-        </p>
-      </div>
-    </body>
-    </html>
-  `
+      `,
+    });
+  } catch (error) {
+    console.error('Error sending password reset email:', error);
+    throw new Error('No se pudo enviar el correo de restablecimiento. Por favor intenta más tarde.');
+  }
 }
 
-export function getWelcomeEmailTemplate(name: string) {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>¡Cuenta verificada! - Innata Studio</title>
-    </head>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="text-align: center; margin-bottom: 30px;">
-        <img src="${process.env.APP_URL}/innataBlack.png" alt="Innata Studio" style="height: 60px;">
-      </div>
-      
-      <div style="background: linear-gradient(135deg, #4A102A 0%, #85193C 100%); color: white; padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 30px;">
-        <h1 style="margin: 0; font-size: 28px;">¡Cuenta Verificada! 🎉</h1>
-        <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Ya puedes comenzar tu transformación</p>
-      </div>
-      
-      <div style="padding: 0 20px;">
-        <p style="font-size: 16px; margin-bottom: 20px;">¡Hola <strong>${name}</strong>!</p>
-        
-        <p style="font-size: 16px; margin-bottom: 20px;">
-          ¡Excelente! Tu cuenta ha sido verificada exitosamente. Ahora tienes acceso completo a 
-          todas las funcionalidades de Innata Studio.
-        </p>
-        
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
-          <h3 style="color: #4A102A; margin-top: 0;">¿Qué puedes hacer ahora?</h3>
-          <ul style="margin: 0; padding-left: 20px;">
-            <li style="margin-bottom: 8px;">🏋️‍♀️ Reservar clases de ciclismo indoor</li>
-            <li style="margin-bottom: 8px;">💳 Comprar paquetes y membresías</li>
-            <li style="margin-bottom: 8px;">📅 Ver tu horario de clases</li>
-            <li style="margin-bottom: 8px;">👤 Gestionar tu perfil</li>
-          </ul>
+// Función para enviar correo de confirmación de reserva
+export async function sendBookingConfirmationEmail(
+  email: string, 
+  name: string, 
+  bookingDetails: {
+    className: string;
+    date: string;
+    time: string;
+    instructor: string;
+    confirmationCode: string;
+  }
+): Promise<void> {
+  const mailOptions = {
+    from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
+    to: email,
+    subject: 'Confirmación de reserva - Innata Studio',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e1e1; border-radius: 5px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 150px;" />
         </div>
+        <h2 style="color: #4A102A; text-align: center;">¡Reserva Confirmada!</h2>
+        <p>Hola ${name},</p>
+        <p>Tu reserva ha sido confirmada exitosamente. Aquí tienes los detalles:</p>
+        
+        <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p><strong>Clase:</strong> ${bookingDetails.className}</p>
+          <p><strong>Fecha:</strong> ${bookingDetails.date}</p>
+          <p><strong>Hora:</strong> ${bookingDetails.time}</p>
+          <p><strong>Instructor:</strong> ${bookingDetails.instructor}</p>
+          <p><strong>Código de confirmación:</strong> ${bookingDetails.confirmationCode}</p>
+        </div>
+        
+        <p>Recuerda llegar 15 minutos antes de tu clase. Si necesitas cancelar tu reserva, puedes hacerlo hasta 4 horas antes del inicio de la clase desde tu perfil.</p>
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.APP_URL}/reservar" 
-             style="background: linear-gradient(135deg, #4A102A 0%, #85193C 100%); 
-                    color: white; 
-                    padding: 15px 30px; 
-                    text-decoration: none; 
-                    border-radius: 50px; 
-                    font-weight: bold; 
-                    font-size: 16px; 
-                    display: inline-block;
-                    box-shadow: 0 4px 15px rgba(74, 16, 42, 0.3);
-                    margin-right: 10px;">
-            Reservar mi primera clase
-          </a>
-          <a href="${process.env.APP_URL}/paquetes" 
-             style="background: transparent; 
-                    color: #4A102A; 
-                    border: 2px solid #4A102A;
-                    padding: 13px 28px; 
-                    text-decoration: none; 
-                    border-radius: 50px; 
-                    font-weight: bold; 
-                    font-size: 16px; 
-                    display: inline-block;">
-            Ver paquetes
-          </a>
+          <a href="${process.env.NEXT_PUBLIC_APP_URL}/mi-cuenta" style="background-color: #4A102A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 50px; font-weight: bold;">Ver mis reservas</a>
         </div>
         
-        <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 0; font-size: 14px; color: #856404;">
-            <strong>💡 Tip:</strong> Te recomendamos llegar 15 minutos antes de tu primera clase 
-            para que puedas familiarizarte con las instalaciones y el equipo.
-          </p>
-        </div>
-        
-        <p style="font-size: 16px; margin-top: 30px;">
-          Si tienes alguna pregunta, no dudes en contactarnos. ¡Estamos aquí para ayudarte!
-        </p>
-      </div>
-      
-      <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee;">
-        <p style="font-size: 14px; color: #666; margin: 5px 0;">
+        <p>¡Te esperamos en el estudio!</p>
+        <hr style="border: none; border-top: 1px solid #e1e1e1; margin: 20px 0;" />
+        <p style="text-align: center; color: #777; font-size: 12px;">
           © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
         </p>
-        <p style="font-size: 14px; color: #666; margin: 5px 0;">
-          Av. Principal #123, Ciudad | Tel: 775-357-1894
-        </p>
-        <p style="font-size: 12px; color: #999; margin: 15px 0 5px 0;">
-          <a href="${process.env.APP_URL}/mi-cuenta" style="color: #85193C;">Mi Cuenta</a> | 
-          <a href="${process.env.APP_URL}/nosotros" style="color: #85193C;">Nosotros</a> | 
-          <a href="mailto:innata@indoor@gmail.com" style="color: #85193C;">Soporte</a>
-        </p>
       </div>
-    </body>
-    </html>
-  `
+    `,
+  };
+
+  try {
+    await resend.emails.send(mailOptions);
+  } catch (error) {
+    console.error('Error sending booking confirmation email:', error);
+    throw new Error('No se pudo enviar el correo de confirmación. Por favor verifica tu reserva en tu perfil.');
+  }
 }

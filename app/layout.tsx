@@ -1,7 +1,7 @@
 import type React from "react"
 import { SiteHeader } from "@/components/site-header"
 import { FooterWrapper } from "@/components/footer-wrapper"
-import { ThemeProvider } from "@/components/theme-provider"
+import { Providers } from "@/app/providers"
 import { Montserrat } from "next/font/google"
 import "./globals.css"
 
@@ -25,13 +25,13 @@ export default function RootLayout({
   return (
     <html lang="es" className="light">
       <body className={`${montserrat.variable} font-sans antialiased min-h-screen bg-white text-white`}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <Providers>
           <div className="relative flex min-h-screen flex-col">
             <SiteHeader />
             <main className="flex-1">{children}</main>
             <FooterWrapper />
           </div>
-        </ThemeProvider>
+        </Providers>
       </body>
     </html>
   )
