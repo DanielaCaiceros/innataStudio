@@ -1,0 +1,317 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {$
+  user_id                 Int                      @id @default(autoincrement())
+  firstName               String                   @map("first_name") @db.VarChar(50)
+  lastName                String                   @map("last_name") @db.VarChar(50)
+  email                   String                   @unique @db.VarChar(100)
+  phone                   String?                  @db.VarChar(20)
+  passwordHash            String                   @map("password_hash") @db.VarChar(255)
+  profileImage            String?                  @map("profile_image") @db.VarChar(255)
+  joinDate                DateTime                 @default(dbgenerated("CURRENT_DATE")) @map("join_date") @db.Date
+  lastVisitDate           DateTime?                @map("last_visit_date") @db.Date
+  status                  String                   @default("pending_verification") @db.VarChar(20)
+  role                    String                   @default("client") @db.VarChar(20)
+  emailVerified           Boolean?                 @default(false) @map("email_verified")
+  verification_token      String?                  @db.VarChar(255)
+  resetPasswordToken      String?                  @map("reset_password_token") @db.VarChar(255)
+  resetPasswordExpires    DateTime?                @map("reset_password_expires") @db.Timestamp(6)
+  stripeCustomerId        String?                  @map("stripe_customer_id") @db.VarChar(255)
+  createdAt               DateTime?                @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt               DateTime?                @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  processedTransactions   BalanceTransaction[]     @relation("ProcessedBy")
+  balanceTransactions     BalanceTransaction[]
+  processedCashRequests   CashPaymentRequest[]     @relation("ProcessedBy")
+  cashPaymentRequests     CashPaymentRequest[]
+  emailVerificationTokens EmailVerificationToken[]
+  instructorProfile       Instructor[]
+  notifications           notifications[]
+  payments                Payment[]
+  reservations            Reservation[]
+  testimonials            Testimonial[]
+  accountBalance          UserAccountBalance?
+  userPackages            UserPackage[]
+  waitlist                Waitlist[]
+
+  @@index([email], map: "idx_users_email")
+  @@index([resetPasswordToken], map: "idx_users_reset_token")
+  @@index([verification_token], map: "idx_users_verification_token")
+  @@map("users")
+}
+
+model EmailVerificationToken {
+  id        Int       @id @default(autoincrement()) @map("token_id")
+  userId    Int       @map("user_id")
+  token     String    @unique @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamp(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamp(6)
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  user      User      @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([expiresAt], map: "idx_email_verification_tokens_expires")
+  @@index([token], map: "idx_email_verification_tokens_token")
+  @@index([userId], map: "idx_email_verification_tokens_user_id")
+  @@map("email_verification_tokens")
+}
+
+model UserAccountBalance {
+  id                    Int       @id @default(autoincrement()) @map("balance_id")
+  userId                Int       @unique @map("user_id")
+  totalClassesPurchased Int?      @default(0) @map("total_classes_purchased")
+  classesUsed           Int?      @default(0) @map("classes_used")
+  classesAvailable      Int?      @default(0) @map("classes_available")
+  lastUpdated           DateTime? @default(now()) @map("last_updated") @db.Timestamp(6)
+  user                  User      @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId], map: "idx_user_account_balance_user_id")
+  @@map("user_account_balance")
+}
+
+model BalanceTransaction {
+  id                   Int          @id @default(autoincrement()) @map("transaction_id")
+  userId               Int          @map("user_id")
+  type                 String       @db.VarChar(20)
+  amount               Int
+  description          String?
+  relatedReservationId Int?         @map("related_reservation_id")
+  relatedPaymentId     Int?         @map("related_payment_id")
+  createdBy            Int?         @map("created_by")
+  createdAt            DateTime?    @default(now()) @map("created_at") @db.Timestamp(6)
+  createdByUser        User?        @relation("ProcessedBy", fields: [createdBy], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  relatedPayment       Payment?     @relation(fields: [relatedPaymentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  relatedReservation   Reservation? @relation(fields: [relatedReservationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user                 User         @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([relatedPaymentId], map: "idx_balance_transactions_payment_id")
+  @@index([relatedReservationId], map: "idx_balance_transactions_reservation_id")
+  @@index([type], map: "idx_balance_transactions_type")
+  @@index([userId], map: "idx_balance_transactions_user_id")
+  @@map("balance_transactions")
+}
+
+model Instructor {
+  id               Int              @id @default(autoincrement()) @map("instructor_id")
+  userId           Int              @map("user_id")
+  bio              String?
+  specialties      String[]
+  isFeatured       Boolean?         @default(false) @map("is_featured")
+  createdAt        DateTime?        @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime?        @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  user             User             @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  scheduledClasses ScheduledClass[]
+
+  @@map("instructors")
+}
+
+model ClassType {
+  id               Int              @id @default(autoincrement()) @map("class_type_id")
+  name             String           @db.VarChar(50)
+  description      String?
+  duration         Int
+  intensity        String           @db.VarChar(20)
+  category         String           @db.VarChar(20)
+  capacity         Int              @default(20)
+  isFeatured       Boolean?         @default(false) @map("is_featured")
+  imageUrl         String?          @map("image_url") @db.VarChar(255)
+  createdAt        DateTime?        @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime?        @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  scheduledClasses ScheduledClass[]
+
+  @@map("class_types")
+}
+
+model ScheduledClass {
+  id             Int           @id @default(autoincrement()) @map("scheduled_class_id")
+  classTypeId    Int           @map("class_type_id")
+  instructorId   Int           @map("instructor_id")
+  date           DateTime      @db.Date
+  time           DateTime      @db.Time(6)
+  maxCapacity    Int           @map("max_capacity")
+  availableSpots Int           @map("available_spots")
+  status         String        @default("scheduled") @db.VarChar(20)
+  createdAt      DateTime?     @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime?     @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  reservations   Reservation[]
+  classType      ClassType     @relation(fields: [classTypeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  instructor     Instructor    @relation(fields: [instructorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  waitlist       Waitlist[]
+
+  @@unique([date, time])
+  @@index([date], map: "idx_scheduled_classes_date")
+  @@map("scheduled_classes")
+}
+
+model Package {
+  id                  Int                  @id @default(autoincrement()) @map("package_id")
+  name                String               @db.VarChar(100)
+  description         String?
+  price               Decimal              @db.Decimal(10, 2)
+  classCount          Int?                 @map("class_count")
+  validityDays        Int                  @map("validity_days")
+  isActive            Boolean?             @default(true) @map("is_active")
+  stripePriceId       String?              @map("stripe_price_id") @db.VarChar(255)
+  createdAt           DateTime?            @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime?            @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  cashPaymentRequests CashPaymentRequest[]
+  userPackages        UserPackage[]
+
+  @@map("packages")
+}
+
+model UserPackage {
+  id               Int           @id @default(autoincrement()) @map("user_package_id")
+  userId           Int           @map("user_id")
+  packageId        Int           @map("package_id")
+  purchaseDate     DateTime      @default(dbgenerated("CURRENT_DATE")) @map("purchase_date") @db.Date
+  expiryDate       DateTime      @map("expiry_date") @db.Date
+  classesRemaining Int?          @map("classes_remaining")
+  classesUsed      Int?          @default(0) @map("classes_used")
+  isActive         Boolean?      @default(true) @map("is_active")
+  paymentMethod    String?       @default("online") @map("payment_method") @db.VarChar(20)
+  paymentStatus    String?       @default("pending") @map("payment_status") @db.VarChar(20)
+  createdAt        DateTime?     @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime?     @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  payments         Payment[]
+  reservations     Reservation[]
+  package          Package       @relation(fields: [packageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user             User          @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([expiryDate], map: "idx_user_packages_expiry_date")
+  @@index([paymentStatus], map: "idx_user_packages_payment_status")
+  @@index([userId], map: "idx_user_packages_user_id")
+  @@map("user_packages")
+}
+
+model Reservation {
+  id                  Int                  @id @default(autoincrement()) @map("reservation_id")
+  userId              Int                  @map("user_id")
+  scheduledClassId    Int                  @map("scheduled_class_id")
+  userPackageId       Int?                 @map("user_package_id")
+  status              String               @default("pending") @db.VarChar(20)
+  paymentMethod       String?              @default("package") @map("payment_method") @db.VarChar(20)
+  cancellationReason  String?              @map("cancellation_reason")
+  cancelledAt         DateTime?            @map("cancelled_at") @db.Timestamp(6)
+  canRefund           Boolean?             @default(true) @map("can_refund")
+  createdAt           DateTime?            @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime?            @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  balanceTransactions BalanceTransaction[]
+  scheduledClass      ScheduledClass       @relation(fields: [scheduledClassId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user                User                 @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  userPackage         UserPackage?         @relation(fields: [userPackageId], references: [id], onUpdate: NoAction)
+
+  @@unique([userId, scheduledClassId])
+  @@index([scheduledClassId], map: "idx_reservations_scheduled_class_id")
+  @@index([status], map: "idx_reservations_status")
+  @@index([userId], map: "idx_reservations_user_id")
+  @@map("reservations")
+}
+
+model Payment {
+  id                    Int                  @id @default(autoincrement()) @map("payment_id")
+  userId                Int                  @map("user_id")
+  userPackageId         Int?                 @map("user_package_id")
+  amount                Decimal              @db.Decimal(10, 2)
+  currency              String?              @default("USD") @db.VarChar(3)
+  paymentMethod         String               @map("payment_method") @db.VarChar(50)
+  stripePaymentIntentId String?              @map("stripe_payment_intent_id") @db.VarChar(255)
+  stripeCustomerId      String?              @map("stripe_customer_id") @db.VarChar(255)
+  transactionId         String?              @map("transaction_id") @db.VarChar(100)
+  status                String               @default("pending") @db.VarChar(20)
+  invoiceNumber         String?              @map("invoice_number") @db.VarChar(50)
+  metadata              Json?
+  paymentDate           DateTime             @default(now()) @map("payment_date") @db.Timestamp(6)
+  createdAt             DateTime?            @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime?            @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  balanceTransactions   BalanceTransaction[]
+  user                  User                 @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  userPackage           UserPackage?         @relation(fields: [userPackageId], references: [id], onUpdate: NoAction)
+
+  @@index([status], map: "idx_payments_status")
+  @@index([stripePaymentIntentId], map: "idx_payments_stripe_payment_intent_id")
+  @@index([userId], map: "idx_payments_user_id")
+  @@map("payments")
+}
+
+model CashPaymentRequest {
+  id              Int       @id @default(autoincrement()) @map("request_id")
+  userId          Int       @map("user_id")
+  packageId       Int       @map("package_id")
+  amount          Decimal   @db.Decimal(10, 2)
+  status          String?   @default("pending") @db.VarChar(20)
+  notes           String?
+  processedBy     Int?      @map("processed_by")
+  processedAt     DateTime? @map("processed_at") @db.Timestamp(6)
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  package         Package   @relation(fields: [packageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  processedByUser User?     @relation("ProcessedBy", fields: [processedBy], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  user            User      @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([processedBy], map: "idx_cash_payment_requests_processed_by")
+  @@index([status], map: "idx_cash_payment_requests_status")
+  @@index([userId], map: "idx_cash_payment_requests_user_id")
+  @@map("cash_payment_requests")
+}
+
+model Waitlist {
+  id               Int            @id @default(autoincrement()) @map("waitlist_id")
+  userId           Int            @map("user_id")
+  scheduledClassId Int            @map("scheduled_class_id")
+  position         Int
+  status           String         @default("waiting") @db.VarChar(20)
+  createdAt        DateTime?      @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime?      @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  scheduledClass   ScheduledClass @relation(fields: [scheduledClassId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user             User           @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([userId, scheduledClassId])
+  @@index([scheduledClassId], map: "idx_waitlist_scheduled_class_id")
+  @@map("waitlist")
+}
+
+model Testimonial {
+  id         Int       @id @default(autoincrement()) @map("testimonial_id")
+  userId     Int       @map("user_id")
+  text       String
+  rating     Int
+  isApproved Boolean?  @default(false) @map("is_approved")
+  isFeatured Boolean?  @default(false) @map("is_featured")
+  createdAt  DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt  DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  user       User      @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("testimonials")
+}
+
+model Setting {
+  id           Int       @id @default(autoincrement()) @map("setting_id")
+  settingKey   String    @unique @map("setting_key") @db.VarChar(50)
+  settingValue String?   @map("setting_value")
+  settingType  String    @map("setting_type") @db.VarChar(20)
+  createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("settings")
+}
+
+model notifications {
+  notification_id Int       @id @default(autoincrement())
+  user_id         Int?
+  type            String    @db.VarChar(50)
+  title           String    @db.VarChar(255)
+  message         String
+  data            Json?
+  is_read         Boolean?  @default(false)
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+  users           User?     @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([is_read], map: "idx_notifications_is_read")
+  @@index([user_id], map: "idx_notifications_user_id")
+}

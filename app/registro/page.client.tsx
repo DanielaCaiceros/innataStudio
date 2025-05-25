@@ -1,110 +1,135 @@
-"use client"
+// app/registro/page.client.tsx
+"use client";
 
-import { useState } from "react"
-import Link from "next/link"
-import Image from "next/image"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
-import { Checkbox } from "@/components/ui/checkbox"
-import { useToast } from "@/components/ui/use-toast"
+import { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/components/ui/use-toast";
 
-interface FormData {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  password: string
-  termsAccepted: boolean
-}
-
-export default function RegistroPage() {
-  const router = useRouter()
-  const { toast } = useToast()
-  const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState<FormData>({
+export default function RegistroClient() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
     password: "",
-    termsAccepted: false
-  })
+    acceptTerms: false,
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }))
-  }
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    // Limpiar error cuando el usuario empieza a escribir de nuevo
+    if (errors[name]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
+  const handleCheckboxChange = (checked: boolean) => {
+    setFormData((prev) => ({ ...prev, acceptTerms: checked }));
+    
+    if (errors.acceptTerms && checked) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.acceptTerms;
+        return newErrors;
+      });
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = "El nombre es requerido";
+    }
+    
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = "El apellido es requerido";
+    }
+    
+    if (!formData.email.trim()) {
+      newErrors.email = "El email es requerido";
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = "El formato del email es inválido";
+    }
+    
+    if (!formData.password) {
+      newErrors.password = "La contraseña es requerida";
+    } else if (formData.password.length < 8) {
+      newErrors.password = "La contraseña debe tener al menos 8 caracteres";
+    }
+    
+    if (!formData.acceptTerms) {
+      newErrors.acceptTerms = "Debes aceptar los términos y condiciones";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     
-    if (!formData.termsAccepted) {
-      toast({
-        title: "Error",
-        description: "Debes aceptar los términos y condiciones",
-        variant: "destructive"
-      })
-      return
+    if (!validateForm()) {
+      return;
     }
-
-    setIsLoading(true)
+    
+    setIsLoading(true);
+    
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
-          phone: formData.phone,
-          password: formData.password
+          password: formData.password,
+          phone: formData.phone || undefined,
         }),
-      })
-
-      const data = await response.json()
-
+      });
+      
+      const data = await response.json();
+      
       if (!response.ok) {
-        throw new Error(data.error || 'Error al registrar usuario')
+        throw new Error(data.error || "Error al registrar usuario");
       }
-
-      // Mostrar mensaje de éxito
+      
       toast({
         title: "¡Registro exitoso!",
-        description: "Por favor verifica tu correo electrónico para activar tu cuenta.",
-        duration: 5000,
-      })
-
-      // Limpiar el formulario
-      setFormData({
-        firstName: "",
-        lastName: "",
-        email: "",
-        phone: "",
-        password: "",
-        termsAccepted: false
-      })
-
-      // Redirigir a la página de verificación
-      router.push('/verificacion?email=' + encodeURIComponent(formData.email))
-    } catch (error) {
-      console.error('Error en el registro:', error)
+        description: "Hemos enviado un correo de verificación a tu dirección de email. Por favor verifica tu cuenta para continuar.",
+        variant: "default",
+      });
+      
+      // Redirigir a la página de inicio de sesión
+      router.push("/login?registered=true");
+    } catch (error: any) {
       toast({
         title: "Error en el registro",
-        description: error instanceof Error ? error.message : 'Error al registrar usuario',
+        description: error.message || "Ocurrió un error durante el registro. Inténtalo de nuevo.",
         variant: "destructive",
-        duration: 5000,
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="flex min-h-screen">
@@ -124,7 +149,7 @@ export default function RegistroPage() {
 
           {/* Botones de redes sociales */}
           <div className="space-y-4 mb-6">
-            <Button variant="outline" className="w-full flex items-center justify-center gap-2 h-12 border-gray-300 text-gray-700 hover:bg-gray-50">
+            <Button variant="outline" className="w-full flex items-center justify-center gap-2 h-12 border-gray-300 text-black">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path
                   d="M18.1711 8.36788H17.4998V8.33329H9.99984V11.6666H14.7094C14.0223 13.607 12.1761 15 9.99984 15C7.23859 15 4.99984 12.7612 4.99984 10C4.99984 7.23871 7.23859 5 9.99984 5C11.2744 5 12.4344 5.48683 13.3177 6.28537L15.6744 3.92871C14.1887 2.56204 12.1932 1.66663 9.99984 1.66663C5.39775 1.66663 1.6665 5.39788 1.6665 10C1.6665 14.6021 5.39775 18.3333 9.99984 18.3333C14.6019 18.3333 18.3332 14.6021 18.3332 10C18.3332 9.44121 18.2757 8.89583 18.1711 8.36788Z"
@@ -162,71 +187,66 @@ export default function RegistroPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Input 
+                  placeholder="Nombre" 
+                  className={`h-12 border-${errors.firstName ? 'red-500' : 'gray-300'}`} 
                   name="firstName"
                   value={formData.firstName}
-                  onChange={handleInputChange}
-                  placeholder="Nombre" 
-                  required
-                  className="h-12 border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-[#4A102A] focus:ring-[#4A102A]" 
+                  onChange={handleChange}
                 />
+                {errors.firstName && <p className="text-xs text-red-500 mt-1">{errors.firstName}</p>}
               </div>
               <div>
                 <Input 
+                  placeholder="Apellido" 
+                  className={`h-12 border-${errors.lastName ? 'red-500' : 'gray-300'}`} 
                   name="lastName"
                   value={formData.lastName}
-                  onChange={handleInputChange}
-                  placeholder="Apellido" 
-                  required
-                  className="h-12 border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-[#4A102A] focus:ring-[#4A102A]" 
+                  onChange={handleChange}
                 />
+                {errors.lastName && <p className="text-xs text-red-500 mt-1">{errors.lastName}</p>}
               </div>
             </div>
             <div>
               <Input 
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
                 type="email" 
                 placeholder="Email" 
-                required
-                className="h-12 border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-[#4A102A] focus:ring-[#4A102A]" 
+                className={`h-12 border-${errors.email ? 'red-500' : 'gray-300'}`} 
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
               />
+              {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
             </div>
             <div>
               <Input 
+                type="tel" 
+                placeholder="Teléfono (opcional)" 
+                className="h-12 border-gray-300" 
                 name="phone"
                 value={formData.phone}
-                onChange={handleInputChange}
-                type="tel" 
-                placeholder="Teléfono" 
-                required
-                className="h-12 border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-[#4A102A] focus:ring-[#4A102A]" 
+                onChange={handleChange}
               />
             </div>
             <div>
               <Input 
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
                 type="password" 
                 placeholder="Contraseña" 
-                required
-                minLength={6}
-                className="h-12 border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-[#4A102A] focus:ring-[#4A102A]" 
+                className={`h-12 border-${errors.password ? 'red-500' : 'gray-300'}`} 
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
               />
+              {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox 
                 id="terms" 
-                name="termsAccepted"
-                checked={formData.termsAccepted}
-                onCheckedChange={(checked) => 
-                  setFormData(prev => ({ ...prev, termsAccepted: checked as boolean }))
-                }
+                checked={formData.acceptTerms}
+                onCheckedChange={handleCheckboxChange}
               />
               <label
                 htmlFor="terms"
-                className="text-sm text-gray-600 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                className={`text-sm ${errors.acceptTerms ? 'text-red-500' : 'text-gray-500'} leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70`}
               >
                 Acepto los{" "}
                 <Link href="/terminos" className="text-[#85193C] hover:underline">
@@ -238,16 +258,18 @@ export default function RegistroPage() {
                 </Link>
               </label>
             </div>
+            {errors.acceptTerms && <p className="text-xs text-red-500 mt-1">{errors.acceptTerms}</p>}
+            
             <Button 
-              type="submit"
-              disabled={isLoading}
+              type="submit" 
               className="w-full h-12 bg-gradient-to-r from-[#4A102A] to-[#C5172E] hover:from-[#85193C] hover:to-[#C5172E] text-white"
+              disabled={isLoading}
             >
               {isLoading ? "Creando cuenta..." : "Crear Cuenta"}
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-gray-700">
+          <div className="mt-6 text-center text-sm text-black">
             ¿Ya tienes una cuenta?{" "}
             <Link href="/login" className="text-[#85193C] font-medium hover:underline">
               Inicia Sesión
@@ -256,5 +278,5 @@ export default function RegistroPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
