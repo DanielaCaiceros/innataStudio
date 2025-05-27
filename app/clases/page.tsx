@@ -193,74 +193,7 @@ export default function ClassesPage() {
             </TabsList>
 
             <TabsContent value="classes" className="space-y-8">
-              <div className="flex flex-wrap gap-4 justify-center md:justify-start mb-8">
-                <Button
-                  variant={filter === "all" ? "default" : "outline"}
-                  className={`${
-                    filter === "all"
-                      ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
-                      : "border-brand-burgundy text-brand-sage hover:bg-gray-50"
-                  } rounded-full`}
-                  onClick={() => setFilter("all")}
-                >
-                  Todas
-                </Button>
-                <Button
-                  variant={filter === "ritmo" ? "default" : "outline"}
-                  className={`${
-                    filter === "ritmo"
-                      ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
-                      : "border-brand-sage text-brand-sage hover:bg-gray-50"
-                  } rounded-full`}
-                  onClick={() => setFilter("ritmo")}
-                >
-                  Ritmo
-                </Button>
-                <Button
-                  variant={filter === "potencia" ? "default" : "outline"}
-                  className={`${
-                    filter === "potencia"
-                      ? "bg-brand-pink hover:bg-brand-rose text-white"
-                      : "border-brand-pink text-brand-pink hover:bg-brand-cream"
-                  } rounded-full`}
-                  onClick={() => setFilter("potencia")}
-                >
-                  Potencia
-                </Button>
-                <Button
-                  variant={filter === "resistencia" ? "default" : "outline"}
-                  className={`${
-                    filter === "resistencia"
-                      ? "bg-brand-blue hover:bg-brand-pink text-white"
-                      : "border-brand-blue text-brand-blue hover:bg-brand-cream"
-                  } rounded-full`}
-                  onClick={() => setFilter("resistencia")}
-                >
-                  Resistencia
-                </Button>
-                <Button
-                  variant={filter === "hiit" ? "default" : "outline"}
-                  className={`${
-                    filter === "hiit"
-                      ? "bg-brand-rose hover:bg-brand-pink text-white"
-                      : "border-brand-rose text-brand-rose hover:bg-brand-cream"
-                  } rounded-full`}
-                  onClick={() => setFilter("hiit")}
-                >
-                  HIIT
-                </Button>
-                <Button
-                  variant={filter === "recuperacion" ? "default" : "outline"}
-                  className={`${
-                    filter === "recuperacion"
-                      ? "bg-brand-burgundy hover:bg-brand-burgundy/90 text-white"
-                      : "border-brand-burgundy text-brand-burgundy hover:bg-gray-50"
-                  } rounded-full`}
-                  onClick={() => setFilter("recuperacion")}
-                >
-                  Recuperación
-                </Button>
-              </div>
+
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {filteredClasses.map((classItem) => (
@@ -277,15 +210,15 @@ export default function ClassesPage() {
                       <div className="flex justify-between items-start mb-4">
                         <h3 className="text-xl font-bold text-brand-burgundy-dark">{classItem.name}</h3>
                         <div className="flex gap-2 items-center">
-                          <Badge className="bg-brand-red text-white hover:bg-brand-red">{classItem.duration}</Badge>
+                          <Badge className="bg-brand-sage text-white">{classItem.duration}</Badge>
                           {!classItem.disponible && (
-                            <Badge className="bg-gray-300 bg-brand-yellow text-black">Próximamente</Badge>
+                            <Badge className="bg-sage-300 bg-brand-sage text-white">Próximamente</Badge>
                           )}
                         </div>
                       </div>
                       <p className="text-zinc-600 text-sm mb-4">{classItem.description}</p>
                       <div className="grid grid-cols-2 gap-2 mb-4">
-                        <div className="flex items-center text-zinc-700 text-sm">
+                        <div className="flex items-center text-mint-700 text-sm">
                           <Clock className="h-4 w-4 mr-2 text-brand-burgundy" />
                           <span>Intensidad: {classItem.intensity}</span>
                         </div>
@@ -299,7 +232,7 @@ export default function ClassesPage() {
                         {classItem.disponible ? (
                           <Button
                             asChild
-                            className="bg-brand-burgundy hover:bg-brand-burgundy/90 text-white rounded-full"
+                            className="bg-brand-burgundy  text-white rounded-full"
                           >
                             <Link href="/reservar" className="flex items-center gap-1">
                               Reservar <ChevronRight className="h-4 w-4" />
@@ -389,7 +322,7 @@ export default function ClassesPage() {
               asChild
               variant="outline"
               size="lg"
-              className="border-brand-burgundy text-brand-burgundy hover:bg-gray-50 font-bold px-8 py-6 text-lg rounded-full"
+              className="border-brand-mint text-brand-burgundy hover:bg-mint-50 font-bold px-8 py-6 text-lg rounded-full"
             >
               <Link href="/paquetes">VER PAQUETES</Link>
             </Button>
