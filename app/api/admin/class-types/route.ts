@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
         duration: Number.parseInt(duration),
         intensity,
         category,
-        capacity: capacity || 10,
+        capacity: Number.parseInt(capacity),
       },
     })
 

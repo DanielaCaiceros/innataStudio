@@ -14,7 +14,7 @@ export const metadata = {
   title: "Innata Studio - El primer indoor cycling studio en Apan ",
   description:
     "Estudio de indoor cycling con clases de alta intensidad, instructores certificados y la mejor experiencia fitness.",
-    generator: 'v0.dev'
+  generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -24,7 +24,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" className="light">
-      <body className={`${montserrat.variable} font-sans antialiased min-h-screen bg-white text-white`}>
+      <body className={`${montserrat.variable} font-sans antialiased min-h-screen bg-white text-zinc-900`}>
         <Providers>
           <div className="relative flex min-h-screen flex-col">
             <SiteHeader />

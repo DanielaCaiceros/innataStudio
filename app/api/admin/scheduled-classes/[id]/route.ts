@@ -23,46 +23,40 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     const body = await request.json()
-    const { classTypeId, instructorId, date, time, maxCapacity, status } = body
-    const classId = Number.parseInt(params.id)
+    const { classTypeId, instructorId, date, time, maxCapacity } = body
+    const scheduleId = Number.parseInt(params.id)
 
     // Verificar que la clase existe
     const existingClass = await prisma.scheduledClass.findUnique({
-      where: { id: classId },
+      where: { id: scheduleId },
+      include: { reservations: true },
     })
 
     if (!existingClass) {
       return NextResponse.json({ error: "Clase no encontrada" }, { status: 404 })
     }
 
-    // Si se cambia fecha/hora, verificar que no haya solapamiento
-    if (date && time) {
-      const conflictingClass = await prisma.scheduledClass.findFirst({
-        where: {
-          id: { not: classId },
-          date: new Date(date),
-          time: new Date(`1970-01-01T${time}:00.000Z`),
+    // Si se reduce la capacidad, verificar que no haya más reservas que la nueva capacidad
+    const confirmedReservations = existingClass.reservations.filter((r) => r.status === "confirmed").length
+    if (Number.parseInt(maxCapacity) < confirmedReservations) {
+      return NextResponse.json(
+        {
+          error: `No se puede reducir la capacidad a ${maxCapacity}. Hay ${confirmedReservations} reservas confirmadas.`,
         },
-      })
-
-      if (conflictingClass) {
-        return NextResponse.json({ error: "Ya existe una clase programada en este horario" }, { status: 400 })
-      }
+        { status: 400 },
+      )
     }
 
     // Actualizar la clase
     const updatedClass = await prisma.scheduledClass.update({
-      where: { id: classId },
+      where: { id: scheduleId },
       data: {
-        ...(classTypeId && { classTypeId: Number.parseInt(classTypeId) }),
-        ...(instructorId && { instructorId: Number.parseInt(instructorId) }),
-        ...(date && { date: new Date(date) }),
-        ...(time && { time: new Date(`1970-01-01T${time}:00.000Z`) }),
-        ...(maxCapacity && {
-          maxCapacity: Number.parseInt(maxCapacity),
-          availableSpots: Number.parseInt(maxCapacity) - (existingClass.maxCapacity - existingClass.availableSpots),
-        }),
-        ...(status && { status }),
+        classTypeId: Number.parseInt(classTypeId),
+        instructorId: Number.parseInt(instructorId),
+        date: new Date(date),
+        time: new Date(`1970-01-01T${time}:00.000Z`),
+        maxCapacity: Number.parseInt(maxCapacity),
+        availableSpots: Number.parseInt(maxCapacity) - confirmedReservations,
       },
       include: {
         classType: true,
@@ -76,6 +70,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
             },
           },
         },
+        reservations: {
+          where: {
+            status: "confirmed",
+          },
+        },
+        waitlist: true,
       },
     })
 
@@ -83,6 +83,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   } catch (error) {
     console.error("Error updating scheduled class:", error)
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
+  } finally {
+    await prisma.$disconnect()
   }
 }
 
@@ -104,14 +106,12 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Acceso denegado" }, { status: 403 })
     }
 
-    const classId = Number.parseInt(params.id)
+    const scheduleId = Number.parseInt(params.id)
 
     // Verificar que la clase existe
     const existingClass = await prisma.scheduledClass.findUnique({
-      where: { id: classId },
-      include: {
-        reservations: true,
-      },
+      where: { id: scheduleId },
+      include: { reservations: true, waitlist: true },
     })
 
     if (!existingClass) {
@@ -120,19 +120,25 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Verificar si hay reservas confirmadas
     const confirmedReservations = existingClass.reservations.filter((r) => r.status === "confirmed")
-
     if (confirmedReservations.length > 0) {
-      return NextResponse.json({ error: "No se puede eliminar una clase con reservas confirmadas" }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: `No se puede eliminar la clase. Hay ${confirmedReservations.length} reservas confirmadas.`,
+        },
+        { status: 400 },
+      )
     }
 
-    // Eliminar la clase (las reservas y waitlist se eliminan en cascada)
+    // Eliminar la clase (esto también eliminará reservas y waitlist por CASCADE)
     await prisma.scheduledClass.delete({
-      where: { id: classId },
+      where: { id: scheduleId },
     })
 
     return NextResponse.json({ message: "Clase eliminada exitosamente" })
   } catch (error) {
     console.error("Error deleting scheduled class:", error)
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
+  } finally {
+    await prisma.$disconnect()
   }
 }

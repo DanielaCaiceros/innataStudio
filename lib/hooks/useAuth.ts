@@ -6,7 +6,7 @@ import { User, AuthState, LoginCredentials, RegisterCredentials } from '../types
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<void>
   register: (credentials: RegisterCredentials) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
   refreshUserData: () => Promise<void>
 }
 
@@ -30,28 +30,19 @@ export const AuthProvider: FC<AuthProviderProps> = ({
 
   const refreshUserData = async () => {
     try {
-      const token = localStorage.getItem('auth_token')
-      if (!token) {
-        setState(prev => ({ ...prev, isLoading: false }))
-        return
-      }
-
       const response = await fetch(`${apiBasePath}/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: 'include', // Importante para enviar cookies
       })
 
       if (response.ok) {
         const userData = await response.json()
         setState({
-          user: userData.user,
+          user: userData,
           isLoading: false,
           isAuthenticated: true,
           error: null,
         })
       } else {
-        localStorage.removeItem('auth_token')
         setState({
           user: null,
           isLoading: false,
@@ -61,7 +52,6 @@ export const AuthProvider: FC<AuthProviderProps> = ({
       }
     } catch (error) {
       console.error('Error refreshing user data:', error)
-      localStorage.removeItem('auth_token')
       setState({
         user: null,
         isLoading: false,
@@ -79,16 +69,16 @@ export const AuthProvider: FC<AuthProviderProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Importante para cookies
         body: JSON.stringify(credentials),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed')
+        throw new Error(data.error || 'Login failed')
       }
 
-      localStorage.setItem('auth_token', data.token)
       setState({
         user: data.user,
         isLoading: false,
@@ -113,22 +103,22 @@ export const AuthProvider: FC<AuthProviderProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(credentials),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.message || 'Registration failed')
+        throw new Error(data.error || 'Registration failed')
       }
 
-      localStorage.setItem('auth_token', data.token)
-      setState({
-        user: data.user,
+      // No establecer usuario automáticamente si requiere verificación
+      setState(prev => ({
+        ...prev,
         isLoading: false,
-        isAuthenticated: true,
         error: null,
-      })
+      }))
     } catch (error) {
       setState(prev => ({
         ...prev,
@@ -139,14 +129,26 @@ export const AuthProvider: FC<AuthProviderProps> = ({
     }
   }
 
-  const logout = () => {
-    localStorage.removeItem('auth_token')
-    setState({
-      user: null,
-      isLoading: false,
-      isAuthenticated: false,
-      error: null,
-    })
+  const logout = async () => {
+    setState(prev => ({ ...prev, isLoading: true }))
+    
+    try {
+      // Llamar al endpoint de logout
+      await fetch(`${apiBasePath}/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } catch (error) {
+      console.error('Error during logout:', error)
+    } finally {
+      // Siempre limpiar el estado local, incluso si la llamada falla
+      setState({
+        user: null,
+        isLoading: false,
+        isAuthenticated: false,
+        error: null,
+      })
+    }
   }
 
   useEffect(() => {
