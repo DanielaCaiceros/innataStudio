@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { Calendar, Clock, MapPin, X, ChevronRight, Settings, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,6 +17,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuth } from "@/lib/hooks/useAuth"
+import { useToast } from "@/components/ui/use-toast"
 
 // Datos de ejemplo - En una implementación real, estos vendrían de una API o base de datos
 const userProfile = {
@@ -83,8 +86,19 @@ const pastClasses = [
 ]
 
 export default function ProfilePage() {
+  const router = useRouter()
+  const { logout, user, isLoading } = useAuth()
+  const { toast } = useToast()
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [selectedClass, setSelectedClass] = useState<any>(null)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  useEffect(() => {
+    // Si no hay usuario y no está cargando, redirige al home
+    if (!user && !isLoading) {
+      router.push("/")
+    }
+  }, [user, isLoading, router])
 
   const handleCancelClass = (classItem: any) => {
     setSelectedClass(classItem)
@@ -98,6 +112,32 @@ export default function ProfilePage() {
     // En una implementación real, aquí se haría una llamada a la API
   }
 
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await logout()
+      toast({
+        title: "Sesión cerrada",
+        description: "Has cerrado sesión exitosamente.",
+        variant: "default",
+      })
+      // Redirigir al home
+      router.push('/')
+      router.refresh()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Hubo un problema al cerrar sesión.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
+
+  // Usar datos del usuario autenticado si están disponibles
+  const currentUser = user || userProfile
+
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
       <div className="container mx-auto px-4 py-12">
@@ -108,27 +148,27 @@ export default function ProfilePage() {
               <CardHeader className="pb-4">
                 <div className="flex flex-col items-center">
                   <Avatar className="h-24 w-24 mb-4">
-                    <AvatarImage src={userProfile.avatar || "/placeholder.svg"} alt={userProfile.name} />
+                    <AvatarImage src={"/placeholder.svg"} alt={currentUser.name} />
                     <AvatarFallback className="bg-brand-sage text-white text-xl">
-                      {userProfile.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
+                      {(currentUser?.name
+                        ? currentUser.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                        : "")}
                     </AvatarFallback>
                   </Avatar>
-                  <CardTitle className="text-xl font-bold text-center">{userProfile.name}</CardTitle>
-                  <CardDescription className="text-center">{userProfile.email}</CardDescription>
+                  <CardTitle className="text-xl font-bold text-center">{currentUser.name}</CardTitle>
+                  <CardDescription className="text-center">{currentUser.email}</CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="pb-4">
                 <div className="space-y-4">
                   <div className="flex justify-between items-center py-2 border-b border-brand-mint/20">
                     <span className="text-zinc-600">Miembro desde</span>
-                    <span className="font-medium">{userProfile.memberSince}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-brand-mint/20">
                     <span className="text-zinc-600">Clases disponibles</span>
-                    <span className="font-medium">{userProfile.credits}</span>
                   </div>
                 </div>
               </CardContent>
@@ -142,9 +182,11 @@ export default function ProfilePage() {
                 <Button
                   variant="outline"
                   className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
+                  onClick={handleLogout}
+                  disabled={isLoggingOut || isLoading}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  Cerrar sesión
+                  {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
                 </Button>
               </CardFooter>
             </Card>

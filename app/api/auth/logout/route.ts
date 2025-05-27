@@ -4,12 +4,18 @@ import { cookies } from 'next/headers';
 
 export async function POST(request: NextRequest) {
   try {
-    // Eliminar la cookie de autenticación
-    (await
-          // Eliminar la cookie de autenticación
-          cookies()).delete('auth_token');
+    const cookieStore = await cookies();
     
-    return NextResponse.json({ success: true });
+    // Eliminar la cookie de autenticación
+    cookieStore.delete({
+      name: 'auth_token',
+      path: '/',
+    });
+    
+    return NextResponse.json({ 
+      success: true,
+      message: 'Logout successful' 
+    });
   } catch (error) {
     console.error('Error cerrando sesión:', error);
     return NextResponse.json(
