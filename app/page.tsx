@@ -50,11 +50,21 @@ export default function Home() {
               </div>
 
               <div className="flex items-center gap-6 mt-8">
-                <Link href="https://www.instagram.com/studio.innata/" className="text-white hover:text-brand-cream">
+                <Link 
+                  href="https://www.instagram.com/studio.innata/" 
+                  className="text-white hover:text-brand-cream"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <Instagram className="h-6 w-6" />
                   <span className="sr-only">Instagram</span>
                 </Link>
-                <Link href="#" className="text-white hover:text-brand-cream">
+                <Link
+                  href="https://www.facebook.com/share/1A8vrB7Vdw/?mibextid=wwXIfr"
+                  className="text-white hover:text-brand-cream"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <Facebook className="h-6 w-6" />
                   <span className="sr-only">Facebook</span>
                 </Link>

@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Download, UserPlus, Mail, Phone, Package, Calendar, Edit } from "lucide-react"
-import AdminLayout from "@/components/admin-layout"
 
 // Datos de ejemplo
 const users = [
@@ -32,7 +31,6 @@ const users = [
     joinDate: "2023-01-15",
     lastVisit: "2023-04-20",
     status: "active",
-    avatar: "/diverse-group.png",
   },
   {
     id: 2,
@@ -44,7 +42,6 @@ const users = [
     joinDate: "2022-11-05",
     lastVisit: "2023-04-22",
     status: "active",
-    avatar: "/diverse-group.png",
   },
   {
     id: 3,
@@ -56,7 +53,6 @@ const users = [
     joinDate: "2023-04-10",
     lastVisit: "2023-04-10",
     status: "inactive",
-    avatar: "/diverse-group.png",
   },
   {
     id: 4,
@@ -68,7 +64,6 @@ const users = [
     joinDate: "2023-02-20",
     lastVisit: "2023-04-15",
     status: "active",
-    avatar: "/diverse-group.png",
   },
   {
     id: 5,
@@ -80,7 +75,6 @@ const users = [
     joinDate: "2023-03-30",
     lastVisit: "2023-03-30",
     status: "inactive",
-    avatar: "/diverse-group.png",
   },
   {
     id: 6,
@@ -92,7 +86,7 @@ const users = [
     joinDate: "2022-12-10",
     lastVisit: "2023-04-18",
     status: "active",
-    avatar: "/diverse-group.png",
+   
   },
   {
     id: 7,
@@ -104,7 +98,7 @@ const users = [
     joinDate: "2023-01-05",
     lastVisit: "2023-04-21",
     status: "active",
-    avatar: "/diverse-group.png",
+    
   },
   {
     id: 8,
@@ -116,7 +110,8 @@ const users = [
     joinDate: "2023-03-15",
     lastVisit: "2023-04-19",
     status: "active",
-    avatar: "/diverse-group.png",
+  
+    
   },
 ]
 
@@ -139,7 +134,6 @@ export default function UsersPage() {
   })
 
   return (
-    <AdminLayout>
       <div className="p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
@@ -325,12 +319,7 @@ export default function UsersPage() {
                             <td className="p-4">
                               <div className="flex items-center">
                                 <div className="relative w-10 h-10 rounded-full overflow-hidden mr-3">
-                                  <Image
-                                    src={user.avatar || "/placeholder.svg"}
-                                    alt={user.name}
-                                    fill
-                                    className="object-cover"
-                                  />
+
                                 </div>
                                 <div>
                                   <div className="font-medium text-gray-900">{user.name}</div>
@@ -472,9 +461,7 @@ export default function UsersPage() {
                 return (
                   <div className="py-4">
                     <div className="flex flex-col items-center mb-6">
-                      <div className="relative w-24 h-24 rounded-full overflow-hidden mb-4">
-                        <Image src={user.avatar || "/placeholder.svg"} alt={user.name} fill className="object-cover" />
-                      </div>
+
                       <h3 className="text-xl font-bold text-gray-900">{user.name}</h3>
                       <span
                         className={`px-2 py-1 rounded-full text-xs mt-2 ${
@@ -544,6 +531,5 @@ export default function UsersPage() {
           </Dialog>
         )}
       </div>
-    </AdminLayout>
   )
 }

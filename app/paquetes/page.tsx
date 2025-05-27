@@ -77,7 +77,7 @@ export default function PackagesPage() {
         <div className="container px-4 md:px-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {packages.map((pkg) => (
-              <Card key={pkg.id} className="bg-white border-gray-100 overflow-hidden rounded-3xl shadow-sm">
+              <Card key={pkg.id} className="bg-white border-gray-100 overflow-hidden rounded-3xl shadow-sm flex flex-col h-full">
                 {/* Gradient Header */}
                 <div className={`bg-gradient-to-r ${pkg.gradient} h-14 flex items-center justify-center`}>
                   <h3 className="text-white font-bold text-lg">{pkg.name}</h3>
@@ -91,7 +91,7 @@ export default function PackagesPage() {
                   <CardDescription className="text-zinc-600 text-center">{pkg.description}</CardDescription>
                 </CardHeader>
 
-                <CardContent className="pb-4">
+                <CardContent className="pb-4 flex-grow">
                   <ul className="space-y-2">
                     {pkg.features.map((feature, index) => (
                       <li key={index} className="flex items-start">
@@ -105,7 +105,7 @@ export default function PackagesPage() {
                   </div>
                 </CardContent>
 
-                <CardFooter>
+                <CardFooter className="mt-auto pt-4">
                   <Button
                     asChild
                     className={`w-full bg-gradient-to-r ${pkg.gradient} hover:opacity-90 text-white font-bold rounded-full transition-all duration-300`}

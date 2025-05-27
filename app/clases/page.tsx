@@ -379,7 +379,7 @@ export default function ClassesPage() {
             <Button
               asChild
               size="lg"
-              className="bg-brand-burgundy hover:bg-brand-burgundy/90 text-white font-bold px-8 py-6 text-lg rounded-full"
+              className="bg-brand-sage hover:bg-brand-sage/90 text-white font-bold px-8 py-6 text-lg rounded-full"
             >
               <Link href="/reservar" className="flex items-center gap-1">
                 RESERVA AHORA <ChevronRight className="h-4 w-4" />

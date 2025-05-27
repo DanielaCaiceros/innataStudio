@@ -1,7 +1,7 @@
-// app/admin/page.tsx
-import { redirect } from 'next/navigation';
+import { redirect } from "next/navigation"
 
-export default function AdminRootPage() {
-  redirect('/admin/reservations');
-  return null;
+export default function AdminPage() {
+  redirect("/admin/reservations")
+  return null
 }
+
