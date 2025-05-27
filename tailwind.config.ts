@@ -1,13 +1,11 @@
-import type { Config } from "tailwindcss"
-
-const config = {
+/** @type {import('tailwindcss').Config} */
+module.exports = {
   darkMode: ["class"],
   content: [
-    "./pages/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-    "./app/**/*.{ts,tsx}",
-    "./src/**/*.{ts,tsx}",
-    "*.{js,ts,jsx,tsx,mdx}",
+    './pages/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    './app/**/*.{ts,tsx}',
+    './src/**/*.{ts,tsx}',
   ],
   prefix: "",
   theme: {
@@ -53,11 +51,24 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Nueva paleta de colores naturales
-        "brand-gray": "#727D73",
-        "brand-sage": "#AAB99A",
-        "brand-mint": "#D0DDD0",
-        "brand-cream": "#F0F0D7",
+        // Colores personalizados de la marca
+        brand: {
+          burgundy: '#4A102A',
+          'burgundy-dark': '#85193C',
+          sage: '#727D73',
+          mint: '#AAB99A',
+          'mint-dark': '#D0DDD0',
+          gray: '#A8A8A8',
+          cream: '#F0F0D7',
+          yellow: '#FCF259',
+          red: '#C5172E',
+          blue: '#0066CC',
+          pink: '#FF6B9D',
+          rose: '#FF8FA3',
+        },
+        // Colores adicionales para compatibilidad
+        'custom-cream': '#F0F0D7',
+        'custom-teal': '#AAB99A',
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -73,28 +84,15 @@ const config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
-        scrollLeft: {
-          "0%": { transform: "translateX(0)" },
-          "100%": { transform: "translateX(-50%)" },
-        },
-        scrollRight: {
-          "0%": { transform: "translateX(-50%)" },
-          "100%": { transform: "translateX(0)" },
-        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        scrollLeft: "scrollLeft 30s linear infinite",
-        scrollRight: "scrollRight 30s linear infinite",
       },
       fontFamily: {
-        sans: ['Montserrat', 'Arial', 'Helvetica', 'sans-serif'],
+        sans: ['var(--font-montserrat)', 'system-ui', 'sans-serif'],
       },
     },
   },
   plugins: [require("tailwindcss-animate")],
-} satisfies Config
-
-export default config
-
+}

@@ -44,13 +44,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         <nav className="space-y-2">
-          <Link
-            href="/admin"
-            className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-[#FCF259]/10 rounded-md"
-          >
-            <LayoutDashboard className="h-5 w-5" />
-            <span>Dashboard</span>
-          </Link>
+          
           <Link
             href="/admin/reservations"
             className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-[#FCF259]/10 rounded-md"
