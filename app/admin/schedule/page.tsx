@@ -181,6 +181,8 @@ export default function SchedulePage() {
       return
     }
 
+    
+
     setIsLoading(true)
     try {
       const response = await fetch("/api/admin/scheduled-classes", {

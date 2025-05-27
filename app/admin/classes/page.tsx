@@ -1,6 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/lib/auth" // Asegúrate
+import { NextApiRequest, NextApiResponse } from "next"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -102,6 +105,7 @@ const weekDays = [
   { key: "sunday", label: "Domingo" },
 ]
 
+
 export default function ClassesPage() {
   const { toast } = useToast()
 
@@ -139,6 +143,15 @@ export default function ClassesPage() {
     maxCapacity: "10",
   })
 
+  // Añadir el estado para el formulario de edición
+  const [editScheduleForm, setEditScheduleForm] = useState({
+    classTypeId: "",
+    instructorId: "",
+    date: "",
+    time: "",
+    maxCapacity: "10",
+  })
+
   // Obtener fechas de la semana seleccionada
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 })
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 })
@@ -153,6 +166,80 @@ export default function ClassesPage() {
   useEffect(() => {
     loadScheduledClasses()
   }, [selectedWeek])
+
+  // Añadir la función para manejar la edición
+  const handleEditSchedule = async () => {
+    if (!selectedSchedule) return
+
+    if (
+      !editScheduleForm.classTypeId ||
+      !editScheduleForm.instructorId ||
+      !editScheduleForm.date ||
+      !editScheduleForm.time
+    ) {
+      toast({
+        title: "Error",
+        description: "Todos los campos son obligatorios",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/admin/scheduled-classes/${selectedSchedule.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: 'include',
+        body: JSON.stringify(editScheduleForm),
+        
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Éxito",
+          description: "Clase actualizada exitosamente",
+        })
+        setIsEditScheduleOpen(false)
+        await loadScheduledClasses()
+        console.log("selectedSchedule after update and reload:", selectedSchedule)
+        if (selectedSchedule) {
+          console.log("selectedSchedule.time (raw):", selectedSchedule.time)
+          console.log("selectedSchedule.time (formatted by formatTime):", formatTime(selectedSchedule.time))
+        }
+      } else {
+        const error = await response.json()
+        toast({
+          title: "Error",
+          description: error.error || "Error al actualizar la clase",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Error de conexión",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Añadir el efecto para cargar los datos de la clase seleccionada
+  useEffect(() => {
+    if (selectedSchedule) {
+      setEditScheduleForm({
+        classTypeId: selectedSchedule.classType.id.toString(),
+        instructorId: selectedSchedule.instructor.id.toString(),
+        date: format(new Date(selectedSchedule.date), "yyyy-MM-dd"),
+        time: formatTime(selectedSchedule.time),
+        maxCapacity: selectedSchedule.maxCapacity.toString(),
+      })
+    }
+  }, [selectedSchedule])
 
   // Funciones para tipos de clase
   const loadClassTypes = async () => {
@@ -398,38 +485,42 @@ export default function ClassesPage() {
     })
   }
 
-const formatTime = (timeString: string) => {
-  try {
-    // Verificar si es una cadena de fecha ISO completa
-    if (typeof timeString === 'string') {
-      // Si es un objeto Date serializado o una cadena ISO
-      if (timeString.includes('T')) {
-        const date = new Date(timeString);
-        if (!isNaN(date.getTime())) {
-          return format(date, "HH:mm");
-        }
+const formatTime = (timeString: string): string => {
+  if (!timeString) return 'Hora no disponible';
+
+  // Si es una cadena ISO 8601 (contiene 'T'), extraer la parte HH:mm
+  if (typeof timeString === 'string' && timeString.includes('T')) {
+    try {
+      // Buscar la parte de la hora HH:mm:ss antes de la zona horaria
+      const timePartMatch = timeString.match(/T(\d{2}:\d{2})/);
+      if (timePartMatch && timePartMatch[1]) {
+        return timePartMatch[1]; // Devuelve solo HH:mm
       }
-      
-      // Si es solo hora (HH:mm:ss o HH:mm)
-      if (timeString.includes(':')) {
-        // Asegurar formato correcto para crear Date
-        const normalizedTime = timeString.length <= 5 
-          ? `${timeString}:00`  // Si es HH:mm, añadir segundos
-          : timeString;
-          
-        const time = new Date(`1970-01-01T${normalizedTime}`);
-        if (!isNaN(time.getTime())) {
-          return format(time, "HH:mm");
-        }
+      // Fallback si no coincide, aunque el formato ISO es estándar
+      const date = new Date(timeString);
+      if (!isNaN(date.getTime())) {
+         // Si por alguna razón necesitamos el objeto Date (e.g., si el formato varía),
+         // formatear en UTC para evitar la conversión de zona horaria local accidental.
+         // Sin embargo, extraer la cadena es más directo si solo queremos HH:mm tal cual.
+         // const hours = date.getUTCHours().toString().padStart(2, '0');
+         // const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+         // return `${hours}:${minutes}`;
+         // O usar date-fns-tz si se necesita manejo explícito de zonas horarias
       }
+    } catch (error) {
+      console.error("Error parsing ISO time string:", timeString, error);
+      return 'Hora no disponible';
     }
-    
-    // Si llegamos aquí, devolver el formato original o un valor predeterminado
-    return typeof timeString === 'string' ? timeString : 'Hora no disponible';
-  } catch (error) {
-    console.error("Error formatting time:", timeString, error);
-    return 'Hora no disponible';
   }
+
+  // Si ya es un string en formato HH:mm o similar, intentar devolverlo directamente
+  if (typeof timeString === 'string' && /^[0-2]\d:[0-5]\d/.test(timeString)) {
+     return timeString.substring(0, 5); // Asegurar HH:mm
+  }
+
+  // Fallback para otros casos inesperados
+  console.warn("Unexpected time format:", timeString);
+  return typeof timeString === 'string' ? timeString : 'Hora no disponible';
 };
 
   // Filtrar tipos de clase
@@ -998,6 +1089,118 @@ const formatTime = (timeString: string) => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Añadir el diálogo de edición después del diálogo de nueva clase */}
+      <Dialog open={isEditScheduleOpen} onOpenChange={setIsEditScheduleOpen}>
+        <DialogContent className="bg-white border-gray-200 text-zinc-900">
+          <DialogHeader>
+            <DialogTitle className="text-[#4A102A]">Editar Clase Programada</DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Modifica los detalles de la clase programada
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editClassType">Tipo de Clase</Label>
+                <Select
+                  value={editScheduleForm.classTypeId}
+                  onValueChange={(value) => setEditScheduleForm((prev) => ({ ...prev, classTypeId: value }))}
+                >
+                  <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                    <SelectValue placeholder="Seleccionar tipo" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                    {classTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id.toString()}>
+                        {type.name} ({type.duration} min)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="editInstructor">Instructor</Label>
+                <Select
+                  value={editScheduleForm.instructorId}
+                  onValueChange={(value) => setEditScheduleForm((prev) => ({ ...prev, instructorId: value }))}
+                >
+                  <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                    <SelectValue placeholder="Seleccionar instructor" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                    {instructors.map((instructor) => (
+                      <SelectItem key={instructor.id} value={instructor.id.toString()}>
+                        {instructor.user.firstName} {instructor.user.lastName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="editDate">Fecha</Label>
+                <Input
+                  type="date"
+                  value={editScheduleForm.date}
+                  onChange={(e) => setEditScheduleForm((prev) => ({ ...prev, date: e.target.value }))}
+                  className="bg-white border-gray-200 text-zinc-900"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="editTime">Hora</Label>
+                <Select
+                  value={editScheduleForm.time}
+                  onValueChange={(value) => setEditScheduleForm((prev) => ({ ...prev, time: value }))}
+                >
+                  <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                    <SelectValue placeholder="Seleccionar hora" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                    {timeSlots.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="editCapacity">Capacidad Máxima</Label>
+                <Input
+                  type="number"
+                  value={editScheduleForm.maxCapacity}
+                  onChange={(e) => setEditScheduleForm((prev) => ({ ...prev, maxCapacity: e.target.value }))}
+                  className="bg-white border-gray-200 text-zinc-900"
+                  min="1"
+                  max="20"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsEditScheduleOpen(false)}
+              className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="bg-[#4A102A] hover:bg-[#85193C] text-white"
+              onClick={handleEditSchedule}
+              disabled={isLoading}
+            >
+              {isLoading ? "Actualizando..." : "Actualizar Clase"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -4,60 +4,213 @@ import { verifyToken } from "@/lib/jwt"
 
 const prisma = new PrismaClient()
 
-// PUT - Actualizar clase programada
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    // Verificar autenticación y rol de admin
-    const token = request.cookies.get("auth_token")?.value
-    if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
+// Función auxiliar para verificar el token y el rol de admin
+async function authenticateAdmin(request: NextRequest) {
+  const token = request.cookies.get('auth_token')?.value;
 
-    const payload = await verifyToken(token)
+  if (!token) {
+    return { error: 'No autenticado' };
+  }
+
+  try {
+    const payload = await verifyToken(token);
+
     const user = await prisma.user.findUnique({
-      where: { user_id: Number.parseInt(payload.userId) },
-    })
+      where: { user_id: parseInt(payload.userId) },
+      select: { role: true },
+    });
 
     if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 })
+      return { error: 'Acceso denegado' };
     }
 
-    const body = await request.json()
-    const { classTypeId, instructorId, date, time, maxCapacity } = body
-    const scheduleId = Number.parseInt(params.id)
+    return { user: user };
+  } catch (error) {
+    console.error('Error autenticando admin:', error);
+    return { error: 'Token inválido o error de verificación' };
+  }
+}
 
-    // Verificar que la clase existe
+// PUT - Actualizar una clase programada
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const authResult = await authenticateAdmin(request);
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: 401 });
+  }
+
+  try {
+    const resolvedParams = await params;
+    const { id } = resolvedParams;
+    const body = await request.json()
+
+    if (!body.classTypeId || !body.instructorId || !body.date || !body.time) {
+      return NextResponse.json(
+        { error: "Todos los campos son obligatorios" },
+        { status: 400 }
+      )
+    }
+
     const existingClass = await prisma.scheduledClass.findUnique({
-      where: { id: scheduleId },
-      include: { reservations: true },
+      where: { id: parseInt(id) },
     })
 
     if (!existingClass) {
       return NextResponse.json({ error: "Clase no encontrada" }, { status: 404 })
     }
 
-    // Si se reduce la capacidad, verificar que no haya más reservas que la nueva capacidad
-    const confirmedReservations = existingClass.reservations.filter((r) => r.status === "confirmed").length
-    if (Number.parseInt(maxCapacity) < confirmedReservations) {
+    const classDate = new Date(body.date)
+    const classTime = new Date(`1970-01-01T${body.time}:00.000Z`)
+
+    const conflict = await prisma.scheduledClass.findFirst({
+      where: {
+        id: { not: parseInt(id) },
+        date: classDate,
+        time: classTime,
+        instructorId: parseInt(body.instructorId),
+        status: "scheduled",
+      },
+    })
+
+    if (conflict) {
       return NextResponse.json(
-        {
-          error: `No se puede reducir la capacidad a ${maxCapacity}. Hay ${confirmedReservations} reservas confirmadas.`,
-        },
-        { status: 400 },
+        { error: "El instructor ya tiene una clase programada en este horario" },
+        { status: 400 }
       )
     }
 
-    // Actualizar la clase
-    const updatedClass = await prisma.scheduledClass.update({
-      where: { id: scheduleId },
-      data: {
-        classTypeId: Number.parseInt(classTypeId),
-        instructorId: Number.parseInt(instructorId),
-        date: new Date(date),
-        time: new Date(`1970-01-01T${time}:00.000Z`),
-        maxCapacity: Number.parseInt(maxCapacity),
-        availableSpots: Number.parseInt(maxCapacity) - confirmedReservations,
+    const confirmedReservations = await prisma.reservation.count({
+      where: {
+        scheduledClassId: parseInt(id),
+        status: "confirmed",
       },
+    })
+
+    const newMax = parseInt(body.maxCapacity)
+    if (confirmedReservations > newMax) {
+      return NextResponse.json({
+        error: "Hay más reservas confirmadas que la nueva capacidad",
+      }, { status: 400 })
+    }
+
+    const updatedClass = await prisma.scheduledClass.update({
+      where: { id: parseInt(id) },
+      data: {
+        classTypeId: parseInt(body.classTypeId),
+        instructorId: parseInt(body.instructorId),
+        date: classDate,
+        time: classTime,
+        maxCapacity: newMax,
+        availableSpots: newMax - confirmedReservations,
+      },
+      include: {
+        classType: true,
+        instructor: {
+          include: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        reservations: {
+          where: { status: "confirmed" },
+          include: {
+            user: {
+              select: { firstName: true, lastName: true, email: true },
+            },
+          },
+        },
+      },
+    })
+
+    return NextResponse.json(updatedClass)
+  } catch (error) {
+    console.error("Error updating scheduled class:", error)
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    )
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+
+// DELETE - Eliminar una clase programada
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const authResult = await authenticateAdmin(request);
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: 401 });
+  }
+
+  try {
+    const resolvedParams = await params;
+    const { id } = resolvedParams;
+
+    // Verificar si la clase existe
+    const existingClass = await prisma.scheduledClass.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        reservations: true,
+      },
+    })
+
+    if (!existingClass) {
+      return NextResponse.json(
+        { error: "Clase no encontrada" },
+        { status: 404 }
+      )
+    }
+
+    // Verificar si hay reservas confirmadas
+    if (existingClass.reservations.length > 0) {
+      return NextResponse.json(
+        { error: "No se puede eliminar una clase con reservas confirmadas" },
+        { status: 400 }
+      )
+    }
+
+    // Eliminar la clase
+    await prisma.scheduledClass.delete({
+      where: { id: parseInt(id) },
+    })
+
+    return NextResponse.json({ message: "Clase eliminada exitosamente" })
+  } catch (error) {
+    console.error("Error deleting scheduled class:", error)
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    )
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+// GET - Obtener una clase programada por ID
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const authResult = await authenticateAdmin(request);
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: 401 });
+  }
+
+  try {
+    const resolvedParams = await params;
+    const { id } = resolvedParams;
+
+    const scheduledClass = await prisma.scheduledClass.findUnique({
+      where: { id: parseInt(id) },
       include: {
         classType: true,
         instructor: {
@@ -74,70 +227,36 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
           where: {
             status: "confirmed",
           },
+          include: {
+            user: {
+              select: { firstName: true, lastName: true, email: true },
+            },
+          },
         },
-        waitlist: true,
+        waitlist: {
+          include: {
+            user: {
+              select: { firstName: true, lastName: true, email: true },
+            },
+          },
+        },
       },
     })
 
-    return NextResponse.json(updatedClass)
-  } catch (error) {
-    console.error("Error updating scheduled class:", error)
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
-  } finally {
-    await prisma.$disconnect()
-  }
-}
-
-// DELETE - Eliminar clase programada
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    // Verificar autenticación y rol de admin
-    const token = request.cookies.get("auth_token")?.value
-    if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
-
-    const payload = await verifyToken(token)
-    const user = await prisma.user.findUnique({
-      where: { user_id: Number.parseInt(payload.userId) },
-    })
-
-    if (!user || user.role !== "admin") {
-      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 })
-    }
-
-    const scheduleId = Number.parseInt(params.id)
-
-    // Verificar que la clase existe
-    const existingClass = await prisma.scheduledClass.findUnique({
-      where: { id: scheduleId },
-      include: { reservations: true, waitlist: true },
-    })
-
-    if (!existingClass) {
-      return NextResponse.json({ error: "Clase no encontrada" }, { status: 404 })
-    }
-
-    // Verificar si hay reservas confirmadas
-    const confirmedReservations = existingClass.reservations.filter((r) => r.status === "confirmed")
-    if (confirmedReservations.length > 0) {
+    if (!scheduledClass) {
       return NextResponse.json(
-        {
-          error: `No se puede eliminar la clase. Hay ${confirmedReservations.length} reservas confirmadas.`,
-        },
-        { status: 400 },
+        { error: "Clase no encontrada" },
+        { status: 404 }
       )
     }
 
-    // Eliminar la clase (esto también eliminará reservas y waitlist por CASCADE)
-    await prisma.scheduledClass.delete({
-      where: { id: scheduleId },
-    })
-
-    return NextResponse.json({ message: "Clase eliminada exitosamente" })
+    return NextResponse.json(scheduledClass)
   } catch (error) {
-    console.error("Error deleting scheduled class:", error)
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
+    console.error("Error fetching scheduled class by ID:", error)
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    )
   } finally {
     await prisma.$disconnect()
   }
