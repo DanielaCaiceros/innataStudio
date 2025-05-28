@@ -1,53 +1,150 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { format } from "date-fns"
+import { format, isSameDay } from "date-fns"
 import { es } from "date-fns/locale"
 import { CalendarIcon, Clock, ChevronRight } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { StripeCheckout } from "@/components/stripe-checkout"
 import { toast } from "@/components/ui/use-toast"
+import { useAuth } from "@/lib/hooks/useAuth"
+import { useRouter } from "next/navigation"
 
-const timeSlots = [
-  "06:00",
-  "07:00",
-  "08:00",
-  "09:00",
-  "10:00",
-  "12:00",
-  "13:00",
-  "16:00",
-  "17:00",
-  "18:00",
-  "19:00",
-  "20:00",
-]
+// Interfaces para datos de API
+interface ClassType {
+  id: number
+  name: string
+  description?: string
+  duration: number
+}
 
-const classes = [
-  { id: 1, name: "RHYTHM RIDE", instructor: "Carlos Mendez", duration: "45 min" },
-  { id: 2, name: "POWER CYCLE", instructor: "Ana Torres", duration: "60 min" },
-  { id: 3, name: "ENDURANCE RIDE", instructor: "Miguel Ángel", duration: "75 min" },
-  { id: 4, name: "HIIT CYCLE", instructor: "Laura Gómez", duration: "30 min" },
-]
+interface ScheduledClass {
+  id: number
+  classType: ClassType
+  instructor: {
+    id: number
+    name: string
+  }
+  date: string
+  time: string
+  maxCapacity: number
+  availableSpots: number
+  enrolledCount: number
+}
 
 export default function BookingPage() {
+  const router = useRouter()
+  const { user, isAuthenticated } = useAuth()
+  const [isLoading, setIsLoading] = useState(true)
+  
+  // Estados para la reserva
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [selectedClass, setSelectedClass] = useState<number | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
+  const [scheduledClassId, setScheduledClassId] = useState<number | null>(null)
+  
+  // Estados para modales
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false)
+  
+  // Estado para datos de la API
+  const [availableClasses, setAvailableClasses] = useState<ScheduledClass[]>([])
+  
+  // Obtener clases disponibles al cargar o cambiar la fecha
+  useEffect(() => {
+    const loadAvailableClasses = async () => {
+      setIsLoading(true)
+      try {
+        // Formatear fecha para query params si hay una fecha seleccionada
+        const dateParam = date ? `date=${format(date, 'yyyy-MM-dd')}` : '';
+        
+        const response = await fetch(`/api/scheduled-clases/available?${dateParam}`);
+        if (response.ok) {
+          const data: ScheduledClass[] = await response.json();
+          // Log para depuración del formato de tiempo
+          if (data.length > 0) {
+            console.log("Ejemplo de formato de tiempo:", data[0].time, typeof data[0].time);
+          }
+          setAvailableClasses(data);
+        } else {
+          console.error("Error al cargar clases disponibles");
+          toast({
+            title: "Error",
+            description: "No se pudieron cargar las clases disponibles. Por favor, intenta de nuevo.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        toast({
+          title: "Error de conexión",
+          description: "Hubo un problema al conectar con el servidor.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const handlePaymentSuccess = (paymentId: string) => {
-    setIsPaymentOpen(false)
-    setIsConfirmationOpen(true)
-    toast({
-      title: "Reserva confirmada",
-      description: "Se ha enviado un correo de confirmación a tu email.",
-    })
+    loadAvailableClasses();
+  }, [date]);
+  
+  // Comprobar autenticación
+  useEffect(() => {
+    if (!isAuthenticated && !isLoading) {
+      // Redirigir a login si no está autenticado
+      router.push("/login?redirect=/reservar");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  const handlePaymentSuccess = async (paymentId: string) => {
+    try {
+      if (!scheduledClassId) {
+        throw new Error("No se ha seleccionado una clase para reservar");
+      }
+      
+      console.log("Creando reserva para la clase:", scheduledClassId);
+      
+      // Crear la reserva en el backend
+      const response = await fetch("/api/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          scheduledClassId,
+          paymentId // Incluir el ID de pago para registrar la transacción
+        }),
+        credentials: "include",
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Error al crear la reserva");
+      }
+      
+      // Cerrar modal de pago y mostrar confirmación
+      setIsPaymentOpen(false);
+      setIsConfirmationOpen(true);
+      
+      toast({
+        title: "Reserva confirmada",
+        description: "Se ha enviado un correo de confirmación a tu email.",
+      });
+    } catch (error) {
+      console.error("Error:", error);
+      toast({
+        title: "Error al confirmar la reserva",
+        description: error instanceof Error ? error.message : "No se pudo procesar la reserva",
+        variant: "destructive",
+      });
+      
+      // Cerrar el modal de pago en caso de error
+      setIsPaymentOpen(false);
+    }
   }
 
   const handlePaymentCancel = () => {
@@ -61,15 +158,99 @@ export default function BookingPage() {
 
   const handleConfirmBooking = () => {
     if (!date || !selectedClass || !selectedTime) return
-    setIsPaymentOpen(true)
+    
+    // Buscar la clase programada que coincida con la selección
+    const selectedScheduledClass = availableClasses.find(
+      cls => cls.id === selectedClass
+    );
+    
+    if (!selectedScheduledClass) {
+      toast({
+        title: "Error",
+        description: "La clase seleccionada ya no está disponible.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Guardar el ID de la clase programada para la reserva
+    setScheduledClassId(selectedScheduledClass.id);
+    setIsPaymentOpen(true);
   }
 
-  const handleClassSelect = (classId: number) => {
-    setSelectedClass(classId)
-    const calendarTab = document.querySelector('[data-value="calendar"]') as HTMLElement
-    if (calendarTab) {
-      calendarTab.click()
-    }
+  // Obtener las clases disponibles para la fecha seleccionada
+  const getClassesForSelectedDate = () => {
+    if (!date) return [];
+    
+    return availableClasses.filter((cls) => {
+      const classDate = new Date(cls.date);
+      return isSameDay(classDate, date);
+    });
+  }
+  
+  // Obtener horarios disponibles para la fecha seleccionada
+  const getTimeSlotsForSelectedDate = () => {
+    const classesForDate = getClassesForSelectedDate();
+    
+    // Extraer horarios únicos
+    return [...new Set(classesForDate.map((cls) => {
+      try {
+        // Asegurarnos de que el formato de tiempo es válido
+        let timeString = cls.time;
+        
+        // Si el tiempo ya incluye la T y la zona horaria, usar directamente
+        if (typeof timeString === 'string' && timeString.includes('T')) {
+          const date = new Date(timeString);
+          return format(date, "HH:mm");
+        }
+        
+        // Si es un string en formato HH:MM:SS, añadir la fecha base
+        if (typeof timeString === 'string' && timeString.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
+          const date = new Date(`1970-01-01T${timeString}`);
+          return format(date, "HH:mm");
+        }
+        
+        // Caso de fallback - mostrar el tiempo tal cual está
+        return typeof timeString === 'string' ? timeString.substring(0, 5) : "00:00";
+      } catch (error) {
+        console.error("Error al formatear hora:", error, cls.time);
+        // En caso de error, devolver un formato de tiempo simple sin procesar
+        return typeof cls.time === 'string' ? cls.time.substring(0, 5) : "00:00";
+      }
+    }))].sort();
+  }
+  
+  // Obtener clases disponibles para un horario específico
+  const getClassesForSelectedTime = (time: string) => {
+    if (!date) return [];
+    
+    return availableClasses.filter((cls) => {
+      const classDate = new Date(cls.date);
+      
+      try {
+        let formattedTime;
+        
+        // Si el tiempo ya incluye la T y la zona horaria, usar directamente
+        if (typeof cls.time === 'string' && cls.time.includes('T')) {
+          const timeDate = new Date(cls.time);
+          formattedTime = format(timeDate, "HH:mm");
+        }
+        // Si es un string en formato HH:MM:SS, añadir la fecha base
+        else if (typeof cls.time === 'string' && cls.time.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
+          const timeDate = new Date(`1970-01-01T${cls.time}`);
+          formattedTime = format(timeDate, "HH:mm");
+        }
+        // Caso de fallback
+        else {
+          formattedTime = typeof cls.time === 'string' ? cls.time.substring(0, 5) : "00:00";
+        }
+        
+        return isSameDay(classDate, date) && formattedTime === time;
+      } catch (error) {
+        console.error("Error al comparar tiempos:", error, cls.time);
+        return false;
+      }
+    });
   }
 
   return (
@@ -120,24 +301,34 @@ export default function BookingPage() {
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
                     <Clock className="mr-2 h-5 w-5 text-brand-sage" />
-                    <h3 className="text-xl font-bold text-brand-sage-dark">Selecciona Clase</h3>
+                    <h3 className="text-xl font-bold text-brand-sage-dark">Selecciona Horario</h3>
                   </div>
-                  <div className="p-4 space-y-2">
-                    {classes.map((classItem) => (
-                      <Button
-                        key={classItem.id}
-                        variant={selectedClass === classItem.id ? "default" : "outline"}
-                        className={`w-full justify-between rounded-full ${
-                          selectedClass === classItem.id
-                            ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
-                            : "border-brand-burgundy text-brand-sage hover:bg-gray-50"
-                        }`}
-                        onClick={() => setSelectedClass(classItem.id)}
-                      >
-                        <span>{classItem.name}</span>
-                        <span className="text-sm opacity-70">{classItem.duration}</span>
-                      </Button>
-                    ))}
+                  <div className="p-4 grid grid-cols-3 gap-2">
+                    {isLoading ? (
+                      <div className="col-span-3 text-center py-8 text-gray-500">Cargando horarios...</div>
+                    ) : getTimeSlotsForSelectedDate().length > 0 ? (
+                      getTimeSlotsForSelectedDate().map((time) => (
+                        <Button
+                          key={time}
+                          variant={selectedTime === time ? "default" : "outline"}
+                          className={`rounded-full ${
+                            selectedTime === time
+                              ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
+                              : "border-brand-sage text-brand-sage hover:bg-gray-50"
+                          }`}
+                          onClick={() => {
+                            setSelectedTime(time);
+                            setSelectedClass(null); // Resetear selección de clase
+                          }}
+                        >
+                          {time}
+                        </Button>
+                      ))
+                    ) : (
+                      <div className="col-span-3 text-center py-8 text-gray-500">
+                        No hay clases disponibles para la fecha seleccionada
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -146,23 +337,32 @@ export default function BookingPage() {
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
                     <Clock className="mr-2 h-5 w-5 text-brand-sage" />
-                    <h3 className="text-xl font-bold text-brand-burgundy-dark">Selecciona Horario</h3>
+                    <h3 className="text-xl font-bold text-brand-burgundy-dark">Selecciona Clase</h3>
                   </div>
-                  <div className="p-4 grid grid-cols-3 gap-2">
-                    {timeSlots.map((time) => (
-                      <Button
-                        key={time}
-                        variant={selectedTime === time ? "default" : "outline"}
-                        className={`rounded-full ${
-                          selectedTime === time
-                            ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
-                            : "border-brand-sage text-brand-sage hover:bg-gray-50"
-                        }`}
-                        onClick={() => setSelectedTime(time)}
-                      >
-                        {time}
-                      </Button>
-                    ))}
+                  <div className="p-4 space-y-2">
+                    {isLoading ? (
+                      <div className="text-center py-8 text-gray-500">Cargando clases...</div>
+                    ) : selectedTime ? (
+                      getClassesForSelectedTime(selectedTime).map((classItem) => (
+                        <Button
+                          key={classItem.id}
+                          variant={selectedClass === classItem.id ? "default" : "outline"}
+                          className={`w-full justify-between rounded-full ${
+                            selectedClass === classItem.id
+                              ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
+                              : "border-brand-burgundy text-brand-sage hover:bg-gray-50"
+                          }`}
+                          onClick={() => setSelectedClass(classItem.id)}
+                        >
+                          <span>{classItem.classType.name}</span>
+                          <span className="text-sm opacity-70">{classItem.classType.duration} min</span>
+                        </Button>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        Selecciona un horario para ver las clases disponibles
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -172,34 +372,59 @@ export default function BookingPage() {
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-4 text-brand-mint-dark">Resumen de Reserva</h3>
 
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                    <span className="text-zinc-700">Fecha:</span>
-                    <span className="font-medium text-brand-burgundy">
-                      {date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : "No seleccionada"}
-                    </span>
-                  </div>
+                <div className="space-y-4">                <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                  <span className="text-zinc-700">Fecha:</span>
+                  <span className="font-medium text-brand-burgundy">
+                    {date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : "No seleccionada"}
+                  </span>
+                </div>
 
-                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                    <span className="text-zinc-700">Clase:</span>
-                    <span className="font-medium text-brand-burgundy">
-                      {selectedClass ? classes.find((c) => c.id === selectedClass)?.name : "No seleccionada"}
-                    </span>
-                  </div>
+                <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                  <span className="text-zinc-700">Horario:</span>
+                  <span className="font-medium text-brand-burgundy">
+                    {selectedTime ? `${selectedTime} hrs` : "No seleccionado"}
+                  </span>
+                </div>
 
-                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                    <span className="text-zinc-700">Instructor:</span>
-                    <span className="font-medium text-brand-burgundy">
-                      {selectedClass ? classes.find((c) => c.id === selectedClass)?.instructor : "No seleccionado"}
-                    </span>
-                  </div>
+                <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                  <span className="text-zinc-700">Clase:</span>
+                  <span className="font-medium text-brand-burgundy">
+                    {selectedClass 
+                      ? availableClasses.find(c => c.id === selectedClass)?.classType.name 
+                      : "No seleccionada"
+                    }
+                  </span>
+                </div>
 
-                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                    <span className="text-zinc-700">Horario:</span>
-                    <span className="font-medium text-brand-burgundy">
-                      {selectedTime ? `${selectedTime} hrs` : "No seleccionado"}
-                    </span>
-                  </div>
+                <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                  <span className="text-zinc-700">Instructor:</span>
+                  <span className="font-medium text-brand-burgundy">
+                    {selectedClass 
+                      ? availableClasses.find(c => c.id === selectedClass)?.instructor.name
+                      : "No seleccionado"
+                    }
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                  <span className="text-zinc-700">Duración:</span>
+                  <span className="font-medium text-brand-burgundy">
+                    {selectedClass 
+                      ? `${availableClasses.find(c => c.id === selectedClass)?.classType.duration} minutos`
+                      : "No seleccionada"
+                    }
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                  <span className="text-zinc-700">Cupo disponible:</span>
+                  <span className="font-medium text-brand-burgundy">
+                    {selectedClass 
+                      ? `${availableClasses.find(c => c.id === selectedClass)?.availableSpots} lugares`
+                      : "N/A"
+                    }
+                  </span>
+                </div>
                 </div>
 
                 <Button
@@ -263,8 +488,8 @@ export default function BookingPage() {
           </DialogHeader>
           <div className="py-4">
             <StripeCheckout
-              amount={69}
-              description={`Reserva: ${selectedClass ? classes.find((c) => c.id === selectedClass)?.name : ""} - ${
+              amount={selectedClass && availableClasses.find(c => c.id === selectedClass)?.classType ? 69 : 0}
+              description={`Reserva: ${selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""} - ${
                 date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : ""
               } ${selectedTime || ""}`}
               onSuccess={handlePaymentSuccess}
@@ -288,14 +513,17 @@ export default function BookingPage() {
               <p className="text-sm text-gray-500">Detalles de tu reserva:</p>
               <div className="bg-gray-50 p-4 rounded-lg space-y-2">
                 <p className="font-medium">
-                  Clase: {selectedClass ? classes.find((c) => c.id === selectedClass)?.name : ""}
+                  Clase: {selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""}
                 </p>
                 <p className="font-medium">
                   Fecha: {date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : ""}
                 </p>
                 <p className="font-medium">Horario: {selectedTime}</p>
                 <p className="font-medium">
-                  Instructor: {selectedClass ? classes.find((c) => c.id === selectedClass)?.instructor : ""}
+                  Instructor: {selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.instructor.name : ""}
+                </p>
+                <p className="font-medium">
+                  Duración: {selectedClass ? `${availableClasses.find((c) => c.id === selectedClass)?.classType.duration} minutos` : ""}
                 </p>
               </div>
             </div>
