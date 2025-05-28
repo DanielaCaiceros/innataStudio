@@ -1,4 +1,3 @@
-// components/site-header.tsx
 "use client"
 
 import { useState } from "react"
@@ -18,7 +17,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/hooks/useAuth"
 
-const mainNav = [
+// Menú para usuarios no autenticados
+const publicNav = [
+  { title: "Clases", href: "/clases" },
+  { title: "Paquetes", href: "/paquetes" },
+  { title: "Nosotros", href: "/nosotros" },
+]
+
+// Menú para usuarios autenticados
+const authNav = [
   { title: "Clases", href: "/clases" },
   { title: "Paquetes", href: "/paquetes" },
   { title: "Reservar", href: "/reservar" },
@@ -34,6 +41,9 @@ export function SiteHeader() {
   if (pathname?.startsWith("/admin")) {
     return null
   }
+  
+  // Usar el menú apropiado según el estado de autenticación
+  const mainNav = isAuthenticated ? authNav : publicNav
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-sm shadow-sm">
