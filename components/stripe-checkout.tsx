@@ -157,7 +157,7 @@ function CheckoutForm({ amount, description, onSuccess, onCancel }: CheckoutForm
         </div>
       </div>
       <div className="flex flex-col space-y-2">
-        <Button type="submit" disabled={!stripe || processing} className="bg-[#4A102A] hover:bg-[#85193C] text-white">
+        <Button type="submit" disabled={!stripe || processing} className="bg-[#CA7842] hover:bg-[#CA7842] text-white">
           {processing ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando...

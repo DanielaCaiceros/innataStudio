@@ -1,9 +1,12 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { CalendarDays, CreditCard, BarChart3, Users, Settings, Menu, X } from "lucide-react"
+import { CalendarDays, CreditCard, BarChart3, Users, Settings, Menu, X, LogOut } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 export default function AdminLayout({
   children,
@@ -11,6 +14,27 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    try {
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (response.ok) {
+        // Redirigir al login después del logout exitoso
+        router.push("/login")
+      } else {
+        console.error("Error al cerrar sesión")
+      }
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error)
+    }
+  }
 
   return (
     <div className="flex min-h-screen bg-white text-zinc-900">
@@ -61,7 +85,7 @@ export default function AdminLayout({
             className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-[#FCF259]/10 rounded-md"
           >
             <BarChart3 className="h-5 w-5" />
-            <span>Clases</span>
+            <span>Clases y Horarios</span>
           </Link>
           <Link
             href="/admin/users"
@@ -78,6 +102,16 @@ export default function AdminLayout({
             <span>Configuración</span>
           </Link>
         </nav>
+        <div className="mt-auto pt-4 border-t border-gray-100">
+          <Button
+            onClick={handleLogout}
+            variant="ghost"
+            className="w-full flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-red-600 hover:bg-red-50 rounded-md"
+          >
+            <LogOut className="h-5 w-5" />
+            <span>Cerrar Sesión</span>
+          </Button>
+        </div>
       </div>
 
       {/* Main Content */}
