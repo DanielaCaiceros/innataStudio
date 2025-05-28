@@ -1,8 +1,20 @@
+"use client"
+import { useRouter } from "next/navigation";
+
 import Link from "next/link"
-import { Check, ChevronRight } from "lucide-react"
+import { Check, ChevronRight, LogIn, UserPlus } from "lucide-react" // Añadir LogIn y UserPlus
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card"
-
+import { useAuth } from "@/lib/hooks/useAuth"
+import { useState } from "react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 const packages = [
   {
     id: 1,
@@ -58,9 +70,25 @@ const packages = [
 ]
 
 export default function PackagesPage() {
+   const router = useRouter();
+  const { isAuthenticated } = useAuth()
+    const [showAuthModal, setShowAuthModal] = useState(false)
+  const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null)
+  
+    const handlePurchaseClick = (packageId: number) => {
+    if (!isAuthenticated) {
+      setSelectedPackageId(packageId)
+      setShowAuthModal(true)
+      return
+    }
+
+  router.push(`/paquetes/checkout?packageId=${packageId}`);
+  }
+  
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
       {/* Hero Section */}
+
       <section className="py-10 pt-20 bg-white">
         <div className="container px-4 md:px-6 text-center">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-2">
@@ -105,14 +133,14 @@ export default function PackagesPage() {
                   </div>
                 </CardContent>
 
-                <CardFooter className="mt-auto pt-4">
+<CardFooter className="mt-auto pt-4">
                   <Button
-                    asChild
+                    onClick={() => handlePurchaseClick(pkg.id)}
                     className={`w-full bg-gradient-to-r ${pkg.gradient} hover:opacity-90 text-white font-bold rounded-full transition-all duration-300`}
                   >
-                    <Link href="/reservar" className="flex items-center justify-center gap-1">
+                    <span className="flex items-center justify-center gap-1">
                       {pkg.buttonText} <ChevronRight className="h-4 w-4" />
-                    </Link>
+                    </span>
                   </Button>
                 </CardFooter>
               </Card>
@@ -175,6 +203,56 @@ export default function PackagesPage() {
           </div>
         </div>
       </section>
+        <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl font-bold text-red-800">Iniciar Sesión Requerido</DialogTitle>
+            <DialogDescription className="text-center">
+              Para comprar un paquete, necesitas iniciar sesión o crear una cuenta.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col gap-5 py-6">
+            <div className="bg-gray-50 p-4 rounded-xl text-sm text-zinc-700">
+              <p>
+                Los paquetes se agregarán a tu cuenta y podrás utilizarlos para reservar
+                clases cuando lo desees. ¡Tu primera clase te está esperando!
+              </p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button 
+                asChild
+                className="bg-brand-sage hover:bg-brand-sage text-white flex gap-2"
+              >
+                <Link href={`/login?redirect=/paquetes/checkout?packageId=${selectedPackageId}`}>
+                  <LogIn className="h-4 w-4" /> Iniciar Sesión
+                </Link>
+              </Button>
+              
+              <Button 
+                asChild
+                variant="outline" 
+                className="border-[#4A102A] text-[#4A102A] hover:bg-[#4A102A]/10 flex gap-2"
+              >
+                <Link href={`/registro?redirect=/paquetes/checkout?packageId=${selectedPackageId}`}>
+                  <UserPlus className="h-4 w-4" /> Registrarse
+                </Link>
+              </Button>
+            </div>
+          </div>
+          
+          <DialogFooter className="sm:justify-center">
+            <Button 
+              variant="ghost" 
+              onClick={() => setShowAuthModal(false)}
+              className="text-zinc-600"
+            >
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
