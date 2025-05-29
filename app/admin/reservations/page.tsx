@@ -178,7 +178,14 @@ export default function ReservationsPage() {
 
     const matchesStatus = statusFilter === "all" || reservation.status === statusFilter
 
-    return matchesSearch && matchesStatus
+    // Filtro de fecha (si está seleccionada)
+    let matchesDate = true
+    if (date) {
+      const formattedSelectedDate = format(date, 'yyyy-MM-dd')
+      matchesDate = reservation.date === formattedSelectedDate
+    }
+
+    return matchesSearch && matchesStatus && matchesDate
   })
 
   const handlePayment = (reservationId: number) => {
@@ -191,6 +198,11 @@ export default function ReservationsPage() {
     // For now, we'll just close the dialog
     setIsPaymentDialogOpen(false)
     setSelectedReservation(null)
+  }
+
+  const handleApplyDateFilter = () => {
+    // La lógica de filtrado ya está implementada en la función filteredReservations
+    console.log("Filtrando por fecha:", date ? format(date, 'yyyy-MM-dd') : 'Todas las fechas')
   }
 
   return (
@@ -257,6 +269,11 @@ export default function ReservationsPage() {
                       id="date"
                       className="bg-white border-gray-200 text-zinc-900"
                       value={date ? format(date, "yyyy-MM-dd") : ""}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setDate(new Date(e.target.value));
+                        }
+                      }}
                     />
                   </div>
 
@@ -336,20 +353,103 @@ export default function ReservationsPage() {
           <CardHeader>
             <CardTitle className="text-lg text-[#4A102A]">Filtrar por Fecha</CardTitle>
           </CardHeader>
-          <CardContent className="overflow-hidden flex justify-center px-0">
-            <div className="w-full max-w-[280px]">
-              <Calendar
-                mode="single"
-                selected={date}
-                onSelect={setDate}
-                locale={es}
-                className="bg-white text-zinc-900"
-                classNames={{
-                  day_selected: "bg-[#4A102A] text-white",
-                  day_today: "bg-gray-100 text-zinc-900",
-                  day: "text-zinc-900 hover:bg-gray-100",
-                }}
-              />
+          <CardContent>
+            <div className="space-y-4">
+              {date && (
+                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-500">Fecha seleccionada:</p>
+                  <p className="font-medium text-lg">{format(date, 'PPP', { locale: es })}</p>
+                </div>
+              )}
+              
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-gray-200 text-zinc-900 hover:bg-gray-100 flex justify-between items-center"
+                  >
+                    <span>Seleccionar fecha</span>
+               
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-white border-gray-200 p-0 overflow-hidden sm:max-w-[425px]">
+                  <DialogHeader className="px-6 pt-6">
+                    <DialogTitle className="text-[#4A102A]">Seleccionar Fecha</DialogTitle>
+                    <DialogDescription>
+                      Elige una fecha para filtrar las reservaciones.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="p-6 pt-2 flex justify-center">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={(newDate) => {
+                        setDate(newDate);
+                      }}
+                      locale={es}
+                      className="bg-white text-zinc-900"
+                      classNames={{
+                        day_selected: "bg-[#4A102A] text-white",
+                        day_today: "bg-gray-100 text-zinc-900",
+                        day: "text-zinc-900 hover:bg-gray-100"
+                      }}
+                    />
+                  </div>
+                  <DialogFooter className="px-6 pb-6">
+                    <Button
+                      variant="outline"
+                      className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+                      onClick={() => {
+                        const closeButton = document.querySelector('[data-state="open"][role="dialog"] [data-state="open"]');
+                        if (closeButton instanceof HTMLElement) {
+                          closeButton.click();
+                        }
+                      }}
+                    >
+                      Aceptar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 border-gray-200 text-zinc-900 hover:bg-gray-100"
+                  onClick={() => setDate(new Date())}
+                >
+                  Hoy
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  className="flex-1 border-gray-200 text-zinc-900 hover:bg-gray-100"
+                  onClick={() => {
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    setDate(tomorrow);
+                  }}
+                >
+                  Mañana
+                </Button>
+              </div>
+              
+              <Button
+                className="w-full bg-[#4A102A] hover:bg-[#85193C] text-white"
+                onClick={handleApplyDateFilter}
+              >
+                Aplicar filtro
+              </Button>
+              
+              {date && (
+                <Button 
+                  variant="ghost" 
+                  className="w-full text-gray-500 hover:text-[#4A102A]"
+                  onClick={() => setDate(undefined)}
+                >
+                  Limpiar filtro
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

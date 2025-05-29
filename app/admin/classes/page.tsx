@@ -1,11 +1,12 @@
 "use client"
 
+import * as React from "react"
 import { useState, useEffect } from "react"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth" // Asegúrate
 import { NextApiRequest, NextApiResponse } from "next"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -118,6 +119,7 @@ export default function ClassesPage() {
 
   // Estados para horarios
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date())
+  const [date, setDate] = useState<Date | undefined>(new Date())
   const [scheduledClasses, setScheduledClasses] = useState<ScheduledClass[]>([])
   const [instructors, setInstructors] = useState<Instructor[]>([])
   const [isNewScheduleOpen, setIsNewScheduleOpen] = useState(false)
@@ -999,94 +1001,196 @@ const formatTime = (timeString: string): string => {
 
         {/* TAB 3: VISTA CALENDARIO */}
         <TabsContent value="calendar-view">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card className="bg-white border-gray-200 col-span-1">
-              <CardHeader>
-                <CardTitle className="text-lg text-[#4A102A]">Seleccionar Fecha</CardTitle>
-              </CardHeader>
-              <CardContent className="overflow-hidden flex justify-center px-0">
-                <div className="w-full max-w-[280px]">
-                  <Calendar
-                    mode="single"
-                    selected={selectedWeek}
-                    onSelect={(date) => date && setSelectedWeek(date)}
-                    locale={es}
-                    className="bg-white text-zinc-900"
-                    classNames={{
-                      day_selected: "bg-[#4A102A] text-white",
-                      day_today: "bg-gray-100 text-zinc-900",
-                      day: "text-zinc-900 hover:bg-gray-100",
+          <Card className="bg-white border-gray-200">
+            <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <CardTitle className="text-lg text-[#4A102A]">Vista de Calendario</CardTitle>
+                <CardDescription>Gestiona tus clases en formato de calendario</CardDescription>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-3">
+                {date ? (
+                  <div className="text-center px-4 py-2 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-500">Fecha seleccionada:</p>
+                    <p className="font-medium">{format(date, 'PPP', { locale: es })}</p>
+                  </div>
+                ) : (
+                  <div className="text-center px-4 py-2 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-500">Vista:</p>
+                    <p className="font-medium">Todas las clases</p>
+                  </div>
+                )}
+                
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      className="border-gray-200 text-zinc-900 hover:bg-gray-100 flex justify-between items-center"
+                    >
+                      <span>Cambiar fecha</span>
+                      <CalendarIcon className="h-4 w-4 ml-2" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-white border-gray-200 p-0 overflow-hidden sm:max-w-[425px]">
+                    <DialogHeader className="px-6 pt-6">
+                      <DialogTitle className="text-[#4A102A]">Seleccionar Fecha</DialogTitle>
+                      <DialogDescription>
+                        Elige una fecha para ver las clases programadas.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="p-6 pt-2 flex justify-center">
+                      <Calendar
+                        mode="single"
+                        selected={date}
+                        onSelect={(newDate) => {
+                          if (newDate) {
+                            setDate(newDate);
+                            setSelectedWeek(newDate);
+                          }
+                        }}
+                        locale={es}
+                        className="bg-white text-zinc-900"
+                        classNames={{
+                          day_selected: "bg-brand-mint text-white",
+                          day_today: "bg-gray-100 text-zinc-900",
+                          day: "text-zinc-900 hover:bg-gray-100"
+                        }}
+                      />
+                    </div>
+                    <DialogFooter className="px-6 pb-6">
+                      <Button
+                        variant="outline"
+                        className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+                        onClick={() => {
+                          const closeButton = document.querySelector('[data-state="open"][role="dialog"] [data-state="open"]');
+                          if (closeButton instanceof HTMLElement) {
+                            closeButton.click();
+                          }
+                        }}
+                      >
+                        Aceptar
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+                
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+                    onClick={() => {
+                      const today = new Date();
+                      setDate(today);
+                      setSelectedWeek(today);
                     }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                  >
+                    Hoy
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+                    onClick={() => {
+                      const tomorrow = new Date();
+                      tomorrow.setDate(tomorrow.getDate() + 1);
+                      setDate(tomorrow);
+                      setSelectedWeek(tomorrow);
+                    }}
+                  >
+                    Mañana
+                  </Button>
 
-            <Card className="bg-white border-gray-200 col-span-1 md:col-span-3">
-              <CardHeader>
-                <CardTitle className="text-lg text-[#4A102A]">Clases Programadas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {scheduledClasses.length === 0 ? (
-                    <p className="text-center text-gray-500 py-8">No hay clases programadas para esta semana</p>
-                  ) : (
-                    scheduledClasses.map((cls) => (
-                      <div key={cls.id} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-bold text-[#4A102A]">{cls.classType.name}</h3>
-                            <p className="text-gray-600">
-                              {cls.instructor.user.firstName} {cls.instructor.user.lastName}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {format(new Date(cls.date), "EEEE, d 'de' MMMM", { locale: es })} - {formatTime(cls.time)}
-                            </p>
-                            <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                              <span className="flex items-center gap-1">
-                                <Users className="h-4 w-4" />
-                                {cls.maxCapacity - cls.availableSpots}/{cls.maxCapacity} inscritos
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-4 w-4" />
-                                {cls.classType.duration} minutos
-                              </span>
-                            </div>
-                            {cls.waitlist.length > 0 && (
-                              <p className="text-sm text-orange-600 mt-1">
-                                Lista de espera: {cls.waitlist.length} personas
+                  <Button
+                    variant="outline"
+                    className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+                    onClick={() => {
+                      setDate(undefined);
+                    }}
+                  >
+                    Ver todas
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {scheduledClasses.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">No hay clases programadas para esta semana</p>
+                ) : (
+                  scheduledClasses.map((cls) => {
+                    // Convertir la fecha de la clase al formato "yyyy-MM-dd" para comparación
+                    const classDate = new Date(cls.date);
+                    const classDateString = !isNaN(classDate.getTime()) ? format(classDate, "yyyy-MM-dd") : "";
+                    const selectedDateString = date ? format(date, "yyyy-MM-dd") : "";
+                    
+                    // Mostrar todas las clases si no hay fecha seleccionada o solo las de la fecha seleccionada
+                    if (!date || classDateString === selectedDateString) {
+                      return (
+                        <div key={cls.id} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="font-bold text-[#4A102A]">{cls.classType.name}</h3>
+                              <p className="text-gray-600">
+                                {cls.instructor.user.firstName} {cls.instructor.user.lastName}
                               </p>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-gray-200 text-zinc-900 hover:bg-gray-100"
-                              onClick={() => {
-                                setSelectedSchedule(cls)
-                                setIsEditScheduleOpen(true)
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-gray-200 text-zinc-900 hover:bg-gray-100"
-                              onClick={() => handleDeleteSchedule(cls.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                              <p className="text-sm text-gray-500">
+                                {format(new Date(cls.date), "EEEE, d 'de' MMMM", { locale: es })} - {formatTime(cls.time)}
+                              </p>
+                              <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                                <span className="flex items-center gap-1">
+                                  <Users className="h-4 w-4" />
+                                  {cls.maxCapacity - cls.availableSpots}/{cls.maxCapacity} inscritos
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Clock className="h-4 w-4" />
+                                  {cls.classType.duration} minutos
+                                </span>
+                              </div>
+                              {cls.waitlist.length > 0 && (
+                                <p className="text-sm text-orange-600 mt-1">
+                                  Lista de espera: {cls.waitlist.length} personas
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+                                onClick={() => {
+                                  setSelectedSchedule(cls);
+                                  setIsEditScheduleOpen(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+                                onClick={() => handleDeleteSchedule(cls.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                      );
+                    }
+                    return null;
+                  }).filter(Boolean)
+                )}
+                {date && scheduledClasses.filter(cls => {
+                  const classDate = new Date(cls.date);
+                  const classDateString = !isNaN(classDate.getTime()) ? format(classDate, "yyyy-MM-dd") : "";
+                  const selectedDateString = format(date, "yyyy-MM-dd");
+                  return classDateString === selectedDateString;
+                }).length === 0 && (
+                  <p className="text-center text-gray-500 py-8">No hay clases programadas para el día {format(date, "d 'de' MMMM", { locale: es })}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
