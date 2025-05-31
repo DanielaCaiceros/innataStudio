@@ -160,7 +160,7 @@ export default function PackagesPage() {
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-[#727D73]">¿Cuánto tiempo duran las clases?</h3>
               <p className="text-zinc-600">
-                Nuestras clases tienen duraciones de 30, 45, 60 y 75 minutos, dependiendo del formato.
+                Nuestras clases tienen duraciones de 45 y 60 minutos.
               </p>
             </div>
 
@@ -173,16 +173,15 @@ export default function PackagesPage() {
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-[#727D73]">¿Qué debo llevar a clase?</h3>
-              <p className="text-zinc-600">
-                Solo necesitas ropa cómoda y una botella de agua. Proporcionamos toallas y zapatos especiales para
-                ciclismo.
-              </p>
+  <p className="text-zinc-600">
+  Te recomendamos llegar 15 minutos antes de la clase. Debes traer agua, toalla y zapatos de deporte cómodos. 
+</p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-[#727D73]">¿Puedo cancelar mi reserva?</h3>
               <p className="text-zinc-600">
-                Sí, puedes cancelar hasta 4 horas antes de la clase sin penalización. Cancelaciones tardías pueden
+                Sí, puedes cancelar hasta 12 horas antes de la clase sin penalización. Cancelaciones tardías pueden
                 generar cargos.
               </p>
             </div>
@@ -195,9 +194,9 @@ export default function PackagesPage() {
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-[#727D73]">¿Ofrecen descuentos para estudiantes?</h3>
+              <h3 className="text-xl font-bold text-[#727D73]">¿Hay lista de espera?</h3>
               <p className="text-zinc-600">
-                Sí, contamos con descuentos especiales para estudiantes con credencial vigente. Consulta en recepción.
+                Sí, contamos con lista de espera. Si una persona reservada no llega antes del inicio de la segunda canción, su lugar se cederá a quienes estén en lista de espera.
               </p>
             </div>
           </div>

@@ -453,7 +453,7 @@ export default function BookingPage() {
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-brand-burgundy-dark">Cancelaciones</h3>
               <p className="text-zinc-600">
-                Puedes cancelar tu reserva hasta 4 horas antes de la clase sin penalización. Cancelaciones tardías
+                Puedes cancelar tu reserva hasta 12 horas antes de la clase sin penalización. Cancelaciones tardías
                 resultarán en el cargo de la clase.
               </p>
             </div>
@@ -469,8 +469,7 @@ export default function BookingPage() {
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-brand-burgundy-dark">Lista de espera</h3>
               <p className="text-zinc-600">
-                Si la clase está llena, puedes unirte a la lista de espera y serás notificado automáticamente si se
-                libera un lugar.
+                 Si una persona reservada no llega antes del inicio de la segunda canción, su lugar se cederá a quienes estén en lista de espera.
               </p>
             </div>
           </div>
