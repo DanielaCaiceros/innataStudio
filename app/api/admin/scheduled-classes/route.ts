@@ -26,15 +26,21 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
 
+    let queryDateObject = {};
+    if (startDate && endDate) {
+      const queryStartDate = new Date(startDate + "T00:00:00.000Z");
+      const queryEndDate = new Date(endDate + "T23:59:59.999Z");
+      queryDateObject = {
+        date: {
+          gte: queryStartDate,
+          lte: queryEndDate,
+        },
+      };
+    }
+
     const scheduledClasses = await prisma.scheduledClass.findMany({
       where: {
-        ...(startDate &&
-          endDate && {
-            date: {
-              gte: new Date(startDate),
-              lte: new Date(endDate),
-            },
-          }),
+        ...queryDateObject,
       },
       include: {
         classType: true,
@@ -110,12 +116,12 @@ export async function POST(request: NextRequest) {
     console.log("Creating scheduled class with data:", body)
 
     // Validar que no haya solapamiento de horarios
-    const classDate = new Date(date)
+    const utcDate = new Date(date + "T00:00:00.000Z");
     const classTime = new Date(`1970-01-01T${time}:00.000Z`)
 
     const existingClass = await prisma.scheduledClass.findFirst({
       where: {
-        date: classDate,
+        date: utcDate,
         time: classTime,
       },
     })
@@ -147,7 +153,7 @@ export async function POST(request: NextRequest) {
       data: {
         classTypeId: Number.parseInt(classTypeId),
         instructorId: Number.parseInt(instructorId),
-        date: classDate,
+        date: utcDate,
         time: classTime,
         maxCapacity: Number.parseInt(maxCapacity) || 10,
         availableSpots: Number.parseInt(maxCapacity) || 10,

@@ -61,13 +61,13 @@ export async function PUT(
       return NextResponse.json({ error: "Clase no encontrada" }, { status: 404 })
     }
 
-    const classDate = new Date(body.date)
+    const utcDate = new Date(body.date + "T00:00:00.000Z");
     const classTime = new Date(`1970-01-01T${body.time}:00.000Z`)
 
     const conflict = await prisma.scheduledClass.findFirst({
       where: {
         id: { not: parseInt(id) },
-        date: classDate,
+        date: utcDate,
         time: classTime,
         instructorId: parseInt(body.instructorId),
         status: "scheduled",
@@ -100,7 +100,7 @@ export async function PUT(
       data: {
         classTypeId: parseInt(body.classTypeId),
         instructorId: parseInt(body.instructorId),
-        date: classDate,
+        date: utcDate,
         time: classTime,
         maxCapacity: newMax,
         availableSpots: newMax - confirmedReservations,
