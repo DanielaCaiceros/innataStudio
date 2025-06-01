@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,113 +17,288 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Download, UserPlus, Mail, Phone, Package, Calendar, Edit } from "lucide-react"
+import { Search, Download, UserPlus, Mail, Phone, Package, Calendar, Edit, Trash2 } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
 
-// Datos de ejemplo
-const users = [
-  {
-    id: 1,
-    name: "María García",
-    email: "maria@example.com",
-    phone: "123-456-7890",
-    package: "PAQUETE 10 CLASES",
-    remainingClasses: 8,
-    joinDate: "2023-01-15",
-    lastVisit: "2023-04-20",
-    status: "active",
-  },
-  {
-    id: 2,
-    name: "Juan Pérez",
-    email: "juan@example.com",
-    phone: "123-456-7891",
-    package: "MEMBRESÍA MENSUAL",
-    remainingClasses: "Ilimitado",
-    joinDate: "2022-11-05",
-    lastVisit: "2023-04-22",
-    status: "active",
-  },
-  {
-    id: 3,
-    name: "Ana Rodríguez",
-    email: "ana@example.com",
-    phone: "123-456-7892",
-    package: "PASE INDIVIDUAL",
-    remainingClasses: 0,
-    joinDate: "2023-04-10",
-    lastVisit: "2023-04-10",
-    status: "inactive",
-  },
-  {
-    id: 4,
-    name: "Carlos López",
-    email: "carlos@example.com",
-    phone: "123-456-7893",
-    package: "PAQUETE 5 CLASES",
-    remainingClasses: 3,
-    joinDate: "2023-02-20",
-    lastVisit: "2023-04-15",
-    status: "active",
-  },
-  {
-    id: 5,
-    name: "Laura Martínez",
-    email: "laura@example.com",
-    phone: "123-456-7894",
-    package: "PASE INDIVIDUAL",
-    remainingClasses: 0,
-    joinDate: "2023-03-30",
-    lastVisit: "2023-03-30",
-    status: "inactive",
-  },
-  {
-    id: 6,
-    name: "Roberto Sánchez",
-    email: "roberto@example.com",
-    phone: "123-456-7895",
-    package: "PAQUETE 10 CLASES",
-    remainingClasses: 5,
-    joinDate: "2022-12-10",
-    lastVisit: "2023-04-18",
-    status: "active",
-   
-  },
-  {
-    id: 7,
-    name: "Patricia Gómez",
-    email: "patricia@example.com",
-    phone: "123-456-7896",
-    package: "MEMBRESÍA MENSUAL",
-    remainingClasses: "Ilimitado",
-    joinDate: "2023-01-05",
-    lastVisit: "2023-04-21",
-    status: "active",
-    
-  },
-  {
-    id: 8,
-    name: "Miguel Torres",
-    email: "miguel@example.com",
-    phone: "123-456-7897",
-    package: "PAQUETE 5 CLASES",
-    remainingClasses: 2,
-    joinDate: "2023-03-15",
-    lastVisit: "2023-04-19",
-    status: "active",
-  
-    
-  },
-]
+// Interfaces
+interface User {
+  id: number
+  name: string
+  email: string
+  phone: string
+  package: string
+  remainingClasses: number
+  joinDate: string
+  lastVisit: string
+  status: string
+}
+
+interface UserDetail {
+  id: number
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  joinDate: string
+  lastVisitDate: string | null
+  status: string
+  role: string
+  balance: {
+    totalClassesPurchased: number
+    classesUsed: number
+    classesAvailable: number
+  }
+  activePackages: Array<{
+    id: number
+    name: string
+    classesRemaining: number
+    expiryDate: string
+    paymentStatus: string
+  }>
+  recentReservations: Array<{
+    id: number
+    className: string
+    date: string
+    status: string
+  }>
+}
 
 export default function UsersPage() {
+  const { toast } = useToast()
+  
+  // Estados
+  const [users, setUsers] = useState<User[]>([])
+  const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [isNewUserOpen, setIsNewUserOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<number | null>(null)
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false)
+  const [isViewUserOpen, setIsViewUserOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Filtrar usuarios
+  // Form states
+  const [newUserForm, setNewUserForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    package: "",
+    password: "",
+    confirmPassword: "",
+    notes: ""
+  })
+
+  const [editUserForm, setEditUserForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    status: "",
+    password: ""
+  })
+
+  // Cargar usuarios
+  const loadUsers = async () => {
+    setIsLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (searchTerm) params.append("search", searchTerm)
+      if (statusFilter !== "all") params.append("status", statusFilter)
+
+      const response = await fetch(`/api/admin/users?${params.toString()}`)
+      
+      if (!response.ok) {
+        throw new Error("Error al cargar usuarios")
+      }
+
+      const data = await response.json()
+      setUsers(data)
+    } catch (error) {
+      console.error("Error loading users:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los usuarios",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Cargar detalles de usuario específico
+  const loadUserDetails = async (userId: number) => {
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`)
+      
+      if (!response.ok) {
+        throw new Error("Error al cargar detalles del usuario")
+      }
+
+      const data = await response.json()
+      setSelectedUser(data)
+      
+      // Poblar form de edición
+      setEditUserForm({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone || "",
+        status: data.status,
+        password: ""
+      })
+    } catch (error) {
+      console.error("Error loading user details:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los detalles del usuario",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Crear nuevo usuario
+  const handleCreateUser = async () => {
+    if (!newUserForm.name || !newUserForm.email || !newUserForm.password) {
+      toast({
+        title: "Error",
+        description: "Nombre, email y contraseña son obligatorios",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (newUserForm.password !== newUserForm.confirmPassword) {
+      toast({
+        title: "Error",
+        description: "Las contraseñas no coinciden",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newUserForm)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error al crear usuario")
+      }
+
+      toast({
+        title: "Usuario creado",
+        description: "El usuario ha sido creado exitosamente",
+      })
+
+      setIsNewUserOpen(false)
+      setNewUserForm({
+        name: "",
+        email: "",
+        phone: "",
+        package: "",
+        password: "",
+        confirmPassword: "",
+        notes: ""
+      })
+      await loadUsers()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Actualizar usuario
+  const handleUpdateUser = async () => {
+    if (!selectedUser) return
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editUserForm)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error al actualizar usuario")
+      }
+
+      toast({
+        title: "Usuario actualizado",
+        description: "Los datos del usuario han sido actualizados",
+      })
+
+      setIsEditUserOpen(false)
+      await loadUsers()
+      await loadUserDetails(selectedUser.id) // Refrescar detalles
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Eliminar usuario
+  const handleDeleteUser = async (userId: number) => {
+    if (!confirm("¿Estás seguro de que quieres eliminar este usuario?")) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: "DELETE"
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error al eliminar usuario")
+      }
+
+      toast({
+        title: "Usuario eliminado",
+        description: "El usuario ha sido eliminado correctamente",
+      })
+
+      await loadUsers()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Effects
+  useEffect(() => {
+    loadUsers()
+  }, [])
+
+  useEffect(() => {
+    const delayedSearch = setTimeout(() => {
+      loadUsers()
+    }, 500)
+
+    return () => clearTimeout(delayedSearch)
+  }, [searchTerm, statusFilter])
+
+  // Filtrar usuarios localmente (backup del filtro del servidor)
   const filteredUsers = users.filter((user) => {
-    const matchesSearch =
+    const matchesSearch = searchTerm === "" || 
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.phone.includes(searchTerm)
@@ -134,171 +309,191 @@ export default function UsersPage() {
   })
 
   return (
-      <div className="p-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
-            <p className="text-gray-500">Administra todos los usuarios del sistema</p>
-          </div>
+    <div className="p-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
+          <p className="text-gray-500">Administra todos los usuarios del sistema</p>
+        </div>
 
-          <div className="flex flex-col sm:flex-row gap-4">
-            <Dialog open={isNewUserOpen} onOpenChange={setIsNewUserOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-[#4A102A] hover:bg-[#85193C]">
-                  <UserPlus className="h-4 w-4 mr-2" /> Nuevo Usuario
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-white border-gray-200 text-gray-900">
-                <DialogHeader>
-                  <DialogTitle>Crear Nuevo Usuario</DialogTitle>
-                  <DialogDescription className="text-gray-500">
-                    Complete los detalles para crear un nuevo usuario
-                  </DialogDescription>
-                </DialogHeader>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Dialog open={isNewUserOpen} onOpenChange={setIsNewUserOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-[#4A102A] hover:bg-[#85193C]">
+                <UserPlus className="h-4 w-4 mr-2" /> Nuevo Usuario
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Crear Nuevo Usuario</DialogTitle>
+                <DialogDescription className="text-gray-500">
+                  Complete los detalles para crear un nuevo usuario
+                </DialogDescription>
+              </DialogHeader>
 
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Nombre Completo</Label>
-                      <Input
-                        type="text"
-                        id="name"
-                        placeholder="Nombre y apellido"
-                        className="border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A]"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Correo Electrónico</Label>
-                      <Input
-                        type="email"
-                        id="email"
-                        placeholder="correo@ejemplo.com"
-                        className="border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A]"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Teléfono</Label>
-                      <Input
-                        type="tel"
-                        id="phone"
-                        placeholder="123-456-7890"
-                        className="border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A]"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="package">Paquete</Label>
-                      <Select>
-                        <SelectTrigger className="border-gray-300 focus:ring-[#4A102A]">
-                          <SelectValue placeholder="Seleccionar paquete" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="individual">PASE INDIVIDUAL</SelectItem>
-                          <SelectItem value="5classes">PAQUETE 5 CLASES</SelectItem>
-                          <SelectItem value="10classes">PAQUETE 10 CLASES</SelectItem>
-                          <SelectItem value="monthly">MEMBRESÍA MENSUAL</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="password">Contraseña</Label>
-                      <Input
-                        type="password"
-                        id="password"
-                        placeholder="********"
-                        className="border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A]"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="confirm-password">Confirmar Contraseña</Label>
-                      <Input
-                        type="password"
-                        id="confirm-password"
-                        placeholder="********"
-                        className="border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A]"
-                      />
-                    </div>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nombre Completo</Label>
+                    <Input
+                      id="name"
+                      value={newUserForm.name}
+                      onChange={(e) => setNewUserForm(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Nombre y apellido"
+                      className="border-gray-300"
+                    />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="notes">Notas</Label>
+                    <Label htmlFor="email">Correo Electrónico</Label>
                     <Input
-                      type="text"
-                      id="notes"
-                      placeholder="Notas adicionales"
-                      className="border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A]"
+                      type="email"
+                      id="email"
+                      value={newUserForm.email}
+                      onChange={(e) => setNewUserForm(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="correo@ejemplo.com"
+                      className="border-gray-300"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Teléfono</Label>
+                    <Input
+                      type="tel"
+                      id="phone"
+                      value={newUserForm.phone}
+                      onChange={(e) => setNewUserForm(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="123-456-7890"
+                      className="border-gray-300"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="package">Paquete Inicial</Label>
+                    <Select value={newUserForm.package} onValueChange={(value) => setNewUserForm(prev => ({ ...prev, package: value }))}>
+                      <SelectTrigger className="border-gray-300">
+                        <SelectValue placeholder="Seleccionar paquete" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="individual">PASE INDIVIDUAL</SelectItem>
+                        <SelectItem value="5classes">PAQUETE 5 CLASES</SelectItem>
+                        <SelectItem value="10classes">PAQUETE 10 CLASES</SelectItem>
+                        <SelectItem value="monthly">MEMBRESÍA MENSUAL</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Contraseña</Label>
+                    <Input
+                      type="password"
+                      id="password"
+                      value={newUserForm.password}
+                      onChange={(e) => setNewUserForm(prev => ({ ...prev, password: e.target.value }))}
+                      placeholder="********"
+                      className="border-gray-300"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password">Confirmar Contraseña</Label>
+                    <Input
+                      type="password"
+                      id="confirm-password"
+                      value={newUserForm.confirmPassword}
+                      onChange={(e) => setNewUserForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                      placeholder="********"
+                      className="border-gray-300"
                     />
                   </div>
                 </div>
 
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsNewUserOpen(false)}
-                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button className="bg-[#4A102A] hover:bg-[#85193C]" onClick={() => setIsNewUserOpen(false)}>
-                    Crear Usuario
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notas</Label>
+                  <Input
+                    id="notes"
+                    value={newUserForm.notes}
+                    onChange={(e) => setNewUserForm(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Notas adicionales"
+                    className="border-gray-300"
+                  />
+                </div>
+              </div>
 
-            <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-100">
-              <Download className="h-4 w-4 mr-2" /> Exportar
-            </Button>
-          </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsNewUserOpen(false)}
+                  className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  disabled={isSubmitting}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  className="bg-[#4A102A] hover:bg-[#85193C]" 
+                  onClick={handleCreateUser}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Creando..." : "Crear Usuario"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-100">
+            <Download className="h-4 w-4 mr-2" /> Exportar
+          </Button>
         </div>
+      </div>
 
-        <Tabs defaultValue="all" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8 bg-gray-100">
-            <TabsTrigger
-              value="all"
-              onClick={() => setStatusFilter("all")}
-              className="data-[state=active]:bg-white data-[state=active]:text-[#4A102A]"
-            >
-              Todos los Usuarios
-            </TabsTrigger>
-            <TabsTrigger
-              value="active"
-              onClick={() => setStatusFilter("active")}
-              className="data-[state=active]:bg-white data-[state=active]:text-[#4A102A]"
-            >
-              Usuarios Activos
-            </TabsTrigger>
-            <TabsTrigger
-              value="inactive"
-              onClick={() => setStatusFilter("inactive")}
-              className="data-[state=active]:bg-white data-[state=active]:text-[#4A102A]"
-            >
-              Usuarios Inactivos
-            </TabsTrigger>
-          </TabsList>
+      <Tabs defaultValue="all" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 mb-8 bg-gray-100">
+          <TabsTrigger
+            value="all"
+            onClick={() => setStatusFilter("all")}
+            className="data-[state=active]:bg-white data-[state=active]:text-[#4A102A]"
+          >
+            Todos los Usuarios
+          </TabsTrigger>
+          <TabsTrigger
+            value="active"
+            onClick={() => setStatusFilter("active")}
+            className="data-[state=active]:bg-white data-[state=active]:text-[#4A102A]"
+          >
+            Usuarios Activos
+          </TabsTrigger>
+          <TabsTrigger
+            value="inactive"
+            onClick={() => setStatusFilter("inactive")}
+            className="data-[state=active]:bg-white data-[state=active]:text-[#4A102A]"
+          >
+            Usuarios Inactivos
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="all">
-            <Card className="bg-white border-gray-200">
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <CardTitle className="text-lg text-gray-900">Usuarios</CardTitle>
-                  <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="search"
-                      placeholder="Buscar usuarios..."
-                      className="pl-8 border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A] w-full"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
+        <TabsContent value="all">
+          <Card className="bg-white border-gray-200">
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <CardTitle className="text-lg text-gray-900">Usuarios</CardTitle>
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="search"
+                    placeholder="Buscar usuarios..."
+                    className="pl-8 border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A] w-full"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
                 </div>
-              </CardHeader>
-              <CardContent>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">Cargando usuarios...</p>
+                </div>
+              ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -318,8 +513,10 @@ export default function UsersPage() {
                           <tr key={user.id} className="border-b border-gray-200 hover:bg-gray-50">
                             <td className="p-4">
                               <div className="flex items-center">
-                                <div className="relative w-10 h-10 rounded-full overflow-hidden mr-3">
-
+                                <div className="relative w-10 h-10 rounded-full overflow-hidden mr-3 bg-gray-200 flex items-center justify-center">
+                                  <span className="text-sm font-medium text-gray-600">
+                                    {user.name.charAt(0).toUpperCase()}
+                                  </span>
                                 </div>
                                 <div>
                                   <div className="font-medium text-gray-900">{user.name}</div>
@@ -335,7 +532,7 @@ export default function UsersPage() {
                                 </div>
                                 <div className="flex items-center text-sm text-gray-700">
                                   <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                                  <span>{user.phone}</span>
+                                  <span>{user.phone || "No registrado"}</span>
                                 </div>
                               </div>
                             </td>
@@ -345,7 +542,9 @@ export default function UsersPage() {
                                   <Package className="h-4 w-4 mr-2 text-[#4A102A]" />
                                   <span>{user.package}</span>
                                 </div>
-                                <div className="text-sm text-gray-500">Clases restantes: {user.remainingClasses}</div>
+                                <div className="text-sm text-gray-500">
+                                  Clases restantes: {user.remainingClasses}
+                                </div>
                               </div>
                             </td>
                             <td className="p-4">
@@ -363,7 +562,9 @@ export default function UsersPage() {
                             <td className="p-4">
                               <span
                                 className={`px-2 py-1 rounded-full text-xs ${
-                                  user.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                                  user.status === "active" 
+                                    ? "bg-green-100 text-green-800" 
+                                    : "bg-red-100 text-red-800"
                                 }`}
                               >
                                 {user.status === "active" ? "Activo" : "Inactivo"}
@@ -375,7 +576,10 @@ export default function UsersPage() {
                                   variant="outline"
                                   size="sm"
                                   className="h-8 border-gray-300 text-gray-700 hover:bg-gray-100"
-                                  onClick={() => setSelectedUser(user.id)}
+                                  onClick={async () => {
+                                    await loadUserDetails(user.id)
+                                    setIsViewUserOpen(true)
+                                  }}
                                 >
                                   Ver
                                 </Button>
@@ -383,8 +587,20 @@ export default function UsersPage() {
                                   variant="outline"
                                   size="sm"
                                   className="h-8 border-gray-300 text-gray-700 hover:bg-gray-100"
+                                  onClick={async () => {
+                                    await loadUserDetails(user.id)
+                                    setIsEditUserOpen(true)
+                                  }}
                                 >
                                   Editar
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 border-red-200 text-red-600 hover:bg-red-50"
+                                  onClick={() => handleDeleteUser(user.id)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
                                 </Button>
                               </div>
                             </td>
@@ -393,143 +609,344 @@ export default function UsersPage() {
                       ) : (
                         <tr>
                           <td colSpan={7} className="p-4 text-center text-gray-500">
-                            No se encontraron usuarios con los filtros aplicados
+                            {isLoading ? "Cargando..." : "No se encontraron usuarios con los filtros aplicados"}
                           </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <TabsContent value="active">
-            <Card className="bg-white border-gray-200">
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <CardTitle className="text-lg text-gray-900">Usuarios Activos</CardTitle>
-                  <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="search"
-                      placeholder="Buscar usuarios..."
-                      className="pl-8 border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A] w-full"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
+        <TabsContent value="active">
+          <Card className="bg-white border-gray-200">
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <CardTitle className="text-lg text-gray-900">Usuarios Activos</CardTitle>
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="search"
+                    placeholder="Buscar usuarios..."
+                    className="pl-8 border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A] w-full"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
                 </div>
-              </CardHeader>
-              <CardContent>{/* El contenido se muestra a través del filtro en la pestaña "all" */}</CardContent>
-            </Card>
-          </TabsContent>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-500 text-center py-8">
+                Mostrando solo usuarios activos - {filteredUsers.filter(u => u.status === 'active').length} usuarios
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <TabsContent value="inactive">
-            <Card className="bg-white border-gray-200">
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <CardTitle className="text-lg text-gray-900">Usuarios Inactivos</CardTitle>
-                  <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="search"
-                      placeholder="Buscar usuarios..."
-                      className="pl-8 border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A] w-full"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
+        <TabsContent value="inactive">
+          <Card className="bg-white border-gray-200">
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <CardTitle className="text-lg text-gray-900">Usuarios Inactivos</CardTitle>
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="search"
+                    placeholder="Buscar usuarios..."
+                    className="pl-8 border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A] w-full"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
                 </div>
-              </CardHeader>
-              <CardContent>{/* El contenido se muestra a través del filtro en la pestaña "all" */}</CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-500 text-center py-8">
+                Mostrando solo usuarios inactivos - {filteredUsers.filter(u => u.status === 'inactive').length} usuarios
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
-        {selectedUser && (
-          <Dialog open={selectedUser !== null} onOpenChange={() => setSelectedUser(null)}>
-            <DialogContent className="bg-white border-gray-200 text-gray-900">
-              <DialogHeader>
-                <DialogTitle>Detalles del Usuario</DialogTitle>
-              </DialogHeader>
+      {/* Modal para ver detalles del usuario */}
+      <Dialog open={isViewUserOpen} onOpenChange={setIsViewUserOpen}>
+        <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Detalles del Usuario</DialogTitle>
+          </DialogHeader>
 
-              {(() => {
-                const user = users.find((u) => u.id === selectedUser)
-                if (!user) return null
+          {selectedUser && (
+            <div className="py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Información básica */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-[#4A102A]">Información Personal</h3>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-gray-500">Nombre Completo</Label>
+                    <div className="bg-gray-50 p-2 rounded-md text-gray-900">
+                      {selectedUser.firstName} {selectedUser.lastName}
+                    </div>
+                  </div>
 
-                return (
-                  <div className="py-4">
-                    <div className="flex flex-col items-center mb-6">
+                  <div className="space-y-2">
+                    <Label className="text-gray-500">Email</Label>
+                    <div className="bg-gray-50 p-2 rounded-md text-gray-900">{selectedUser.email}</div>
+                  </div>
 
-                      <h3 className="text-xl font-bold text-gray-900">{user.name}</h3>
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs mt-2 ${
-                          user.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {user.status === "active" ? "Activo" : "Inactivo"}
+                  <div className="space-y-2">
+                    <Label className="text-gray-500">Teléfono</Label>
+                    <div className="bg-gray-50 p-2 rounded-md text-gray-900">
+                      {selectedUser.phone || "No registrado"}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-gray-500">Estado</Label>
+                    <div className="bg-gray-50 p-2 rounded-md">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        selectedUser.status === "active" 
+                          ? "bg-green-100 text-green-800" 
+                          : "bg-red-100 text-red-800"
+                      }`}>
+                        {selectedUser.status === "active" ? "Activo" : "Inactivo"}
                       </span>
                     </div>
+                  </div>
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-gray-500">ID de Usuario</Label>
-                        <div className="bg-gray-50 p-2 rounded-md text-gray-900">#{user.id}</div>
+                {/* Balance y paquetes */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-[#4A102A]">Balance de Clases</h3>
+                  
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {selectedUser.balance.totalClassesPurchased}
+                        </div>
+                        <div className="text-xs text-gray-600">Compradas</div>
                       </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-gray-500">Correo Electrónico</Label>
-                        <div className="bg-gray-50 p-2 rounded-md text-gray-900">{user.email}</div>
+                      <div>
+                        <div className="text-2xl font-bold text-green-600">
+                          {selectedUser.balance.classesAvailable}
+                        </div>
+                        <div className="text-xs text-gray-600">Disponibles</div>
                       </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-gray-500">Teléfono</Label>
-                        <div className="bg-gray-50 p-2 rounded-md text-gray-900">{user.phone}</div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-gray-500">Paquete Actual</Label>
-                        <div className="bg-gray-50 p-2 rounded-md text-gray-900">{user.package}</div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-gray-500">Clases Restantes</Label>
-                        <div className="bg-gray-50 p-2 rounded-md text-gray-900">{user.remainingClasses}</div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-gray-500">Fecha de Registro</Label>
-                        <div className="bg-gray-50 p-2 rounded-md text-gray-900">{user.joinDate}</div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-gray-500">Última Visita</Label>
-                        <div className="bg-gray-50 p-2 rounded-md text-gray-900">{user.lastVisit}</div>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between mt-6">
-                      <Button
-                        variant="outline"
-                        className="border-gray-300 text-gray-700 hover:bg-gray-100"
-                        onClick={() => setSelectedUser(null)}
-                      >
-                        Cerrar
-                      </Button>
-                      <div className="flex gap-2">
-                        <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-100">
-                          <Edit className="h-4 w-4 mr-2" /> Editar
-                        </Button>
-                        <Button className="bg-[#4A102A] hover:bg-[#85193C]">Ver Reservaciones</Button>
+                      <div>
+                        <div className="text-2xl font-bold text-gray-600">
+                          {selectedUser.balance.classesUsed}
+                        </div>
+                        <div className="text-xs text-gray-600">Usadas</div>
                       </div>
                     </div>
                   </div>
-                )
-              })()}
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
+
+                  {/* Paquetes activos */}
+                  <div>
+                    <h4 className="font-semibold mb-2">Paquetes Activos</h4>
+                    {selectedUser.activePackages.length > 0 ? (
+                      <div className="space-y-2">
+                        {selectedUser.activePackages.map((pkg) => (
+                          <div key={pkg.id} className="bg-gray-50 p-3 rounded-md">
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium">{pkg.name}</span>
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                pkg.paymentStatus === "paid" 
+                                  ? "bg-green-100 text-green-800" 
+                                  : "bg-yellow-100 text-yellow-800"
+                              }`}>
+                                {pkg.paymentStatus === "paid" ? "Pagado" : "Pendiente"}
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-600 mt-1">
+                              Clases restantes: {pkg.classesRemaining} | Expira: {pkg.expiryDate}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm">No tiene paquetes activos</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Reservaciones recientes */}
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-[#4A102A] mb-4">Reservaciones Recientes</h3>
+                {selectedUser.recentReservations.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-2">Clase</th>
+                          <th className="text-left p-2">Fecha</th>
+                          <th className="text-left p-2">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedUser.recentReservations.map((reservation) => (
+                          <tr key={reservation.id} className="border-b">
+                            <td className="p-2">{reservation.className}</td>
+                            <td className="p-2">{reservation.date}</td>
+                            <td className="p-2">
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                reservation.status === "confirmed" 
+                                  ? "bg-green-100 text-green-800" 
+                                  : reservation.status === "cancelled"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-yellow-100 text-yellow-800"
+                              }`}>
+                                {reservation.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-gray-500">No tiene reservaciones recientes</p>
+                )}
+              </div>
+
+              <div className="flex justify-between mt-6">
+                <Button
+                  variant="outline"
+                  className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  onClick={() => setIsViewUserOpen(false)}
+                >
+                  Cerrar
+                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                    onClick={() => {
+                      setIsViewUserOpen(false)
+                      setIsEditUserOpen(true)
+                    }}
+                  >
+                    <Edit className="h-4 w-4 mr-2" /> Editar
+                  </Button>
+                  <Button className="bg-[#4A102A] hover:bg-[#85193C]">
+                    Ver Reservaciones
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para editar usuario */}
+      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+        <DialogContent className="bg-white border-gray-200 text-gray-900">
+          <DialogHeader>
+            <DialogTitle>Editar Usuario</DialogTitle>
+            <DialogDescription>
+              Modifica la información del usuario
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedUser && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-firstName">Nombre</Label>
+                  <Input
+                    id="edit-firstName"
+                    value={editUserForm.firstName}
+                    onChange={(e) => setEditUserForm(prev => ({ ...prev, firstName: e.target.value }))}
+                    className="border-gray-300"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-lastName">Apellido</Label>
+                  <Input
+                    id="edit-lastName"
+                    value={editUserForm.lastName}
+                    onChange={(e) => setEditUserForm(prev => ({ ...prev, lastName: e.target.value }))}
+                    className="border-gray-300"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input
+                    type="email"
+                    id="edit-email"
+                    value={editUserForm.email}
+                    onChange={(e) => setEditUserForm(prev => ({ ...prev, email: e.target.value }))}
+                    className="border-gray-300"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-phone">Teléfono</Label>
+                  <Input
+                    type="tel"
+                    id="edit-phone"
+                    value={editUserForm.phone}
+                    onChange={(e) => setEditUserForm(prev => ({ ...prev, phone: e.target.value }))}
+                    className="border-gray-300"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-status">Estado</Label>
+                  <Select value={editUserForm.status} onValueChange={(value) => setEditUserForm(prev => ({ ...prev, status: value }))}>
+                    <SelectTrigger className="border-gray-300">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Activo</SelectItem>
+                      <SelectItem value="inactive">Inactivo</SelectItem>
+                      <SelectItem value="pending_verification">Pendiente verificación</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-password">Nueva Contraseña (opcional)</Label>
+                  <Input
+                    type="password"
+                    id="edit-password"
+                    value={editUserForm.password}
+                    onChange={(e) => setEditUserForm(prev => ({ ...prev, password: e.target.value }))}
+                    placeholder="Dejar vacío para mantener actual"
+                    className="border-gray-300"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsEditUserOpen(false)}
+              className="border-gray-300 text-gray-700 hover:bg-gray-100"
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              className="bg-[#4A102A] hover:bg-[#85193C]" 
+              onClick={handleUpdateUser}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Actualizando..." : "Actualizar Usuario"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }
