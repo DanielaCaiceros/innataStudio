@@ -20,78 +20,48 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { useToast } from "@/components/ui/use-toast"
 
-// Datos de ejemplo - En una implementación real, estos vendrían de una API o base de datos
-const userProfile = {
-  name: "Ana García",
-  email: "ana.garcia@example.com",
-  memberSince: "Enero 2023",
-  credits: 8,
-  avatar: "/diverse-group.png",
+// Interfaces para los datos de API
+interface UserPackage {
+  id: number
+  name: string
+  classesRemaining: number
+  classesUsed: number
+  expiryDate: string
+  isActive: boolean
 }
 
-const upcomingClasses = [
-  {
-    id: 1,
-    className: "Cycling Energía",
-    instructor: "Carlos Mendoza",
-    date: "24 Mayo, 2025",
-    time: "18:30",
-    duration: "45 min",
-    location: "Sala Principal",
-    image: "/cycling-studio-dark.png",
-  },
-  {
-    id: 2,
-    className: "Cycling Ritmo",
-    instructor: "Laura Sánchez",
-    date: "26 Mayo, 2025",
-    time: "19:00",
-    duration: "60 min",
-    location: "Sala Principal",
-    image: "/cycling-studio-dark.png",
-  },
-]
+interface UserReservation {
+  id: number
+  className: string
+  instructor: string
+  date: string
+  time: string
+  duration: string
+  location: string
+  status: string
+  canCancel: boolean
+  package: string
+}
 
-const pastClasses = [
-  {
-    id: 101,
-    className: "Cycling Fuerza",
-    instructor: "Miguel Torres",
-    date: "20 Mayo, 2025",
-    time: "17:30",
-    duration: "45 min",
-    location: "Sala Principal",
-    image: "/cycling-studio-dark.png",
-  },
-  {
-    id: 102,
-    className: "Cycling Resistencia",
-    instructor: "Sofía Ramírez",
-    date: "18 Mayo, 2025",
-    time: "10:00",
-    duration: "60 min",
-    location: "Sala Principal",
-    image: "/cycling-studio-dark.png",
-  },
-  {
-    id: 103,
-    className: "Cycling Intervalos",
-    instructor: "Carlos Mendoza",
-    date: "15 Mayo, 2025",
-    time: "19:30",
-    duration: "45 min",
-    location: "Sala Principal",
-    image: "/cycling-studio-dark.png",
-  },
-]
+interface UserProfile {
+  name: string
+  email: string
+  memberSince: string
+  avatar?: string
+}
 
 export default function ProfilePage() {
   const router = useRouter()
   const { logout, user, isLoading } = useAuth()
   const { toast } = useToast()
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
-  const [selectedClass, setSelectedClass] = useState<any>(null)
+  const [selectedClass, setSelectedClass] = useState<UserReservation | null>(null)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [upcomingClasses, setUpcomingClasses] = useState<UserReservation[]>([])
+  const [pastClasses, setpastClasses] = useState<UserReservation[]>([])
+  const [userPackages, setUserPackages] = useState<UserPackage[]>([])
+  const [isLoadingClasses, setIsLoadingClasses] = useState(true)
+  const [isLoadingPackages, setIsLoadingPackages] = useState(true)
 
   useEffect(() => {
     // Si no hay usuario y no está cargando, redirige al home
@@ -100,16 +70,119 @@ export default function ProfilePage() {
     }
   }, [user, isLoading, router])
 
-  const handleCancelClass = (classItem: any) => {
+  // Cargar las reservaciones del usuario
+  useEffect(() => {
+    const loadReservations = async () => {
+      if (!user) return;
+      
+      try {
+        setIsLoadingClasses(true);
+        
+        // Cargar clases próximas
+        const upcomingResponse = await fetch("/api/user/reservations?status=upcoming", {
+          method: "GET",
+          credentials: "include",
+        });
+        
+        if (upcomingResponse.ok) {
+          const upcomingData: UserReservation[] = await upcomingResponse.json();
+          setUpcomingClasses(upcomingData);
+        }
+        
+        // Cargar historial de clases
+        const pastResponse = await fetch("/api/user/reservations?status=past", {
+          method: "GET",
+          credentials: "include",
+        });
+        
+        if (pastResponse.ok) {
+          const pastData: UserReservation[] = await pastResponse.json();
+          setpastClasses(pastData);
+        }
+      } catch (error) {
+        console.error("Error al cargar reservaciones:", error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar tus clases. Por favor, intenta de nuevo.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingClasses(false);
+      }
+    };
+    
+    loadReservations();
+  }, [user, toast]);
+
+  // Cargar paquetes del usuario
+  useEffect(() => {
+    const loadUserPackages = async () => {
+      if (!user) return;
+      
+      try {
+        setIsLoadingPackages(true);
+        const response = await fetch("/api/user/packages", {
+          method: "GET",
+          credentials: "include",
+        });
+        
+        if (response.ok) {
+          const data: UserPackage[] = await response.json();
+          setUserPackages(data);
+        }
+      } catch (error) {
+        console.error("Error al cargar paquetes:", error);
+      } finally {
+        setIsLoadingPackages(false);
+      }
+    };
+    
+    loadUserPackages();
+  }, [user]);
+
+  const handleCancelClass = (classItem: UserReservation) => {
     setSelectedClass(classItem)
     setCancelDialogOpen(true)
   }
 
-  const confirmCancelClass = () => {
-    // Aquí iría la lógica para cancelar la clase
-    console.log("Clase cancelada:", selectedClass)
-    setCancelDialogOpen(false)
-    // En una implementación real, aquí se haría una llamada a la API
+  const confirmCancelClass = async () => {
+    if (!selectedClass) return;
+    
+    try {
+      const response = await fetch(`/api/user/reservations/${selectedClass.id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Cancelado por el usuario" }),
+        credentials: "include",
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Error al cancelar la reservación");
+      }
+      
+      // Actualizar el estado local para reflejar la cancelación
+      setUpcomingClasses(prevClasses => 
+        prevClasses.filter(c => c.id !== selectedClass.id)
+      );
+      
+      toast({
+        title: "Reservación cancelada",
+        description: data.refunded 
+          ? "Tu clase ha sido devuelta a tu paquete." 
+          : "La clase ha sido cancelada pero no se pudo reembolsar debido a la política de cancelación.",
+      });
+    } catch (error) {
+      console.error("Error:", error);
+      toast({
+        title: "Error al cancelar",
+        description: error instanceof Error ? error.message : "No se pudo cancelar la reservación",
+        variant: "destructive",
+      });
+    } finally {
+      setCancelDialogOpen(false);
+    }
   }
 
   const handleLogout = async () => {
@@ -135,8 +208,19 @@ export default function ProfilePage() {
     }
   }
 
-  // Usar datos del usuario autenticado si están disponibles
-  const currentUser = user || userProfile
+  // Calcular total de clases disponibles de todos los paquetes
+  const totalAvailableClasses = userPackages.reduce(
+    (total, pkg) => total + pkg.classesRemaining, 0
+  );
+
+  // Preparar datos del usuario
+  const currentUser: UserProfile = {
+    name: user?.name || "",
+    email: user?.email || "",
+    memberSince: user?.joinDate 
+      ? new Date(user.joinDate).toLocaleDateString('es-ES', { year: 'numeric', month: 'long' })
+      : ""
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
@@ -147,17 +231,7 @@ export default function ProfilePage() {
             <Card className="border-brand-mint/20 shadow-sm">
               <CardHeader className="pb-4">
                 <div className="flex flex-col items-center">
-                  <Avatar className="h-24 w-24 mb-4">
-                    <AvatarImage src={"/placeholder.svg"} alt={currentUser.name} />
-                    <AvatarFallback className="bg-brand-sage text-white text-xl">
-                      {(currentUser?.name
-                        ? currentUser.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                        : "")}
-                    </AvatarFallback>
-                  </Avatar>
+                
                   <CardTitle className="text-xl font-bold text-center">{currentUser.name}</CardTitle>
                   <CardDescription className="text-center">{currentUser.email}</CardDescription>
                 </div>
@@ -166,9 +240,11 @@ export default function ProfilePage() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center py-2 border-b border-brand-mint/20">
                     <span className="text-zinc-600">Miembro desde</span>
+                    <span className="font-medium text-brand-burgundy">{currentUser.memberSince}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b border-brand-mint/20">
                     <span className="text-zinc-600">Clases disponibles</span>
+                    <span className="font-medium text-brand-burgundy">{isLoadingPackages ? "..." : totalAvailableClasses}</span>
                   </div>
                 </div>
               </CardContent>

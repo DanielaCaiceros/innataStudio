@@ -46,7 +46,7 @@ export function SiteHeader() {
   const mainNav = isAuthenticated ? authNav : publicNav
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-sm shadow-sm">
+    <header className="sticky top-0 z-50 w-full bg-white/10 backdrop-blur-sm shadow-sm">
       <div className="container mx-auto flex h-20 items-center justify-between px-4">
         <div className="flex items-center gap-6 md:gap-10">
           <div className="flex items-center gap-6 md:gap-10">
