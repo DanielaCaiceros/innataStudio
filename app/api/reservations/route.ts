@@ -17,16 +17,17 @@ export async function POST(request: NextRequest) {
     const userId = Number.parseInt(payload.userId)
 
     const body = await request.json()
-    const { scheduledClassId } = body
+    const { scheduledClassId, userPackageId } = body
+
+    if (!scheduledClassId) {
+      return NextResponse.json({ error: "ID de clase requerido" }, { status: 400 })
+    }
 
     // Verificar que la clase existe y está disponible
     const scheduledClass = await prisma.scheduledClass.findUnique({
       where: { id: Number.parseInt(scheduledClassId) },
       include: {
         classType: true,
-        reservations: {
-          where: { status: "confirmed" },
-        },
       },
     })
 
@@ -52,16 +53,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Ya tienes una reserva para esta clase" }, { status: 400 })
     }
 
-    // Verificar que el usuario tenga créditos disponibles
-    const userBalance = await prisma.userAccountBalance.findUnique({
-      where: { userId },
-    })
+    // Si se proporciona un ID de paquete, verificar que sea válido
+    let userPackage = null
+    if (userPackageId) {
+      userPackage = await prisma.userPackage.findFirst({
+        where: {
+          id: userPackageId,
+          userId,
+          isActive: true,
+          classesRemaining: { gt: 0 },
+          expiryDate: { gte: new Date() },
+        },
+      })
 
-    if (!userBalance || userBalance.classesAvailable <= 0) {
-      return NextResponse.json(
-        { error: "No tienes clases disponibles. Compra un paquete para continuar." },
-        { status: 400 },
-      )
+      if (!userPackage) {
+        return NextResponse.json({ error: "Paquete no válido o sin clases disponibles" }, { status: 400 })
+      }
     }
 
     // Verificar disponibilidad de espacios
@@ -88,21 +95,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Obtener el paquete activo del usuario
-    const activePackage = await prisma.userPackage.findFirst({
-      where: {
-        userId,
-        isActive: true,
-        classesRemaining: { gt: 0 },
-        expiryDate: { gte: new Date() },
-      },
-      orderBy: { expiryDate: "asc" },
-    })
-
-    if (!activePackage) {
-      return NextResponse.json({ error: "No tienes un paquete activo válido" }, { status: 400 })
-    }
-
     // Crear la reserva en una transacción
     const result = await prisma.$transaction(async (tx) => {
       // Crear la reserva
@@ -110,29 +102,43 @@ export async function POST(request: NextRequest) {
         data: {
           userId,
           scheduledClassId: Number.parseInt(scheduledClassId),
-          userPackageId: activePackage.id,
+          userPackageId: userPackage?.id,
           status: "confirmed",
-          paymentMethod: "package",
+          paymentMethod: userPackage ? "package" : "pending",
         },
+        include: {
+          scheduledClass: {
+            include: {
+              classType: true
+            }
+          }
+        }
       })
 
-      // Actualizar el paquete del usuario
-      await tx.userPackage.update({
-        where: { id: activePackage.id },
-        data: {
-          classesRemaining: { decrement: 1 },
-          classesUsed: { increment: 1 },
-        },
-      })
+      // Si se usa un paquete, actualizar sus clases disponibles
+      if (userPackage) {
+        await tx.userPackage.update({
+          where: { id: userPackage.id },
+          data: {
+            classesRemaining: { decrement: 1 },
+            classesUsed: { increment: 1 },
+          },
+        })
 
-      // Actualizar el balance del usuario
-      await tx.userAccountBalance.update({
-        where: { userId },
-        data: {
-          classesUsed: { increment: 1 },
-          classesAvailable: { decrement: 1 },
-        },
-      })
+        // Actualizar el balance del usuario
+        await tx.userAccountBalance.upsert({
+          where: { userId },
+          create: {
+            userId,
+            classesAvailable: userPackage.classesRemaining - 1,
+            classesUsed: 1,
+          },
+          update: {
+            classesAvailable: { decrement: 1 },
+            classesUsed: { increment: 1 },
+          },
+        })
+      }
 
       // Actualizar espacios disponibles en la clase
       await tx.scheduledClass.update({
@@ -159,7 +165,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         message: "Reserva creada exitosamente",
-        reservation: result,
+        reservation: {
+          id: result.id,
+          className: result.scheduledClass.classType.name,
+          status: result.status,
+          paymentMethod: result.paymentMethod,
+        },
       },
       { status: 201 },
     )
