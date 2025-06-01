@@ -53,10 +53,10 @@ export default function VerificacionPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-lg">
-          <h1 className="text-2xl font-bold text-[#4A102A] mb-4">Error</h1>
+          <h1 className="text-2xl font-bold text-brand-sage mb-4">Error</h1>
           <p className="text-gray-600 mb-6">No se encontró una dirección de correo electrónico para verificar.</p>
           <Link href="/registro">
-            <Button className="w-full bg-gradient-to-r from-[#4A102A] to-[#C5172E] hover:from-[#85193C] hover:to-[#C5172E] text-white">
+            <Button className="w-full bg-gradient-to-r from-brand-mint to-brand-sage hover:from-brand-sage hover:to-brand-mint text-white">
               Volver al registro
             </Button>
           </Link>
@@ -70,19 +70,19 @@ export default function VerificacionPage() {
       {/* Imagen lateral */}
       <div className="hidden md:block md:w-1/2 relative overflow-hidden rounded-3xl m-5">
         <Image src="/innataAsset1.png" alt="Innata Cycling Studio" fill className="object-cover" priority />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#4A102A]/80 to-transparent mix-blend-multiply" />
+        <div className="absolute inset-0 bg-gradient-to-r from-brand-sage/80 to-transparent mix-blend-multiply" />
       </div>
 
       {/* Contenido */}
       <div className="w-full md:w-1/2 flex flex-col justify-center items-center p-8 md:p-12 bg-white">
         <div className="w-full max-w-md text-center">
-          <h1 className="text-3xl font-bold text-[#4A102A] mb-4">Verifica tu cuenta</h1>
+          <h1 className="text-3xl font-bold text-brand-sage mb-4">Verifica tu cuenta</h1>
           
           <div className="mb-8">
             <p className="text-gray-600 mb-4">
               Hemos enviado un correo de verificación a:
             </p>
-            <p className="text-lg font-medium text-[#4A102A]">{email}</p>
+            <p className="text-lg font-medium text-brand-sage">{email}</p>
           </div>
 
           <div className="space-y-4">
@@ -99,13 +99,13 @@ export default function VerificacionPage() {
             <Button
               onClick={handleResendVerification}
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-[#4A102A] to-[#C5172E] hover:from-[#85193C] hover:to-[#C5172E] text-white"
+              className="w-full bg-gradient-to-r from-brand-sage to-brand-mint hover:from-brand-sage hover:to-brand-mint text-white"
             >
               {isLoading ? "Enviando..." : "Reenviar correo de verificación"}
             </Button>
 
             <div className="mt-6">
-              <Link href="/login" className="text-[#85193C] hover:underline">
+              <Link href="/login" className="text-brand-sage hover:underline">
                 Volver al inicio de sesión
               </Link>
             </div>

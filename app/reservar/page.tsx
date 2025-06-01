@@ -38,8 +38,8 @@ interface ScheduledClass {
 
 export default function BookingPage() {
   const router = useRouter()
-  const { user, isAuthenticated } = useAuth()
-  const [isLoading, setIsLoading] = useState(true)
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth() // Renamed isLoading from useAuth
+  const [isLoading, setIsLoading] = useState(true) // This is for data loading
   
   // Estados para la reserva
   const [date, setDate] = useState<Date | undefined>(new Date())
@@ -50,6 +50,7 @@ export default function BookingPage() {
   // Estados para modales
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false)
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); // New state for auth modal
   
   // Estado para datos de la API
   const [availableClasses, setAvailableClasses] = useState<ScheduledClass[]>([])
@@ -92,14 +93,6 @@ export default function BookingPage() {
 
     loadAvailableClasses();
   }, [date]);
-  
-  // Comprobar autenticación
-  useEffect(() => {
-    if (!isAuthenticated && !isLoading) {
-      // Redirigir a login si no está autenticado
-      router.push("/login?redirect=/reservar");
-    }
-  }, [isAuthenticated, isLoading, router]);
 
   const handlePaymentSuccess = async (paymentId: string) => {
     try {
@@ -157,6 +150,15 @@ export default function BookingPage() {
   }
 
   const handleConfirmBooking = () => {
+    if (isAuthLoading) { // Check if auth state is resolving
+      return;
+    }
+
+    if (!isAuthenticated) { // If not authenticated, open auth modal
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     if (!date || !selectedClass || !selectedTime) return
     
     // Buscar la clase programada que coincida con la selección
@@ -536,6 +538,39 @@ export default function BookingPage() {
               onClick={() => setIsConfirmationOpen(false)}
             >
               Cerrar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auth Dialog */}
+      <Dialog open={isAuthModalOpen} onOpenChange={setIsAuthModalOpen}>
+        <DialogContent className="bg-white border-gray-200 text-zinc-900">
+          <DialogHeader>
+            <DialogTitle className="text-[#4A102A]">Acceso Requerido</DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Necesitas iniciar sesión o registrarte para completar tu reserva.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <Button 
+              className="w-full bg-brand-mint hover:bg-brand-mint/90 text-white" 
+              onClick={() => {
+                router.push("/login?redirect=/reservar");
+                setIsAuthModalOpen(false);
+              }}
+            >
+              Iniciar Sesión
+            </Button>
+            <Button 
+              variant="outline" 
+              className="w-full border-brand-mint text-brand-mint hover:bg-brand-mint/10"
+              onClick={() => {
+                router.push("/registro?redirect=/reservar");
+                setIsAuthModalOpen(false);
+              }}
+            >
+              Registrarse
             </Button>
           </div>
         </DialogContent>

@@ -11,7 +11,7 @@ export async function POST(req: Request) {
 
     // Create a PaymentIntent with the order amount and currency
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
+      amount: amount, // Amount is already in centavos for MXN
       currency: 'mxn',
       description,
       receipt_email: email,
