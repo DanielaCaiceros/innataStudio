@@ -1,59 +1,59 @@
-import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
+// app/admin/classes/typesAndConstants.ts
 
 export interface ClassType {
-  id: number
-  name: string
-  description?: string
-  duration: number
-  intensity: string
-  category: string
-  capacity: number
+  id: number;
+  name: string;
+  description?: string;
+  duration: number;
+  intensity: string;
+  category: string;
+  capacity: number;
 }
 
 export interface Instructor {
-  id: number
+  id: number;
   user: {
-    firstName: string
-    lastName: string
-  }
-  specialties: string[]
+    firstName: string;
+    lastName: string;
+  };
+  specialties: string[];
 }
 
 export interface ScheduledClass {
-  id: number
-  date: string
-  time: string
-  maxCapacity: number
-  availableSpots: number
-  status: string
-  classType: ClassType
+  id: number;
+  date: string; // This will be a UTC date string like YYYY-MM-DDTHH:mm:ss.sssZ
+  time: string; // This is also a date string, 1970-01-01THH:mm:00.000Z
+  maxCapacity: number;
+  availableSpots: number;
+  status: string;
+  classType: ClassType;
   instructor: {
-    id: number
+    id: number;
     user: {
-      firstName: string
-      lastName: string
-    }
-  }
+      firstName: string;
+      lastName: string;
+    };
+  };
   reservations: Array<{
     user: {
-      firstName: string
-      lastName: string
-      email: string
-    }
-  }>
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
+  }>;
   waitlist: Array<{
     user: {
-      firstName: string
-      lastName: string
-      email: string
-    }
-  }>
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
+  }>;
 }
 
 export const timeSlots = [
-  "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
-  "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00",
-  "20:00", "21:00",
+  "06:00", "07:00", "08:00", "09:00", "10:00", "11:00",
+  "12:00", "13:00", "14:00", "15:00", "16:00", "17:00",
+  "18:00", "19:00", "20:00", "21:00",
 ];
 
 export const weekDays = [
@@ -66,84 +66,52 @@ export const weekDays = [
   { key: "sunday", label: "Domingo" },
 ];
 
-// app/admin/classes/typesAndConstants.ts
+export function convertUtcToLocalDateForDisplay(utcDateString: string): Date {
+  if (!utcDateString) {
+    // console.warn("convertUtcToLocalDateForDisplay received undefined or null string");
+    return new Date(); // Consider how to handle this; maybe throw error or return specific invalid date
+  }
+  const d = new Date(utcDateString); 
+  if (isNaN(d.getTime())) {
+    console.error("Invalid date string received in convertUtcToLocalDateForDisplay:", utcDateString);
+    // Consider how to handle this; maybe throw error or return specific invalid date
+    return new Date(); // Fallback
+  }
+  // Creates a new Date object using the year, month, day, etc., from the UTC perspective of the original date.
+  // This effectively "transfers" the date/time parts to the local timezone without conversion.
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds());
+}
+
 export const formatTime = (timeString: string): string => {
   if (!timeString) return 'Hora no disponible';
 
-  // Para strings con formato ISO
+  // If it's a full ISO string (e.g., from Prisma, which includes 'T' and often 'Z')
   if (typeof timeString === 'string' && timeString.includes('T')) {
     try {
+      // Attempt to extract HH:mm directly if it's a known format like ...THH:mm:ss.sssZ
       const timePartMatch = timeString.match(/T(\d{2}:\d{2})/);
       if (timePartMatch && timePartMatch[1]) {
-        return timePartMatch[1];
+        return timePartMatch[1]; // Returns HH:mm
       }
-      
-      // Si el formato es como "1970-01-01T12:00:00.000Z"
-      const date = new Date(timeString);
-      if (!isNaN(date.getTime())) {
-        return date.getUTCHours().toString().padStart(2, '0') + ':' + 
-               date.getUTCMinutes().toString().padStart(2, '0');
-      }
+      // Fallback: if direct match fails, parse the date and get UTC time
+      // This is important if the time part isn't fixed or if we need to be sure about UTC
+      // const date = new Date(timeString);
+      // if (!isNaN(date.getTime())) {
+      //   const hours = date.getUTCHours().toString().padStart(2, '0');
+      //   const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+      //   return `${hours}:${minutes}`;
+      // }
     } catch (error) {
-      console.error("Error parsing ISO time string:", timeString, error);
-      return 'Hora no disponible';
+      console.error("Error parsing ISO time string in formatTime:", timeString, error);
+      return 'Hora no disponible'; // Fallback on error
     }
   }
 
-  // Para strings en formato HH:MM o HH:MM:SS
-  if (typeof timeString === 'string' && /^[0-2]\d:[0-5]\d(:[0-5]\d)?$/.test(timeString)) {
-    return timeString.substring(0, 5);
+  // If it's already a string in HH:mm format (e.g., from timeSlots)
+  if (typeof timeString === 'string' && /^[0-2]\d:[0-5]\d/.test(timeString)) {
+     return timeString.substring(0, 5); // Ensure HH:mm, handles HH:mm:ss too
   }
 
-  console.warn("Unexpected time format:", timeString);
+  console.warn("Unexpected time format in formatTime:", timeString);
   return typeof timeString === 'string' ? timeString : 'Hora no disponible';
 };
-
-export const formatDateForAPI = (dateString: string): string => {
-  // Ensure the date is interpreted in the local timezone
-  const date = new Date(dateString);
-  
-  // Format as YYYY-MM-DD in local timezone
-  return date.getFullYear() + '-' + 
-    String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-    String(date.getDate()).padStart(2, '0');
-};
-
-// Add this helper for parsing dates from the API
-export const parseAPIDate = (dateString: string): Date => {
-  // Parse date without timezone conversion
-  const [year, month, day] = dateString.split('-').map(Number);
-  return new Date(year, month - 1, day);
-};
-
-export const utcToLocalDate = (dateString: string): Date => {
-  if (!dateString) return new Date();
-  
-  try {
-    // Crear una fecha desde el string, asumiendo que está en UTC
-    const date = new Date(dateString);
-    
-    // Crear una nueva fecha usando los componentes en UTC para mantener el mismo día
-    const localDate = new Date(
-      date.getUTCFullYear(),
-      date.getUTCMonth(),
-      date.getUTCDate()
-    );
-    
-    return localDate;
-  } catch (error) {
-    console.error("Error converting UTC date to local:", error);
-    return new Date();
-  }
-};
-
-// Formatear fecha para mostrar en la interfaz
-export const formatDateForDisplay = (dateString: string): string => {
-  try {
-    const date = utcToLocalDate(dateString);
-    return format(date, "yyyy-MM-dd");
-  } catch (error) {
-    console.error("Error formatting date for display:", error);
-    return dateString;
-  }
-}
