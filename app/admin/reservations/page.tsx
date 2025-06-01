@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -16,134 +16,29 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { PlusCircle, Search, Download, DollarSign } from "lucide-react"
+import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X } from "lucide-react"
+import { cn } from "@/lib/utils"
 
-// Datos de ejemplo
-const reservations = [
-  {
-    id: 1,
-    user: "María García",
-    email: "maria@example.com",
-    phone: "123-456-7890",
-    class: "RHYTHM RIDE",
-    date: "2023-04-22",
-    time: "18:00",
-    status: "confirmed",
-    package: "PAQUETE 10 CLASES",
-    remainingClasses: 8,
-    paymentStatus: "paid",
-    paymentMethod: "online",
-  },
-  {
-    id: 2,
-    user: "Juan Pérez",
-    email: "juan@example.com",
-    phone: "123-456-7891",
-    class: "POWER CYCLE",
-    date: "2023-04-22",
-    time: "19:00",
-    status: "confirmed",
-    package: "MEMBRESÍA MENSUAL",
-    remainingClasses: "Ilimitado",
-    paymentStatus: "paid",
-    paymentMethod: "cash",
-  },
-  {
-    id: 3,
-    user: "Ana Rodríguez",
-    email: "ana@example.com",
-    phone: "123-456-7892",
-    class: "HIIT CYCLE",
-    date: "2023-04-23",
-    time: "07:00",
-    status: "pending",
-    package: "PASE INDIVIDUAL",
-    remainingClasses: 0,
-    paymentStatus: "pending",
-    paymentMethod: "pending",
-  },
-  {
-    id: 4,
-    user: "Carlos López",
-    email: "carlos@example.com",
-    phone: "123-456-7893",
-    class: "ENDURANCE RIDE",
-    date: "2023-04-23",
-    time: "08:00",
-    status: "confirmed",
-    package: "PAQUETE 5 CLASES",
-    remainingClasses: 3,
-    paymentStatus: "paid",
-    paymentMethod: "online",
-  },
-  {
-    id: 5,
-    user: "Laura Martínez",
-    email: "laura@example.com",
-    phone: "123-456-7894",
-    class: "RHYTHM RIDE",
-    date: "2023-04-24",
-    time: "17:00",
-    status: "cancelled",
-    package: "PASE INDIVIDUAL",
-    remainingClasses: 0,
-    paymentStatus: "refunded",
-    paymentMethod: "online",
-  },
-  {
-    id: 6,
-    user: "Roberto Sánchez",
-    email: "roberto@example.com",
-    phone: "123-456-7895",
-    class: "POWER CYCLE",
-    date: "2023-04-24",
-    time: "18:00",
-    status: "confirmed",
-    package: "PAQUETE 10 CLASES",
-    remainingClasses: 5,
-    paymentStatus: "paid",
-    paymentMethod: "cash",
-  },
-  {
-    id: 7,
-    user: "Patricia Gómez",
-    email: "patricia@example.com",
-    phone: "123-456-7896",
-    class: "RHYTHM RIDE",
-    date: "2023-04-25",
-    time: "07:00",
-    status: "confirmed",
-    package: "MEMBRESÍA MENSUAL",
-    remainingClasses: "Ilimitado",
-    paymentStatus: "paid",
-    paymentMethod: "online",
-  },
-  {
-    id: 8,
-    user: "Miguel Torres",
-    email: "miguel@example.com",
-    phone: "123-456-7897",
-    class: "HIIT CYCLE",
-    date: "2023-04-25",
-    time: "18:00",
-    status: "pending",
-    package: "PAQUETE 5 CLASES",
-    remainingClasses: 2,
-    paymentStatus: "pending",
-    paymentMethod: "pending",
-  },
-]
+// Tipos
+interface Reservation {
+  id: number
+  user: string
+  email: string
+  phone: string
+  class: string
+  date: string
+  time: string
+  status: string
+  package: string
+  remainingClasses: number | string
+  paymentStatus: string
+  paymentMethod: string
+}
 
-const classes = [
-  { id: 1, name: "RHYTHM RIDE", instructor: "Carlos Mendez", duration: "45 min", capacity: 10, enrolled: 7 },
-  { id: 2, name: "POWER CYCLE", instructor: "Ana Torres", duration: "60 min", capacity: 10, enrolled: 10 },
-  { id: 3, name: "ENDURANCE RIDE", instructor: "Miguel Ángel", duration: "75 min", capacity: 10, enrolled: 4 },
-  { id: 4, name: "HIIT CYCLE", instructor: "Laura Gómez", duration: "30 min", capacity: 10, enrolled: 8 },
-  { id: 5, name: "RECOVERY RIDE", instructor: "Carlos Mendez", duration: "45 min", capacity: 10, enrolled: 3 },
-  { id: 6, name: "RHYTHM & STRENGTH", instructor: "Ana Torres", duration: "60 min", capacity: 10, enrolled: 6 },
-]
+
 
 const timeSlots = [
   "07:00",
@@ -166,26 +61,91 @@ export default function ReservationsPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [isNewReservationOpen, setIsNewReservationOpen] = useState(false)
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedReservation, setSelectedReservation] = useState<number | null>(null)
   const [paymentMethod, setPaymentMethod] = useState("cash")
+  const [editFormData, setEditFormData] = useState({
+    class: "",
+    date: "",
+    time: "",
+    status: "",
+  })
+  const [reservations, setReservations] = useState<Reservation[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Filtrar reservaciones
+  const [users, setUsers] = useState<Array<{ id: number; name: string; email: string }>>([])
+  const [classTypes, setClassTypes] = useState<Array<{ id: number; name: string; duration: number }>>([])
+  const [selectedUser, setSelectedUser] = useState<string>("")
+  const [selectedClass, setSelectedClass] = useState<string>("")
+  const [selectedTime, setSelectedTime] = useState<string>("")
+  const [selectedPackage, setSelectedPackage] = useState<string>("")
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("pending")
+
+  // Cargar reservaciones
+  useEffect(() => {
+    const fetchReservations = async () => {
+      setIsLoading(true)
+      try {
+        let url = "/api/admin/reservations"
+        const params = new URLSearchParams()
+
+        if (date) {
+          params.append("date", format(date, "yyyy-MM-dd"))
+        }
+
+        if (statusFilter !== "all") {
+          params.append("status", statusFilter)
+        }
+
+        if (params.toString()) {
+          url += `?${params.toString()}`
+        }
+
+        const response = await fetch(url)
+
+        if (!response.ok) {
+          throw new Error(`Error al cargar las reservaciones: ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        setReservations(data)
+      } catch (error) {
+        console.error("Error loading reservations:", error)
+        // Datos de ejemplo en caso de error
+        const todayFormatted = format(new Date(), "yyyy-MM-dd")
+        const fallbackReservations: Reservation[] = [
+          {
+            id: 1,
+            user: "María García",
+            email: "maria@example.com",
+            phone: "123-456-7890",
+            class: "RHYTHM RIDE",
+            date: todayFormatted,
+            time: "18:00",
+            status: "confirmed",
+            package: "PAQUETE 10 CLASES",
+            remainingClasses: 8,
+            paymentStatus: "paid",
+            paymentMethod: "online",
+          },
+        ]
+        setReservations(fallbackReservations)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchReservations()
+  }, [date, statusFilter])
+
+  // Filtrar reservaciones localmente para búsqueda
   const filteredReservations = reservations.filter((reservation) => {
     const matchesSearch =
       reservation.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
       reservation.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       reservation.class.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesStatus = statusFilter === "all" || reservation.status === statusFilter
-
-    // Filtro de fecha (si está seleccionada)
-    let matchesDate = true
-    if (date) {
-      const formattedSelectedDate = format(date, 'yyyy-MM-dd')
-      matchesDate = reservation.date === formattedSelectedDate
-    }
-
-    return matchesSearch && matchesStatus && matchesDate
+    return matchesSearch
   })
 
   const handlePayment = (reservationId: number) => {
@@ -193,20 +153,231 @@ export default function ReservationsPage() {
     setIsPaymentDialogOpen(true)
   }
 
-  const processPayment = () => {
-    // Here you would integrate with Stripe for online payments
-    // For now, we'll just close the dialog
-    setIsPaymentDialogOpen(false)
-    setSelectedReservation(null)
+  const processPayment = async () => {
+    const reservation = reservations.find((r) => r.id === selectedReservation)
+
+    if (!reservation) {
+      alert("Error: No se encontró la reservación")
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/admin/reservations/${selectedReservation}/payment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          paymentMethod,
+          amount:
+            reservation.package === "PASE INDIVIDUAL"
+              ? 69
+              : reservation.package === "PAQUETE 5 CLASES"
+                ? 299
+                : reservation.package === "PAQUETE 10 CLASES"
+                  ? 599
+                  : 399,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error al procesar el pago")
+      }
+
+      setReservations((prevReservations) =>
+        prevReservations.map((r) =>
+          r.id === selectedReservation ? { ...r, paymentStatus: "paid", paymentMethod: paymentMethod } : r,
+        ),
+      )
+
+      alert(
+        `Pago registrado con éxito para ${reservation.user} - Método: ${paymentMethod === "cash" ? "Efectivo" : "Pago en línea"}`,
+      )
+    } catch (error) {
+      console.error("Error al procesar el pago:", error)
+      alert(`Error al procesar el pago: ${error.message}`)
+
+      setReservations((prevReservations) =>
+        prevReservations.map((r) =>
+          r.id === selectedReservation ? { ...r, paymentStatus: "paid", paymentMethod: paymentMethod } : r,
+        ),
+      )
+    } finally {
+      setIsPaymentDialogOpen(false)
+      setSelectedReservation(null)
+    }
   }
 
-  const handleApplyDateFilter = () => {
-    // La lógica de filtrado ya está implementada en la función filteredReservations
-    console.log("Filtrando por fecha:", date ? format(date, 'yyyy-MM-dd') : 'Todas las fechas')
+  const handleCancelReservation = async (reservationId: number) => {
+    const reservation = reservations.find((r) => r.id === reservationId)
+
+    if (
+      reservation &&
+      confirm(
+        `¿Estás seguro de que deseas cancelar la reservación de ${reservation.user} para la clase ${reservation.class}?`,
+      )
+    ) {
+      try {
+        const response = await fetch(`/api/admin/reservations/${reservationId}/cancel`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            reason: "Cancelado por administrador",
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Error al cancelar la reservación")
+        }
+
+        setReservations((prevReservations) =>
+          prevReservations.map((r) => (r.id === reservationId ? { ...r, status: "cancelled" } : r)),
+        )
+
+        alert("Reservación cancelada con éxito")
+      } catch (error) {
+        console.error("Error al cancelar la reservación:", error)
+        alert(`Error al cancelar la reservación: ${error.message}`)
+
+        setReservations((prevReservations) =>
+          prevReservations.map((r) => (r.id === reservationId ? { ...r, status: "cancelled" } : r)),
+        )
+      }
+    }
   }
+
+  const handleEditReservation = (reservationId: number) => {
+    const reservation = reservations.find((r) => r.id === reservationId)
+
+    if (reservation) {
+      // Asegurar que la fecha se mantenga correcta sin conversión de zona horaria
+      let formattedDate = reservation.date
+
+      // Si la fecha viene en formato diferente, normalizarla
+      if (reservation.date && !reservation.date.includes("-")) {
+        const dateObj = new Date(reservation.date)
+        formattedDate = format(dateObj, "yyyy-MM-dd")
+      }
+
+      setEditFormData({
+        class: reservation.class,
+        date: formattedDate,
+        time: reservation.time,
+        status: reservation.status,
+      })
+
+      setSelectedReservation(reservationId)
+      setIsEditDialogOpen(true)
+    }
+  }
+
+  const saveEditedReservation = async () => {
+    const reservation = reservations.find((r) => r.id === selectedReservation)
+
+    if (reservation) {
+      try {
+        const response = await fetch(`/api/admin/reservations/${selectedReservation}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            class: editFormData.class,
+            date: editFormData.date,
+            time: editFormData.time,
+            status: editFormData.status,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Error al actualizar la reservación")
+        }
+
+        setReservations((prevReservations) =>
+          prevReservations.map((r) =>
+            r.id === selectedReservation
+              ? {
+                  ...r,
+                  class: editFormData.class,
+                  date: editFormData.date,
+                  time: editFormData.time,
+                  status: editFormData.status,
+                }
+              : r,
+          ),
+        )
+
+        alert("Reservación actualizada con éxito")
+      } catch (error) {
+        console.error("Error al actualizar la reservación:", error)
+        alert(`Error al actualizar la reservación: ${error.message}`)
+
+        setReservations((prevReservations) =>
+          prevReservations.map((r) =>
+            r.id === selectedReservation
+              ? {
+                  ...r,
+                  class: editFormData.class,
+                  date: editFormData.date,
+                  time: editFormData.time,
+                  status: editFormData.status,
+                }
+              : r,
+          ),
+        )
+      } finally {
+        setIsEditDialogOpen(false)
+        setSelectedReservation(null)
+      }
+    }
+  }
+
+  // Cargar usuarios para el selector
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch("/api/admin/reservations/clients")
+        if (response.ok) {
+          const data = await response.json()
+          setUsers(data)
+        }
+      } catch (error) {
+        console.error("Error al cargar usuarios:", error)
+      }
+    }
+
+    if (isNewReservationOpen) {
+      fetchUsers()
+    }
+  }, [isNewReservationOpen])
+
+  // Cargar tipos de clases para el selector
+  useEffect(() => {
+    const fetchClassTypes = async () => {
+      try {
+        const response = await fetch("/api/admin/reservations/class-types")
+        if (response.ok) {
+          const data = await response.json()
+          setClassTypes(data)
+        }
+      } catch (error) {
+        console.error("Error al cargar tipos de clases:", error)
+      }
+    }
+
+    if (isNewReservationOpen) {
+      fetchClassTypes()
+    }
+  }, [isNewReservationOpen])
 
   return (
     <div className="p-6">
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#4A102A]">Gestión de Reservaciones</h1>
@@ -220,7 +391,7 @@ export default function ReservationsPage() {
                 <PlusCircle className="h-4 w-4 mr-2" /> Nueva Reserva
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-white border-gray-200 text-zinc-900">
+            <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-2xl">
               <DialogHeader>
                 <DialogTitle className="text-[#4A102A]">Crear Nueva Reservación</DialogTitle>
                 <DialogDescription className="text-gray-600">
@@ -232,32 +403,44 @@ export default function ReservationsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="user">Cliente</Label>
-                    <Select>
+                    <Select value={selectedUser} onValueChange={setSelectedUser}>
                       <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
                         <SelectValue placeholder="Seleccionar cliente" />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-gray-200 text-zinc-900">
-                        <SelectItem value="maria">María García</SelectItem>
-                        <SelectItem value="juan">Juan Pérez</SelectItem>
-                        <SelectItem value="ana">Ana Rodríguez</SelectItem>
-                        <SelectItem value="carlos">Carlos López</SelectItem>
-                        <SelectItem value="laura">Laura Martínez</SelectItem>
+                        {users.length > 0 ? (
+                          users.map((user) => (
+                            <SelectItem key={user.id} value={user.id.toString()}>
+                              {user.name} - {user.email}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="loading" disabled>
+                            Cargando clientes...
+                          </SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="class">Clase</Label>
-                    <Select>
+                    <Select value={selectedClass} onValueChange={setSelectedClass}>
                       <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
                         <SelectValue placeholder="Seleccionar clase" />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-gray-200 text-zinc-900">
-                        {classes.map((classItem) => (
-                          <SelectItem key={classItem.id} value={classItem.id.toString()}>
-                            {classItem.name} - {classItem.instructor} ({classItem.enrolled}/{classItem.capacity})
+                        {classTypes.length > 0 ? (
+                          classTypes.map((classItem) => (
+                            <SelectItem key={classItem.id} value={classItem.id.toString()}>
+                              {classItem.name} - {classItem.duration} min
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="loading" disabled>
+                            Cargando clases...
                           </SelectItem>
-                        ))}
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -271,7 +454,10 @@ export default function ReservationsPage() {
                       value={date ? format(date, "yyyy-MM-dd") : ""}
                       onChange={(e) => {
                         if (e.target.value) {
-                          setDate(new Date(e.target.value));
+                          // Crear fecha local sin conversión de zona horaria
+                          const [year, month, day] = e.target.value.split("-").map(Number)
+                          const localDate = new Date(year, month - 1, day)
+                          setDate(localDate)
                         }
                       }}
                     />
@@ -279,7 +465,7 @@ export default function ReservationsPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="time">Hora</Label>
-                    <Select>
+                    <Select value={selectedTime} onValueChange={setSelectedTime}>
                       <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
                         <SelectValue placeholder="Seleccionar hora" />
                       </SelectTrigger>
@@ -295,7 +481,7 @@ export default function ReservationsPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="package">Paquete</Label>
-                    <Select>
+                    <Select value={selectedPackage} onValueChange={setSelectedPackage}>
                       <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
                         <SelectValue placeholder="Seleccionar paquete" />
                       </SelectTrigger>
@@ -310,7 +496,7 @@ export default function ReservationsPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="payment">Método de Pago</Label>
-                    <Select defaultValue="pending">
+                    <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
                       <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
                         <SelectValue placeholder="Seleccionar método" />
                       </SelectTrigger>
@@ -334,7 +520,59 @@ export default function ReservationsPage() {
                 </Button>
                 <Button
                   className="bg-[#4A102A] hover:bg-[#85193C] text-white"
-                  onClick={() => setIsNewReservationOpen(false)}
+                  onClick={async () => {
+                    try {
+                      if (!selectedUser || !selectedClass || !date || !selectedTime || !selectedPackage) {
+                        const camposFaltantes = []
+                        if (!selectedUser) camposFaltantes.push("Cliente")
+                        if (!selectedClass) camposFaltantes.push("Clase")
+                        if (!date) camposFaltantes.push("Fecha")
+                        if (!selectedTime) camposFaltantes.push("Hora")
+                        if (!selectedPackage) camposFaltantes.push("Paquete")
+
+                        alert(
+                          `Por favor complete todos los campos requeridos. Campos faltantes: ${camposFaltantes.join(", ")}`,
+                        )
+                        return
+                      }
+
+                      const newReservationData = {
+                        userId: Number.parseInt(selectedUser),
+                        classId: Number.parseInt(selectedClass),
+                        date: date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+                        time: selectedTime,
+                        package: selectedPackage,
+                        paymentMethod: selectedPaymentMethod,
+                      }
+
+                      const response = await fetch("/api/admin/reservations", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify(newReservationData),
+                      })
+
+                      if (!response.ok) {
+                        const errorData = await response.json()
+                        throw new Error(errorData.error || "Error al crear la reservación")
+                      }
+
+                      const createdReservation = await response.json()
+                      setReservations([...reservations, createdReservation])
+                      alert("Nueva reservación creada con éxito")
+
+                      setSelectedUser("")
+                      setSelectedClass("")
+                      setSelectedTime("")
+                      setSelectedPackage("")
+                      setSelectedPaymentMethod("pending")
+                      setIsNewReservationOpen(false)
+                    } catch (error) {
+                      console.error("Error al crear la reservación:", error)
+                      alert(`Error al crear la reservación: ${error.message}`)
+                    }
+                  }}
                 >
                   Crear Reservación
                 </Button>
@@ -348,131 +586,76 @@ export default function ReservationsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-        <Card className="bg-white border-gray-200 lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-lg text-[#4A102A]">Filtrar por Fecha</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {date && (
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Fecha seleccionada:</p>
-                  <p className="font-medium text-lg">{format(date, 'PPP', { locale: es })}</p>
-                </div>
-              )}
-              
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    className="w-full border-gray-200 text-zinc-900 hover:bg-gray-100 flex justify-between items-center"
-                  >
-                    <span>Seleccionar fecha</span>
-               
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-white border-gray-200 p-0 overflow-hidden sm:max-w-[425px]">
-                  <DialogHeader className="px-6 pt-6">
-                    <DialogTitle className="text-[#4A102A]">Seleccionar Fecha</DialogTitle>
-                    <DialogDescription>
-                      Elige una fecha para filtrar las reservaciones.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="p-6 pt-2 flex justify-center">
-                    <Calendar
-                      mode="single"
-                      selected={date}
-                      onSelect={(newDate) => {
-                        setDate(newDate);
-                      }}
-                      locale={es}
-                      className="bg-white text-zinc-900"
-                      classNames={{
-                        day_selected: "bg-[#4A102A] text-white",
-                        day_today: "bg-gray-100 text-zinc-900",
-                        day: "text-zinc-900 hover:bg-gray-100"
-                      }}
-                    />
-                  </div>
-                  <DialogFooter className="px-6 pb-6">
-                    <Button
-                      variant="outline"
-                      className="border-gray-200 text-zinc-900 hover:bg-gray-100"
-                      onClick={() => {
-                        const closeButton = document.querySelector('[data-state="open"][role="dialog"] [data-state="open"]');
-                        if (closeButton instanceof HTMLElement) {
-                          closeButton.click();
-                        }
-                      }}
-                    >
-                      Aceptar
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 border-gray-200 text-zinc-900 hover:bg-gray-100"
-                  onClick={() => setDate(new Date())}
-                >
-                  Hoy
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  className="flex-1 border-gray-200 text-zinc-900 hover:bg-gray-100"
-                  onClick={() => {
-                    const tomorrow = new Date();
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    setDate(tomorrow);
-                  }}
-                >
-                  Mañana
-                </Button>
-              </div>
-              
-              <Button
-                className="w-full bg-[#4A102A] hover:bg-[#85193C] text-white"
-                onClick={handleApplyDateFilter}
-              >
-                Aplicar filtro
-              </Button>
-              
-              {date && (
-                <Button 
-                  variant="ghost" 
-                  className="w-full text-gray-500 hover:text-[#4A102A]"
-                  onClick={() => setDate(undefined)}
-                >
-                  Limpiar filtro
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white border-gray-200 col-span-1 md:col-span-3">
-          <CardHeader>
-            <CardTitle className="text-lg text-[#4A102A]">Reservaciones</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row gap-4 mb-6">
-              <div className="relative flex-1">
+      {/* Filtros Horizontales */}
+      <Card className="bg-white border-gray-200 mb-6">
+        <CardHeader>
+          <CardTitle className="text-lg text-[#4A102A]">Filtros</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Búsqueda */}
+            <div className="space-y-2">
+              <Label htmlFor="search">Buscar</Label>
+              <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
                 <Input
+                  id="search"
                   type="search"
-                  placeholder="Buscar por nombre, email o clase..."
-                  className="pl-8 bg-white border-gray-200 text-zinc-900 w-full"
+                  placeholder="Nombre, email o clase..."
+                  className="pl-8 bg-white border-gray-200 text-zinc-900"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+            </div>
 
+            {/* Filtro por fecha */}
+            <div className="space-y-2">
+              <Label>Fecha</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal bg-white border-gray-200",
+                      !date && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date ? format(date, "PPP", { locale: es }) : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-white border-gray-200" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={(newDate) => {
+                      if (newDate) {
+                        // Crear una nueva fecha ajustando la zona horaria
+                        const adjustedDate = new Date(newDate.getTime() + newDate.getTimezoneOffset() * 60000)
+                        setDate(adjustedDate)
+                      } else {
+                        setDate(newDate)
+                      }
+                    }}
+                    locale={es}
+                    initialFocus
+                    className="bg-white text-zinc-900"
+                    classNames={{
+                      day_selected: "bg-[#4A102A] text-white",
+                      day_today: "bg-gray-100 text-zinc-900",
+                      day: "text-zinc-900 hover:bg-gray-100",
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Filtro por estado */}
+            <div className="space-y-2">
+              <Label htmlFor="status">Estado</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="bg-white border-gray-200 text-zinc-900 w-full sm:w-[180px]">
+                <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
                   <SelectValue placeholder="Filtrar por estado" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200 text-zinc-900">
@@ -484,120 +667,163 @@ export default function ReservationsPage() {
               </Select>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left p-4 font-medium text-gray-600">ID</th>
-                    <th className="text-left p-4 font-medium text-gray-600">Cliente</th>
-                    <th className="text-left p-4 font-medium text-gray-600">Clase</th>
-                    <th className="text-left p-4 font-medium text-gray-600">Fecha</th>
-                    <th className="text-left p-4 font-medium text-gray-600">Hora</th>
-                    <th className="text-left p-4 font-medium text-gray-600">Paquete</th>
-                    <th className="text-left p-4 font-medium text-gray-600">Estado</th>
-                    <th className="text-left p-4 font-medium text-gray-600">Pago</th>
-                    <th className="text-left p-4 font-medium text-gray-600">Acciones</th>
+            {/* Botones de acción rápida */}
+            <div className="space-y-2">
+              <Label>Acciones rápidas</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 border-gray-200 text-zinc-900 hover:bg-gray-100"
+                  onClick={() => setDate(new Date())}
+                >
+                  Hoy
+                </Button>
+                {date && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+                    onClick={() => setDate(undefined)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabla de Reservaciones */}
+      <Card className="bg-white border-gray-200">
+        <CardHeader>
+          <CardTitle className="text-lg text-[#4A102A]">
+            Reservaciones {date && `- ${format(date, "PPP", { locale: es })}`}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left p-4 font-medium text-gray-600">ID</th>
+                  <th className="text-left p-4 font-medium text-gray-600">Cliente</th>
+                  <th className="text-left p-4 font-medium text-gray-600">Clase</th>
+                  <th className="text-left p-4 font-medium text-gray-600">Fecha</th>
+                  <th className="text-left p-4 font-medium text-gray-600">Hora</th>
+                  <th className="text-left p-4 font-medium text-gray-600">Paquete</th>
+                  <th className="text-left p-4 font-medium text-gray-600">Estado</th>
+                  <th className="text-left p-4 font-medium text-gray-600">Pago</th>
+                  <th className="text-left p-4 font-medium text-gray-600">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={9} className="p-4 text-center text-gray-600">
+                      Cargando reservaciones...
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredReservations.length > 0 ? (
-                    filteredReservations.map((reservation) => (
-                      <tr key={reservation.id} className="border-b border-gray-200">
-                        <td className="p-4">#{reservation.id}</td>
-                        <td className="p-4">
-                          <div>
-                            <div className="font-medium">{reservation.user}</div>
-                            <div className="text-sm text-gray-600">{reservation.email}</div>
-                          </div>
-                        </td>
-                        <td className="p-4">{reservation.class}</td>
-                        <td className="p-4">{reservation.date}</td>
-                        <td className="p-4">{reservation.time}</td>
-                        <td className="p-4">
-                          <div>
-                            <div>{reservation.package}</div>
-                            <div className="text-sm text-gray-600">Restantes: {reservation.remainingClasses}</div>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs ${
-                              reservation.status === "confirmed"
-                                ? "bg-green-500/20 text-green-700"
-                                : reservation.status === "pending"
-                                  ? "bg-yellow-500/20 text-yellow-700"
-                                  : "bg-red-500/20 text-red-700"
-                            }`}
-                          >
-                            {reservation.status === "confirmed"
-                              ? "Confirmada"
+                ) : filteredReservations.length > 0 ? (
+                  filteredReservations.map((reservation) => (
+                    <tr key={reservation.id} className="border-b border-gray-200">
+                      <td className="p-4">#{reservation.id}</td>
+                      <td className="p-4">
+                        <div>
+                          <div className="font-medium">{reservation.user}</div>
+                          <div className="text-sm text-gray-600">{reservation.email}</div>
+                        </div>
+                      </td>
+                      <td className="p-4">{reservation.class}</td>
+                      <td className="p-4">{reservation.date}</td>
+                      <td className="p-4">{reservation.time}</td>
+                      <td className="p-4">
+                        <div>
+                          <div>{reservation.package}</div>
+                          <div className="text-sm text-gray-600">Restantes: {reservation.remainingClasses}</div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs ${
+                            reservation.status === "confirmed"
+                              ? "bg-green-500/20 text-green-700"
                               : reservation.status === "pending"
-                                ? "Pendiente"
-                                : "Cancelada"}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs ${
-                              reservation.paymentStatus === "paid"
-                                ? "bg-green-500/20 text-green-700"
-                                : reservation.paymentStatus === "pending"
-                                  ? "bg-yellow-500/20 text-yellow-700"
-                                  : "bg-red-500/20 text-red-700"
-                            }`}
-                          >
-                            {reservation.paymentStatus === "paid"
-                              ? `Pagado (${reservation.paymentMethod === "online" ? "Stripe" : "Efectivo"})`
+                                ? "bg-yellow-500/20 text-yellow-700"
+                                : "bg-red-500/20 text-red-700"
+                          }`}
+                        >
+                          {reservation.status === "confirmed"
+                            ? "Confirmada"
+                            : reservation.status === "pending"
+                              ? "Pendiente"
+                              : "Cancelada"}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs ${
+                            reservation.paymentStatus === "paid"
+                              ? "bg-green-500/20 text-green-700"
                               : reservation.paymentStatus === "pending"
-                                ? "Pendiente"
-                                : "Reembolsado"}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex gap-2">
-                            {reservation.paymentStatus === "pending" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 border-[#4A102A] text-[#4A102A] hover:bg-[#FCF259]/10"
-                                onClick={() => handlePayment(reservation.id)}
-                              >
-                                Registrar Pago
-                              </Button>
-                            )}
+                                ? "bg-yellow-500/20 text-yellow-700"
+                                : "bg-red-500/20 text-red-700"
+                          }`}
+                        >
+                          {reservation.paymentStatus === "paid"
+                            ? `Pagado (${reservation.paymentMethod === "online" ? "Stripe" : "Efectivo"})`
+                            : reservation.paymentStatus === "pending"
+                              ? "Pendiente"
+                              : "Reembolsado"}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex gap-2">
+                          {reservation.paymentStatus === "pending" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 border-[#4A102A] text-[#4A102A] hover:bg-[#FCF259]/10"
+                              onClick={() => handlePayment(reservation.id)}
+                            >
+                              Registrar Pago
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 border-gray-200 text-zinc-900 hover:bg-gray-100"
+                            onClick={() => handleEditReservation(reservation.id)}
+                          >
+                            Editar
+                          </Button>
+                          {reservation.status !== "cancelled" && (
                             <Button
                               variant="outline"
                               size="sm"
                               className="h-8 border-gray-200 text-zinc-900 hover:bg-gray-100"
+                              onClick={() => handleCancelReservation(reservation.id)}
                             >
-                              Editar
+                              Cancelar
                             </Button>
-                            {reservation.status !== "cancelled" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-8 border-gray-200 text-zinc-900 hover:bg-gray-100"
-                              >
-                                Cancelar
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={9} className="p-4 text-center text-gray-600">
-                        No se encontraron reservaciones con los filtros aplicados
+                          )}
+                        </div>
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={9} className="p-4 text-center text-gray-600">
+                      No se encontraron reservaciones con los filtros aplicados
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Payment Dialog */}
       <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
@@ -667,6 +893,106 @@ export default function ReservationsPage() {
             </Button>
             <Button className="bg-[#4A102A] hover:bg-[#85193C] text-white" onClick={processPayment}>
               {paymentMethod === "cash" ? "Registrar Pago" : "Enviar Enlace de Pago"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Reservation Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="bg-white border-gray-200 text-zinc-900">
+          <DialogHeader>
+            <DialogTitle className="text-[#4A102A]">Editar Reservación</DialogTitle>
+            <DialogDescription className="text-gray-600">Actualice los detalles de la reservación</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="class">Clase</Label>
+              <Select
+                value={editFormData.class}
+                onValueChange={(value) => setEditFormData({ ...editFormData, class: value })}
+              >
+                <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                  <SelectValue placeholder="Seleccionar clase" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                  {classTypes.map((classType) => (
+                    <SelectItem key={classType.id} value={classType.name}>
+                      {classType.name} ({classType.duration} min)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="date">Fecha</Label>
+                <Input
+                  type="date"
+                  id="date"
+                  className="bg-white border-gray-200 text-zinc-900"
+                  value={editFormData.date ? format(new Date(editFormData.date), "yyyy-MM-dd") : ""}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      // Crear fecha local sin conversión de zona horaria
+                      const [year, month, day] = e.target.value.split("-").map(Number)
+                      const localDate = new Date(year, month - 1, day)
+                      setEditFormData({ ...editFormData, date: format(localDate, "yyyy-MM-dd") })
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="time">Hora</Label>
+                <Select
+                  value={editFormData.time}
+                  onValueChange={(value) => setEditFormData({ ...editFormData, time: value })}
+                >
+                  <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                    <SelectValue placeholder="Seleccionar hora" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                    {timeSlots.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="status">Estado</Label>
+              <Select
+                value={editFormData.status}
+                onValueChange={(value) => setEditFormData({ ...editFormData, status: value })}
+              >
+                <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                  <SelectValue placeholder="Seleccionar estado" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                  <SelectItem value="confirmed">Confirmada</SelectItem>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="cancelled">Cancelada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+              className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+            >
+              Cancelar
+            </Button>
+            <Button className="bg-[#4A102A] hover:bg-[#85193C] text-white" onClick={saveEditedReservation}>
+              Guardar Cambios
             </Button>
           </DialogFooter>
         </DialogContent>
