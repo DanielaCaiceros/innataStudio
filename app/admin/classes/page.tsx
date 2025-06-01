@@ -106,6 +106,16 @@ const weekDays = [
   { key: "sunday", label: "Domingo" },
 ]
 
+function convertUtcToLocalDateForDisplay(utcDateString: string): Date {
+  if (!utcDateString) return new Date(); // Or handle error appropriately
+  const d = new Date(utcDateString);
+  // Ensure we handle potential invalid date strings from backend if necessary
+  if (isNaN(d.getTime())) {
+    console.error("Invalid date string received from backend:", utcDateString);
+    return new Date(); // Fallback or error
+  }
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds());
+}
 
 export default function ClassesPage() {
   const { toast } = useToast()
@@ -236,7 +246,7 @@ export default function ClassesPage() {
       setEditScheduleForm({
         classTypeId: selectedSchedule.classType.id.toString(),
         instructorId: selectedSchedule.instructor.id.toString(),
-        date: format(new Date(selectedSchedule.date), "yyyy-MM-dd"),
+        date: format(convertUtcToLocalDateForDisplay(selectedSchedule.date), "yyyy-MM-dd"),
         time: formatTime(selectedSchedule.time),
         maxCapacity: selectedSchedule.maxCapacity.toString(),
       })
@@ -482,7 +492,8 @@ export default function ClassesPage() {
     const targetDateString = format(targetDate, "yyyy-MM-dd")
 
     return scheduledClasses.filter((cls) => {
-      const classDateString = format(new Date(cls.date), "yyyy-MM-dd")
+      const classDateForDisplay = convertUtcToLocalDateForDisplay(cls.date);
+      const classDateString = format(classDateForDisplay, "yyyy-MM-dd");
       return classDateString === targetDateString
     })
   }
@@ -1134,7 +1145,7 @@ const formatTime = (timeString: string): string => {
                                 {cls.instructor.user.firstName} {cls.instructor.user.lastName}
                               </p>
                               <p className="text-sm text-gray-500">
-                                {format(new Date(cls.date), "EEEE, d 'de' MMMM", { locale: es })} - {formatTime(cls.time)}
+                                {format(convertUtcToLocalDateForDisplay(cls.date), "EEEE, d 'de' MMMM", { locale: es })} - {formatTime(cls.time)}
                               </p>
                               <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                                 <span className="flex items-center gap-1">
