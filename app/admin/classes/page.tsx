@@ -201,11 +201,11 @@ export default function ClassesPage() {
   }
   
   const filterTodayClasses = () => {
-    // Obtenemos la fecha de hoy para filtrar
+    // Creamos una fecha hoy sin ajustes de zona horaria
     const today = new Date()
+    // Formateamos a string en formato yyyy-MM-dd
     const todayString = format(today, "yyyy-MM-dd")
     
-    // Filtramos las clases para mostrar solo las de hoy
     const todayClasses = scheduledClasses.filter((cls) => {
       try {
         if (!cls.date) return false
@@ -227,31 +227,18 @@ export default function ClassesPage() {
       }
     })
     
-    // Actualizamos el estado con las clases de hoy
     setFilteredClasses(todayClasses)
     setShowingToday(true)
     
-    // Actualizamos la fecha seleccionada para que coincida con hoy
-    setSelectedDate(today)
-    
-    // También cambiamos a vista de día para una mejor visualización
-    setViewMode("day")
-    
     toast({
-      title: "Clases de hoy",
-      description: `Mostrando clases para hoy: ${format(today, "EEEE, d 'de' MMMM", { locale: es })}`,
+      title: "Filtro aplicado",
+      description: `Mostrando clases para hoy: ${format(today, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })} (horario local)`,
     })
   }
   
   const resetFilter = () => {
-    // Restaurar todas las clases sin filtro
     setFilteredClasses(scheduledClasses)
     setShowingToday(false)
-    
-    toast({
-      title: "Filtro eliminado",
-      description: "Mostrando todas las clases programadas"
-    })
   }
 
   const handleCreateClassType = async () => {
@@ -810,14 +797,25 @@ export default function ClassesPage() {
                     Semana
                   </Button>
                   
-                  <Button 
-                    variant={showingToday ? "default" : "outline"}
-                    className={`ml-2 ${showingToday ? "bg-[#4A102A] text-white" : "border-[#4A102A] text-[#4A102A]"}`}
-                    onClick={showingToday ? resetFilter : filterTodayClasses}
-                  >
-                    <CalendarIcon className="h-4 w-4 mr-2" />
-                    {showingToday ? "Ver todas las clases" : "Ir a clases de hoy"}
-                  </Button>
+                  {showingToday ? (
+                    <Button 
+                      variant="outline" 
+                      className="ml-2 border-[#4A102A] text-[#4A102A]" 
+                      onClick={resetFilter}
+                    >
+                      <CalendarIcon className="h-4 w-4 mr-2" />
+                      Mostrar todas las clases
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      className="ml-2 border-[#4A102A] text-[#4A102A]" 
+                      onClick={filterTodayClasses}
+                    >
+                      <CalendarIcon className="h-4 w-4 mr-2" />
+                      Ver clases de hoy
+                    </Button>
+                  )}
                 </div>
 
                 <Dialog open={isScheduleDialogOpen} onOpenChange={setIsScheduleDialogOpen}>
