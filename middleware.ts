@@ -65,6 +65,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/api/admin/:path*',
     '/admin/:path*',
     '/mi-cuenta/:path*',
     '/mis-reservas/:path*',
