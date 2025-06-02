@@ -1,28 +1,17 @@
-// app/api/auth/login/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { loginUser } from '@/lib/services/auth.service';
+import { loginUser, AuthError } from '@/lib/services/auth.service';
 import { LoginCredentials } from '@/lib/types/auth';
 import { cookies } from 'next/headers';
+import { getStatusCodeForAuthError, getFriendlyErrorMessage } from '@/lib/utils/auth-errors';
 
 export async function POST(request: NextRequest) {
   try {
     const body: LoginCredentials = await request.json();
     
-    // Validar datos de entrada
-    if (!body.email || !body.password) {
-      return NextResponse.json(
-        { error: 'Email y contraseña son requeridos' },
-        { status: 400 }
-      );
-    }
-
-    // Iniciar sesión
     const authResponse = await loginUser(body);
 
     // Establecer cookie con el token JWT
-    (await
-      // Establecer cookie con el token JWT
-      cookies()).set({
+    (await cookies()).set({
       name: 'auth_token',
       value: authResponse.token,
       httpOnly: true,
@@ -35,9 +24,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(authResponse);
   } catch (error: any) {
     console.error('Error en inicio de sesión:', error);
+    
+    if (error instanceof AuthError) {
+      const statusCode = getStatusCodeForAuthError(error.code);
+      const friendlyMessage = getFriendlyErrorMessage(error.code, error.message);
+      
+      return NextResponse.json(
+        { error: friendlyMessage, code: error.code },
+        { status: statusCode }
+      );
+    }
+    
     return NextResponse.json(
-      { error: error.message || 'Error en el inicio de sesión' },
-      { status: 401 }
+      { error: 'Error interno del servidor' },
+      { status: 500 }
     );
   }
 }
