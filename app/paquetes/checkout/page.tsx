@@ -115,8 +115,8 @@ export default function PackageCheckoutPage() {
           description: "Tu paquete ha sido registrado correctamente",
         })
         
-        // Redireccionar a la página de confirmación
-        router.push("/paquetes/confirmacion")
+        // Redireccionar a la página de confirmación con los parámetros necesarios
+        router.push(`/paquetes/confirmacion?session_id=${paymentId}&package_id=${packageId}`)
       } else {
         const errorData = await response.json()
         toast({

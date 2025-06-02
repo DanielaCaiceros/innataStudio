@@ -46,3 +46,109 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
+
+// POST - Crear un nuevo paquete para el usuario después de un pago exitoso
+export async function POST(request: NextRequest) {
+  try {
+    // Verificar autenticación
+    const token = request.cookies.get("auth_token")?.value
+    if (!token) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    }
+
+    const payload = await verifyToken(token)
+    const userId = Number.parseInt(payload.userId)
+
+    // Obtener los datos del body
+    const body = await request.json()
+    const { packageId, paymentId } = body
+
+    if (!packageId || !paymentId) {
+      return NextResponse.json({ 
+        error: "Faltan datos requeridos: packageId y/o paymentId" 
+      }, { status: 400 })
+    }
+
+    // Obtener información del paquete
+    const packageInfo = await prisma.package.findUnique({
+      where: { id: Number(packageId) }
+    })
+
+    if (!packageInfo) {
+      return NextResponse.json({ 
+        error: "Paquete no encontrado" 
+      }, { status: 404 })
+    }
+
+    // Calcular fecha de expiración
+    const purchaseDate = new Date()
+    const expiryDate = new Date()
+    expiryDate.setDate(purchaseDate.getDate() + packageInfo.validityDays)
+
+    // Crear el registro UserPackage
+    const userPackage = await prisma.userPackage.create({
+      data: {
+        userId,
+        packageId: Number(packageId),
+        purchaseDate,
+        expiryDate,
+        classesRemaining: packageInfo.classCount || 0,
+        classesUsed: 0,
+        isActive: true,
+        paymentMethod: "online",
+        paymentStatus: "paid"
+      },
+      include: {
+        package: true
+      }
+    })
+
+    // Actualizar el balance del usuario si existe
+    await prisma.userAccountBalance.upsert({
+      where: { userId },
+      update: {
+        totalClassesPurchased: {
+          increment: packageInfo.classCount || 0
+        },
+        classesAvailable: {
+          increment: packageInfo.classCount || 0
+        },
+        lastUpdated: new Date()
+      },
+      create: {
+        userId,
+        totalClassesPurchased: packageInfo.classCount || 0,
+        classesUsed: 0,
+        classesAvailable: packageInfo.classCount || 0,
+        lastUpdated: new Date()
+      }
+    })
+
+    // Crear una transacción de balance para el registro
+    await prisma.balanceTransaction.create({
+      data: {
+        userId,
+        type: "purchase",
+        amount: packageInfo.classCount || 0,
+        description: `Compra de paquete: ${packageInfo.name}`,
+        createdAt: new Date()
+      }
+    })
+
+    return NextResponse.json({
+      success: true,
+      userPackage: {
+        id: userPackage.id,
+        packageName: userPackage.package.name,
+        classesRemaining: userPackage.classesRemaining,
+        expiryDate: userPackage.expiryDate.toISOString().split('T')[0]
+      }
+    })
+
+  } catch (error) {
+    console.error("Error creating user package:", error)
+    return NextResponse.json({ 
+      error: "Error interno del servidor al procesar la compra" 
+    }, { status: 500 })
+  }
+}

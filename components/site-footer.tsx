@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Instagram, Facebook, Twitter } from "lucide-react"
+import { Instagram, Facebook } from "lucide-react"
 
 export function SiteFooter() {
   return (
@@ -25,10 +25,7 @@ export function SiteFooter() {
               <Facebook className="h-5 w-5" />
               <span className="sr-only">Facebook</span>
             </Link>
-            <Link href="#" className="text-zinc-800 hover:text-custom-teal">
-              <Twitter className="h-5 w-5" />
-              <span className="sr-only">Twitter</span>
-            </Link>
+
           </div>
         </div>
 
@@ -76,10 +73,10 @@ export function SiteFooter() {
         <div>
           <h4 className="font-bold mb-4">CONTACTO</h4>
           <address className="not-italic text-zinc-600 space-y-2">
-            <p>Av. Principal #123</p>
-            <p>Ciudad, CP 12345</p>
+            <p>Av. Victoria Nte. 21</p>
+            <p> Centro, 43900 Apan, Hgo.</p>
             <p>Tel: 775-357-1894</p>
-            <p>Email: innata@indoor@gmail.com</p>
+            <p>Email: innataindoor@gmail.com</p>
           </address>
         </div>
       </div>

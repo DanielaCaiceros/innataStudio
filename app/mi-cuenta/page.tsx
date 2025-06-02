@@ -217,9 +217,7 @@ export default function ProfilePage() {
   const currentUser: UserProfile = {
     name: user?.name || "",
     email: user?.email || "",
-    memberSince: user?.joinDate 
-      ? new Date(user.joinDate).toLocaleDateString('es-ES', { year: 'numeric', month: 'long' })
-      : ""
+    memberSince: "Miembro registrado" // Simplificado por ahora
   }
 
   return (
@@ -281,6 +279,12 @@ export default function ProfilePage() {
                     Próximas Clases
                   </TabsTrigger>
                   <TabsTrigger
+                    value="packages"
+                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white"
+                  >
+                    Mis Paquetes
+                  </TabsTrigger>
+                  <TabsTrigger
                     value="history"
                     className="data-[state=active]:bg-brand-sage data-[state=active]:text-white"
                   >
@@ -313,7 +317,7 @@ export default function ProfilePage() {
                       <Card key={classItem.id} className="overflow-hidden border-brand-mint/20 shadow-sm">
                         <div className="relative h-40">
                           <Image
-                            src={classItem.image || "/placeholder.svg"}
+                            src="/placeholder.svg"
                             alt={classItem.className}
                             fill
                             className="object-cover"
@@ -358,6 +362,79 @@ export default function ProfilePage() {
                 )}
               </TabsContent>
 
+              <TabsContent value="packages" className="mt-0">
+                <div className="mb-6 flex justify-between items-center">
+                  <h2 className="text-xl font-semibold">Mis Paquetes</h2>
+                  <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white rounded-full">
+                    <Link href="/paquetes">
+                      Comprar Paquete
+                      <ChevronRight className="ml-1 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </div>
+
+                {isLoadingPackages ? (
+                  <div className="text-center py-12">
+                    <p className="text-zinc-600">Cargando paquetes...</p>
+                  </div>
+                ) : userPackages.length === 0 ? (
+                  <div className="text-center py-12 bg-brand-cream/10 rounded-lg">
+                    <p className="text-zinc-600 mb-4">No tienes paquetes activos actualmente.</p>
+                    <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white">
+                      <Link href="/paquetes">Comprar un paquete</Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {userPackages.map((pkg) => (
+                      <Card key={pkg.id} className="border-brand-mint/20 shadow-sm">
+                        <CardHeader>
+                          <CardTitle className="text-lg font-semibold text-brand-burgundy">
+                            {pkg.name}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                              <span className="text-zinc-600">Clases restantes</span>
+                              <span className="font-bold text-2xl text-brand-sage">
+                                {pkg.classesRemaining}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-zinc-600">Clases usadas</span>
+                              <span className="font-medium text-zinc-700">
+                                {pkg.classesUsed}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-zinc-600">Expira el</span>
+                              <span className="font-medium text-zinc-700">
+                                {new Date(pkg.expiryDate).toLocaleDateString('es-ES', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric'
+                                })}
+                              </span>
+                            </div>
+                            <div className="w-full bg-brand-cream/30 rounded-full h-2">
+                              <div className="bg-brand-sage h-2 rounded-full transition-all duration-300 w-1/2" />
+                            </div>
+                          </div>
+                        </CardContent>
+                        <CardFooter>
+                          <Button asChild className="w-full bg-brand-mint hover:bg-brand-sage text-white">
+                            <Link href="/reservar">
+                              Usar para reservar
+                            </Link>
+                          </Button>
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
               <TabsContent value="history" className="mt-0">
                 <h2 className="text-xl font-semibold mb-6">Historial de Clases</h2>
 
@@ -372,7 +449,7 @@ export default function ProfilePage() {
                         <div className="flex flex-col md:flex-row">
                           <div className="relative w-full md:w-48 h-32 md:h-auto">
                             <Image
-                              src={classItem.image || "/placeholder.svg"}
+                              src="/placeholder.svg"
                               alt={classItem.className}
                               fill
                               className="object-cover"

@@ -54,6 +54,35 @@ export default function BookingPage() {
   
   // Estado para datos de la API
   const [availableClasses, setAvailableClasses] = useState<ScheduledClass[]>([])
+  const [userAvailableClasses, setUserAvailableClasses] = useState<number>(0)
+  const [isLoadingUserClasses, setIsLoadingUserClasses] = useState(false)
+  
+  // Obtener clases disponibles del usuario
+  useEffect(() => {
+    const loadUserAvailableClasses = async () => {
+      if (!isAuthenticated || !user) return;
+      
+      setIsLoadingUserClasses(true);
+      try {
+        const response = await fetch("/api/user/packages", {
+          method: "GET",
+          credentials: "include",
+        });
+        
+        if (response.ok) {
+          const packages = await response.json();
+          const totalClasses = packages.reduce((total: number, pkg: any) => total + pkg.classesRemaining, 0);
+          setUserAvailableClasses(totalClasses);
+        }
+      } catch (error) {
+        console.error("Error al cargar clases disponibles del usuario:", error);
+      } finally {
+        setIsLoadingUserClasses(false);
+      }
+    };
+
+    loadUserAvailableClasses();
+  }, [isAuthenticated, user]);
   
   // Obtener clases disponibles al cargar o cambiar la fecha
   useEffect(() => {
@@ -149,7 +178,7 @@ export default function BookingPage() {
     })
   }
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
     if (isAuthLoading) { // Check if auth state is resolving
       return;
     }
@@ -177,7 +206,52 @@ export default function BookingPage() {
     
     // Guardar el ID de la clase programada para la reserva
     setScheduledClassId(selectedScheduledClass.id);
-    setIsPaymentOpen(true);
+    
+    // Verificar si el usuario tiene clases disponibles en sus paquetes
+    if (userAvailableClasses > 0) {
+      // El usuario tiene clases disponibles, proceder directamente con la reserva
+      try {
+        console.log("Creando reserva usando paquete disponible:", selectedScheduledClass.id);
+        
+        // Crear la reserva en el backend
+        const response = await fetch("/api/reservations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            scheduledClassId: selectedScheduledClass.id
+            // No incluir paymentId ya que se usa un paquete existente
+          }),
+          credentials: "include",
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || "Error al crear la reserva");
+        }
+        
+        // Actualizar el contador local de clases disponibles
+        setUserAvailableClasses(prev => prev - 1);
+        
+        // Mostrar confirmación
+        setIsConfirmationOpen(true);
+        
+        toast({
+          title: "Reserva confirmada",
+          description: "Tu clase ha sido reservada usando tu paquete activo. Se ha enviado un correo de confirmación.",
+        });
+      } catch (error) {
+        console.error("Error:", error);
+        toast({
+          title: "Error al confirmar la reserva",
+          description: error instanceof Error ? error.message : "No se pudo procesar la reserva",
+          variant: "destructive",
+        });
+      }
+    } else {
+      // El usuario no tiene clases disponibles, abrir modal de pago
+      setIsPaymentOpen(true);
+    }
   }
 
   // Obtener las clases disponibles para la fecha seleccionada
@@ -427,6 +501,27 @@ export default function BookingPage() {
                     }
                   </span>
                 </div>
+                
+                {/* Mostrar clases disponibles del usuario si está autenticado */}
+                {isAuthenticated && (
+                  <div className="bg-brand-mint/10 rounded-lg p-3 mt-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-zinc-700 font-medium">Tus clases disponibles:</span>
+                      <span className="font-bold text-xl text-brand-sage">
+                        {isLoadingUserClasses ? "..." : userAvailableClasses}
+                      </span>
+                    </div>
+                    {userAvailableClasses > 0 ? (
+                      <p className="text-sm text-green-700 mt-1">
+                        ✓ Puedes reservar esta clase usando tu paquete
+                      </p>
+                    ) : (
+                      <p className="text-sm text-orange-700 mt-1">
+                        ⚠ Necesitarás pagar para reservar esta clase
+                      </p>
+                    )}
+                  </div>
+                )}
                 </div>
 
                 <Button
@@ -435,7 +530,11 @@ export default function BookingPage() {
                   onClick={handleConfirmBooking}
                 >
                   <span className="flex items-center gap-1">
-                    CONFIRMAR RESERVA <ChevronRight className="h-4 w-4" />
+                    {isAuthenticated && userAvailableClasses > 0 
+                      ? "USAR PAQUETE - RESERVAR" 
+                      : "CONFIRMAR RESERVA"
+                    } 
+                    <ChevronRight className="h-4 w-4" />
                   </span>
                 </Button>
               </CardContent>
