@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     const userId = Number.parseInt(payload.userId)
 
     const body = await request.json()
-    const { scheduledClassId, userPackageId } = body
+    const { scheduledClassId, userPackageId, paymentId } = body
 
     if (!scheduledClassId) {
       return NextResponse.json({ error: "ID de clase requerido" }, { status: 400 })
@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Si se proporciona un ID de paquete, verificar que sea válido
+    // Si no se proporciona pero tampoco hay paymentId, buscar automáticamente un paquete disponible
     let userPackage = null
     if (userPackageId) {
       userPackage = await prisma.userPackage.findFirst({
@@ -68,6 +69,25 @@ export async function POST(request: NextRequest) {
 
       if (!userPackage) {
         return NextResponse.json({ error: "Paquete no válido o sin clases disponibles" }, { status: 400 })
+      }
+    } else if (!paymentId) {
+      // No se proporcionó paquete específico ni paymentId, buscar automáticamente un paquete disponible
+      userPackage = await prisma.userPackage.findFirst({
+        where: {
+          userId,
+          isActive: true,
+          classesRemaining: { gt: 0 },
+          expiryDate: { gte: new Date() },
+        },
+        orderBy: {
+          expiryDate: 'asc' // Usar primero el que expire antes
+        }
+      })
+
+      if (!userPackage) {
+        return NextResponse.json({ 
+          error: "No tienes clases disponibles en tus paquetes. Necesitas comprar un paquete o pagar por esta clase individual." 
+        }, { status: 400 })
       }
     }
 
@@ -130,7 +150,7 @@ export async function POST(request: NextRequest) {
           where: { userId },
           create: {
             userId,
-            classesAvailable: userPackage.classesRemaining - 1,
+            classesAvailable: (userPackage.classesRemaining || 0) - 1,
             classesUsed: 1,
           },
           update: {
