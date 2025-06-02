@@ -1,6 +1,6 @@
-// app/api/auth/verify/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyEmail } from '@/lib/services/auth.service';
+import { verifyEmail, AuthError } from '@/lib/services/auth.service';
+import { getFriendlyErrorMessage } from '@/lib/utils/auth-errors';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,20 +8,26 @@ export async function GET(request: NextRequest) {
     const token = searchParams.get('token');
     
     if (!token) {
-      return NextResponse.json(
-        { error: 'Token no proporcionado' },
-        { status: 400 }
+      return NextResponse.redirect(
+        new URL('/login?error=Token de verificación no proporcionado', request.url)
       );
     }
 
     await verifyEmail(token);
 
-    // Redirigir a la página de inicio de sesión
+    // Redirigir a la página de inicio de sesión con mensaje de éxito
     return NextResponse.redirect(new URL('/login?verified=true', request.url));
   } catch (error: any) {
     console.error('Error verificando email:', error);
+    
+    let errorMessage = 'Error al verificar el email';
+    
+    if (error instanceof AuthError) {
+      errorMessage = getFriendlyErrorMessage(error.code, error.message);
+    }
+    
     return NextResponse.redirect(
-      new URL(`/login?error=${encodeURIComponent(error.message)}`, request.url)
+      new URL(`/login?error=${encodeURIComponent(errorMessage)}`, request.url)
     );
   }
 }

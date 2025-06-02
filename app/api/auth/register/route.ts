@@ -1,26 +1,23 @@
-// app/api/auth/register/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { registerUser } from '@/lib/services/auth.service';
+import { registerUser, AuthError } from '@/lib/services/auth.service';
 import { sendVerificationEmail } from '@/lib/email';
 import { UserRegistrationData } from '@/lib/types/auth';
+import { getStatusCodeForAuthError, getFriendlyErrorMessage } from '@/lib/utils/auth-errors';
 
 export async function POST(request: NextRequest) {
   try {
     const body: UserRegistrationData = await request.json();
     
-    // Validar datos de entrada
-    if (!body.email || !body.password || !body.firstName || !body.lastName) {
-      return NextResponse.json(
-        { error: 'Todos los campos son obligatorios' },
-        { status: 400 }
-      );
-    }
-
-    // Registrar usuario
     const { userId, verificationToken } = await registerUser(body);
     
     // Enviar correo de verificación
-    await sendVerificationEmail(body.email, body.firstName, verificationToken);
+    try {
+      await sendVerificationEmail(body.email, body.firstName, verificationToken);
+    } catch (emailError) {
+      console.error('Error sending verification email:', emailError);
+      // No fallar el registro si el email no se puede enviar
+      // El usuario puede solicitar un reenvío más tarde
+    }
 
     return NextResponse.json(
       { 
@@ -31,9 +28,20 @@ export async function POST(request: NextRequest) {
     );
   } catch (error: any) {
     console.error('Error registrando usuario:', error);
+    
+    if (error instanceof AuthError) {
+      const statusCode = getStatusCodeForAuthError(error.code);
+      const friendlyMessage = getFriendlyErrorMessage(error.code, error.message);
+      
+      return NextResponse.json(
+        { error: friendlyMessage, code: error.code },
+        { status: statusCode }
+      );
+    }
+    
     return NextResponse.json(
-      { error: error.message || 'Error al registrar usuario' },
-      { status: 400 }
+      { error: 'Error interno del servidor' },
+      { status: 500 }
     );
   }
 }

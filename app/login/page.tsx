@@ -1,24 +1,56 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { useToast } from "@/components/ui/use-toast"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle, CheckCircle, Loader2, Eye, EyeOff } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
   const { login } = useAuth()
   const { toast } = useToast()
+  const searchParams = useSearchParams()
+  
   const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
+  const [successMessage, setSuccessMessage] = useState("")
+  
   const [formData, setFormData] = useState({
     email: "",
     password: ""
   })
+  
+  const [fieldErrors, setFieldErrors] = useState({
+    email: "",
+    password: ""
+  })
+
+  // Verificar parámetros de URL para mensajes
+  useEffect(() => {
+    const registered = searchParams.get("registered")
+    const verified = searchParams.get("verified")
+    const error = searchParams.get("error")
+
+    if (registered === "true") {
+      setSuccessMessage("Registro exitoso. Revisa tu email para verificar tu cuenta.")
+    }
+    
+    if (verified === "true") {
+      setSuccessMessage("Cuenta verificada exitosamente. Ahora puedes iniciar sesión.")
+    }
+    
+    if (error) {
+      setErrorMessage(decodeURIComponent(error))
+    }
+  }, [searchParams])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -26,23 +58,138 @@ export default function LoginPage() {
       ...prev,
       [name]: value
     }))
+    
+    // Limpiar errores cuando el usuario empiece a escribir
+    if (fieldErrors[name as keyof typeof fieldErrors]) {
+      setFieldErrors(prev => ({
+        ...prev,
+        [name]: ""
+      }))
+    }
+    
+    // Limpiar mensaje de error general
+    if (errorMessage) {
+      setErrorMessage("")
+    }
+  }
+
+  const validateForm = () => {
+    const errors = {
+      email: "",
+      password: ""
+    }
+    
+    let isValid = true
+
+    // Validar email
+    if (!formData.email.trim()) {
+      errors.email = "El email es requerido"
+      isValid = false
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      errors.email = "Por favor ingresa un email válido"
+      isValid = false
+    }
+
+    // Validar contraseña
+    if (!formData.password) {
+      errors.password = "La contraseña es requerida"
+      isValid = false
+    } else if (formData.password.length < 6) {
+      errors.password = "La contraseña debe tener al menos 6 caracteres"
+      isValid = false
+    }
+
+    setFieldErrors(errors)
+    return isValid
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!validateForm()) {
+      return
+    }
+
     setIsLoading(true)
+    setErrorMessage("")
 
     try {
       await login(formData)
+      
       toast({
         title: "¡Bienvenido!",
         description: "Has iniciado sesión correctamente.",
       })
-      router.push("/mi-cuenta")
-    } catch (error) {
+      
+      const redirect = searchParams.get("redirect") || "/mi-cuenta"
+      router.push(redirect)
+    } catch (error: any) {
+      console.error("Login error:", error)
+      
+      // Manejo específico de errores
+      let errorMsg = "Error al iniciar sesión. Por favor, intenta de nuevo."
+      
+      if (error.message) {
+        if (error.message.includes("Credenciales inválidas")) {
+          errorMsg = "Email o contraseña incorrectos. Por favor verifica tus datos."
+        } else if (error.message.includes("verificación")) {
+          errorMsg = "Tu cuenta no ha sido verificada. Revisa tu email y haz clic en el enlace de verificación."
+        } else if (error.message.includes("inactive")) {
+          errorMsg = "Tu cuenta ha sido desactivada. Contacta al soporte para más información."
+        } else {
+          errorMsg = error.message
+        }
+      }
+      
+      setErrorMessage(errorMsg)
+      
       toast({
         title: "Error al iniciar sesión",
-        description: error instanceof Error ? error.message : "Error al iniciar sesión",
+        description: errorMsg,
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    if (!formData.email.trim()) {
+      setFieldErrors(prev => ({ ...prev, email: "Ingresa tu email para reenviar la verificación" }))
+      return
+    }
+    
+    setIsLoading(true)
+    
+    try {
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: formData.email,
+        }),
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Error al reenviar el correo de verificación")
+      }
+      
+      setSuccessMessage("Correo de verificación reenviado. Revisa tu bandeja de entrada.")
+      setErrorMessage("")
+      
+      toast({
+        title: "Correo reenviado",
+        description: "Hemos enviado un nuevo correo de verificación a tu dirección de email.",
+        variant: "default",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Ocurrió un error al reenviar el correo de verificación.",
         variant: "destructive",
       })
     } finally {
@@ -61,17 +208,48 @@ export default function LoginPage() {
       {/* Formulario */}
       <div className="w-full md:w-1/2 flex flex-col justify-center items-center p-8 md:p-12 bg-white">
         <div className="w-full max-w-md">
-          {/* Logo */}
-          
           <h1 className="text-3xl font-bold text-brand-gray mb-2">Bienvenido a Innata</h1>
           <p className="text-gray-500 mb-8">
             Innata es un espacio único para transformar tu cuerpo y mente a través del ciclismo indoor.
           </p>
 
-          {/* Botones de redes sociales */}
-          <div className="space-y-4 mb-6">
+          {/* Alertas de éxito */}
+          {successMessage && (
+            <Alert className="mb-6 border-green-200 bg-green-50">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-700">
+                {successMessage}
+                {successMessage.includes("verificar") && (
+                  <button 
+                    className="text-[#85193C] font-medium hover:underline ml-1"
+                    onClick={handleResendVerification}
+                    disabled={isLoading}
+                  >
+                    Reenviar correo
+                  </button>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
 
-          </div>
+          {/* Alertas de error */}
+          {errorMessage && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {errorMessage}
+                {errorMessage.includes("verificación") && (
+                  <button 
+                    className="text-[#85193C] font-medium hover:underline ml-1"
+                    onClick={handleResendVerification}
+                    disabled={isLoading}
+                  >
+                    Reenviar correo
+                  </button>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Separador */}
           <div className="relative my-6">
@@ -79,45 +257,77 @@ export default function LoginPage() {
               <Separator className="w-full" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">Continúar con email</span>
+              <span className="bg-white px-2 text-gray-500">Continuar con email</span>
             </div>
           </div>
 
-          {/* Formulario de email */}
+          {/* Formulario de login */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Input 
                 name="email"
                 type="email" 
                 placeholder="tu@email.com" 
-                className="h-12 border-gray-300"
+                className={`h-12 ${fieldErrors.email ? 'border-red-500 focus:border-red-500' : 'border-gray-300'}`}
                 value={formData.email}
                 onChange={handleInputChange}
-                required
+                disabled={isLoading}
+                autoComplete="email"
               />
+              {fieldErrors.email && (
+                <p className="text-xs text-red-500 mt-1">{fieldErrors.email}</p>
+              )}
             </div>
+            
             <div className="space-y-2">
-              <Input 
-                name="password"
-                type="password" 
-                placeholder="Contraseña" 
-                className="h-12 border-gray-300"
-                value={formData.password}
-                onChange={handleInputChange}
-                required
-              />
+              <div className="relative">
+                <Input 
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Contraseña" 
+                  className={`h-12 pr-10 ${fieldErrors.password ? 'border-red-500 focus:border-red-500' : 'border-gray-300'}`}
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  disabled={isLoading}
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4 text-gray-400" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-gray-400" />
+                  )}
+                </button>
+              </div>
+              {fieldErrors.password && (
+                <p className="text-xs text-red-500 mt-1">{fieldErrors.password}</p>
+              )}
             </div>
+            
             <div className="flex justify-between items-center text-sm">
               <Link href="/reset-password" className="text-brand-gray hover:underline">
                 ¿Olvidaste tu contraseña?
               </Link>
             </div>
+            
             <Button 
               type="submit"
-              disabled={isLoading}
               className="w-full h-12 bg-gradient-to-r from-brand-sage to-brand-gray hover:from-brand-mint hover:to-brand-sage text-white"
+              disabled={isLoading}
             >
-              {isLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Iniciando sesión...
+                </>
+              ) : (
+                "Iniciar Sesión"
+              )}
             </Button>
           </form>
 

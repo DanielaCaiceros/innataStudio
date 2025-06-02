@@ -1,18 +1,11 @@
-// app/api/auth/resend-verification/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { resendVerificationEmail } from '@/lib/services/auth.service';
+import { resendVerificationEmail, AuthError } from '@/lib/services/auth.service';
+import { getStatusCodeForAuthError, getFriendlyErrorMessage } from '@/lib/utils/auth-errors';
 
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json();
     
-    if (!email) {
-      return NextResponse.json(
-        { error: 'Email es requerido' },
-        { status: 400 }
-      );
-    }
-
     await resendVerificationEmail(email);
 
     return NextResponse.json({
@@ -20,9 +13,20 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Error reenviando verificación:', error);
+    
+    if (error instanceof AuthError) {
+      const statusCode = getStatusCodeForAuthError(error.code);
+      const friendlyMessage = getFriendlyErrorMessage(error.code, error.message);
+      
+      return NextResponse.json(
+        { error: friendlyMessage, code: error.code },
+        { status: statusCode }
+      );
+    }
+    
     return NextResponse.json(
-      { error: error.message || 'Error al reenviar el correo de verificación' },
-      { status: 400 }
+      { error: 'Error interno del servidor' },
+      { status: 500 }
     );
   }
 }
