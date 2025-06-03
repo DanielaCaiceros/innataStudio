@@ -350,39 +350,57 @@ function debugClassDateTime(cls: ScheduledClass) {
 }
 
 // Reemplaza temporalmente tu función isClassReservable con esta:
-function isClassReservable(cls: ScheduledClass): boolean {
+// VERSIÓN SIMPLIFICADA Y MÁS DIRECTA
+
+function isClassReservable(cls: ScheduledClass) {
   try {
     const now = new Date();
-    const classDateTime = createClassDateTime(cls.date, cls.time);
     
-    console.log("=== VALIDACIÓN CORREGIDA ===");
-    console.log("Ahora:", now);
-    console.log("Clase:", classDateTime);
-    console.log("Diferencia en horas:", (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60));
+    // Parsear la hora de la clase (formato: "1970-01-01T21:00:00.000Z")
+    const timeDate = new Date(cls.time);
+    const classHour = timeDate.getUTCHours();
+    const classMinutes = timeDate.getUTCMinutes();
     
-    // Si la clase ya pasó
-    if (classDateTime < now) {
-      console.log("❌ La clase ya pasó");
+    // Parsear la fecha de la clase
+    const classDate = new Date(cls.date);
+    
+    // Crear la fecha y hora completa de la clase
+    const classDateTime = new Date(
+      classDate.getUTCFullYear(),
+      classDate.getUTCMonth(),
+      classDate.getUTCDate(),
+      classHour,
+      classMinutes,
+      0,
+      0
+    );
+    
+    // Debug
+    console.log(`Clase: ${cls.classType?.name} - ${classDateTime.toLocaleString()}`);
+    console.log(`Ahora: ${now.toLocaleString()}`);
+    
+    // Verificar si ya pasó
+    if (classDateTime <= now) {
+      console.log("❌ Ya pasó");
       return false;
     }
     
-    // Si faltan menos de 30 minutos para la clase
-    const THIRTY_MIN = 30 * 60 * 1000;
-    const timeDifference = classDateTime.getTime() - now.getTime();
+    // Verificar 30 minutos
+    const diffMinutes = (classDateTime.getTime() - now.getTime()) / (1000 * 60);
+    console.log(`Faltan ${Math.round(diffMinutes)} minutos`);
     
-    if (timeDifference < THIRTY_MIN) {
-      console.log("❌ La clase está dentro de 30 minutos");
+    if (diffMinutes < 30) {
+      console.log("❌ Menos de 30 minutos");
       return false;
     }
     
-    console.log("✅ La clase es reservable");
+    console.log("✅ Reservable");
     return true;
   } catch (error) {
-    console.error("Error verificando si la clase es reservable:", error);
+    console.error("Error:", error);
     return false;
   }
 }
-
 
 
   return (
