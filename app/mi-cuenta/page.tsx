@@ -51,7 +51,6 @@ interface UserReservation {
 interface UserProfile {
   name: string
   email: string
-  memberSince: string
   avatar?: string
 }
 
@@ -255,9 +254,7 @@ export default function ProfilePage() {
   // Preparar datos del usuario
   const currentUser: UserProfile = {
     name: user?.name || "",
-    email: user?.email || "",
-    memberSince: "Miembro registrado" // Simplificado por ahora
-  }
+    email: user?.email || ""  }
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
@@ -276,22 +273,13 @@ export default function ProfilePage() {
               <CardContent className="pb-4">
                 <div className="space-y-4">
                   <div className="flex justify-between items-center py-2 border-b border-brand-mint/20">
-                    <span className="text-zinc-600">Miembro desde</span>
-                    <span className="font-medium text-brand-burgundy">{currentUser.memberSince}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-brand-mint/20">
                     <span className="text-zinc-600">Clases disponibles</span>
                     <span className="font-medium text-brand-burgundy">{isLoadingPackages ? "..." : totalAvailableClasses}</span>
                   </div>
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col space-y-3">
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link href="/mi-cuenta/ajustes">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Ajustes de cuenta
-                  </Link>
-                </Button>
+
                 <Button
                   variant="outline"
                   className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
@@ -359,9 +347,7 @@ export default function ProfilePage() {
                       >
                         {/* Header visual con ícono */}
                         <div className="relative h-24 bg-gradient-to-br from-brand-sage/50 via-brand-mint/25 to-brand-sage/20 flex items-center justify-center">
-                          <div className="p-3 bg-white/90 backdrop-blur-sm rounded-2xl text-brand-sage group-hover:scale-110 transition-transform duration-300 shadow-sm">
-                            {getCategoryIcon(classItem.category)}
-                          </div>
+
                           <div className="absolute top-3 right-3">
                             <Badge className="bg-white/90 text-brand-sage border-0 shadow-sm">
                               {classItem.duration}
@@ -528,14 +514,7 @@ export default function ProfilePage() {
                     {pastClasses.map((classItem) => (
                       <Card key={classItem.id} className="overflow-hidden border-brand-mint/20 shadow-sm">
                         <div className="flex flex-col md:flex-row">
-                          <div className="relative w-full md:w-48 h-32 md:h-auto">
-                            <Image
-                              src="/placeholder.svg"
-                              alt={classItem.className}
-                              fill
-                              className="object-cover"
-                            />
-                          </div>
+                         
                           <div className="flex-1 p-4">
                             <h3 className="text-lg font-bold">{classItem.className}</h3>
                             <p className="text-zinc-600">Con {classItem.instructor}</p>

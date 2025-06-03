@@ -339,18 +339,7 @@ export default function SettingsPage() {
                           rows={3}
                         />
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="isFeatured"
-                          name="isFeatured"
-                          defaultChecked={editingInstructor?.isFeatured || false}
-                          className="rounded"
-                        />
-                        <Label htmlFor="isFeatured" className="text-sm">
-                          Instructor destacado
-                        </Label>
-                      </div>
+                     
                     </div>
                     <DialogFooter>
                       <Button type="button" variant="outline" onClick={closeDialog}>

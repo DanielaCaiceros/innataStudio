@@ -107,7 +107,7 @@ export function SiteHeader() {
                   </DropdownMenuItem>
                   {user?.role === 'admin' && (
                     <DropdownMenuItem asChild>
-                      <Link href="/admin">
+                      <Link href="/admin/reservations">
                         <ChevronRight className="mr-2 h-4 w-4" />
                         Panel Admin
                       </Link>
