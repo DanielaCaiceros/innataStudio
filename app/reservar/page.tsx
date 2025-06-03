@@ -329,6 +329,35 @@ export default function BookingPage() {
     });
   }
 
+  // Utilidad para saber si la clase ya pasó o está por iniciar en menos de 30 minutos
+  function isClassReservable(cls: ScheduledClass) {
+    // Unir fecha y hora
+    const classDate = new Date(cls.date)
+    let classTime: Date
+    if (typeof cls.time === 'string' && cls.time.includes('T')) {
+      classTime = new Date(cls.time)
+    } else if (typeof cls.time === 'string' && cls.time.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
+      classTime = new Date(`1970-01-01T${cls.time}`)
+    } else if (cls.time instanceof Date) {
+      classTime = cls.time
+    } else {
+      return false
+    }
+    const classDateTime = new Date(
+      classDate.getFullYear(),
+      classDate.getMonth(),
+      classDate.getDate(),
+      classTime.getHours(),
+      classTime.getMinutes(),
+      0, 0
+    )
+    const now = new Date()
+    const THIRTY_MIN = 30 * 60 * 1000
+    if (classDateTime < now) return false
+    if (classDateTime.getTime() - now.getTime() < THIRTY_MIN) return false
+    return true
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
       {/* Hero Section */}
@@ -419,21 +448,31 @@ export default function BookingPage() {
                     {isLoading ? (
                       <div className="text-center py-8 text-gray-500">Cargando clases...</div>
                     ) : selectedTime ? (
-                      getClassesForSelectedTime(selectedTime).map((classItem) => (
-                        <Button
-                          key={classItem.id}
-                          variant={selectedClass === classItem.id ? "default" : "outline"}
-                          className={`w-full justify-between rounded-full ${
-                            selectedClass === classItem.id
-                              ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
-                              : "border-brand-burgundy text-brand-sage hover:bg-gray-50"
-                          }`}
-                          onClick={() => setSelectedClass(classItem.id)}
-                        >
-                          <span>{classItem.classType.name}</span>
-                          <span className="text-sm opacity-70">{classItem.classType.duration} min</span>
-                        </Button>
-                      ))
+                      getClassesForSelectedTime(selectedTime).map((classItem) => {
+                        const reservable = isClassReservable(classItem)
+                        return (
+                          <div key={classItem.id} className="relative">
+                            <Button
+                              variant={selectedClass === classItem.id ? "default" : "outline"}
+                              className={`w-full justify-between rounded-full ${
+                                selectedClass === classItem.id
+                                  ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
+                                  : "border-brand-burgundy text-brand-sage hover:bg-gray-50"
+                              }`}
+                              onClick={() => reservable && setSelectedClass(classItem.id)}
+                              disabled={!reservable}
+                            >
+                              <span>{classItem.classType.name}</span>
+                              <span className="text-sm opacity-70">{classItem.classType.duration} min</span>
+                            </Button>
+                            {!reservable && (
+                              <div className="absolute left-0 right-0 top-full text-xs text-red-600 mt-1 text-center">
+                                No disponible para reservar (ya pasó o inicia en &lt;30 min)
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })
                     ) : (
                       <div className="text-center py-8 text-gray-500">
                         Selecciona un horario para ver las clases disponibles
@@ -526,7 +565,7 @@ export default function BookingPage() {
 
                 <Button
                   className="w-full mt-6 bg-brand-mint hover:bg-brand-mint/90 font-bold text-lg py-6 rounded-full text-white"
-                  disabled={!date || !selectedClass || !selectedTime}
+                  disabled={!date || !selectedClass || !selectedTime || (selectedClass && !isClassReservable(availableClasses.find(c => c.id === selectedClass)!))}
                   onClick={handleConfirmBooking}
                 >
                   <span className="flex items-center gap-1">

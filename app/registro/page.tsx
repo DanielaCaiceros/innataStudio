@@ -257,13 +257,13 @@ export default function RegistroPage() {
       {/* Imagen lateral */}
       <div className="hidden md:block md:w-1/2 relative overflow-hidden rounded-3xl m-5">
         <Image src="/innataAsset1.png" alt="Innata Cycling Studio" fill className="object-cover" priority />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#4A102A]/80 to-transparent mix-blend-multiply" />
+        <div className="absolute inset-0 bg-gradient-to-r from-brand-sage/80 to-transparent mix-blend-multiply" />
       </div>
 
       {/* Formulario */}
       <div className="w-full md:w-1/2 flex flex-col justify-center items-center p-8 md:p-12 bg-white">
         <div className="w-full max-w-md">
-          <h1 className="text-3xl font-bold text-[#4A102A] mb-2">Únete a Innata</h1>
+          <h1 className="text-3xl font-bold text-brand-sage mb-2">Únete a Innata</h1>
           <p className="text-gray-500 mb-8">
             Crea tu cuenta y comienza tu transformación con nuestras clases de ciclismo indoor.
           </p>
@@ -285,7 +285,7 @@ export default function RegistroPage() {
               <AlertDescription>
                 {errorMessage}
                 {errorMessage.includes("¿Ya tienes una cuenta?") && (
-                  <Link href="/login" className="text-[#85193C] font-medium hover:underline ml-1">
+                  <Link href="/login" className="text-brand-sage font-medium hover:underline ml-1">
                     Inicia sesión aquí
                   </Link>
                 )}
@@ -449,11 +449,11 @@ export default function RegistroPage() {
                   }`}
                 >
                   Acepto los{" "}
-                  <Link href="/terminos" className="text-[#85193C] hover:underline">
+                  <Link href="/terminos" className="text-brand-sage hover:underline">
                     Términos y Condiciones
                   </Link>{" "}
                   y la{" "}
-                  <Link href="/privacidad" className="text-[#85193C] hover:underline">
+                  <Link href="/privacidad" className="text-brand-sage hover:underline">
                     Política de Privacidad
                   </Link>
                 </label>
@@ -465,7 +465,7 @@ export default function RegistroPage() {
             
             <Button 
               type="submit"
-              className="w-full h-12 bg-gradient-to-r from-[#4A102A] to-[#C5172E] hover:from-[#85193C] hover:to-[#C5172E] text-white"
+              className="w-full h-12 bg-gradient-to-r from-brand-sage to-brand-mint hover:from-brand-sage hover:to-brand-mint text-white"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -481,7 +481,7 @@ export default function RegistroPage() {
 
           <div className="mt-6 text-center text-sm text-black">
             ¿Ya tienes una cuenta?{" "}
-            <Link href="/login" className="text-[#85193C] font-medium hover:underline">
+            <Link href="/login" className="text-brand-sage font-medium hover:underline">
               Inicia Sesión
             </Link>
           </div>

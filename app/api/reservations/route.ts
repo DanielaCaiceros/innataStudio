@@ -39,6 +39,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Esta clase no está disponible para reservas" }, { status: 400 })
     }
 
+    // Validación: no permitir reservar si la clase ya pasó o está por iniciar muy pronto
+    const now = new Date()
+    // scheduledClass.date es la fecha (sin hora), scheduledClass.time es la hora (Date)
+    // Unimos fecha y hora para comparar correctamente
+    const classDate = scheduledClass.date
+    const classTime = scheduledClass.time
+    // Unir fecha y hora en un solo Date
+    const classDateTime = new Date(
+      classDate.getFullYear(),
+      classDate.getMonth(),
+      classDate.getDate(),
+      classTime.getHours(),
+      classTime.getMinutes(),
+      0, 0
+    )
+    // Si la clase ya pasó
+    if (classDateTime < now) {
+      return NextResponse.json({ error: "No puedes reservar una clase que ya pasó." }, { status: 400 })
+    }
+    // Si faltan menos de 30 minutos para la clase
+    const THIRTY_MIN = 30 * 60 * 1000
+    if (classDateTime.getTime() - now.getTime() < THIRTY_MIN) {
+      return NextResponse.json({ error: "No puedes reservar una clase que está por iniciar en menos de 30 minutos." }, { status: 400 })
+    }
+
     // Verificar que el usuario no tenga ya una reserva para esta clase
     const existingReservation = await prisma.reservation.findUnique({
       where: {

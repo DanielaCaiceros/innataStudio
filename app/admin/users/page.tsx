@@ -440,14 +440,11 @@ export default function UsersPage() {
             </DialogContent>
           </Dialog>
 
-          <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-100">
-            <Download className="h-4 w-4 mr-2" /> Exportar
-          </Button>
         </div>
       </div>
 
       <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8 bg-gray-100">
+        <TabsList className="grid w-full grid-cols-1 mb-8 bg-gray-100">
           <TabsTrigger
             value="all"
             onClick={() => setStatusFilter("all")}
@@ -455,20 +452,7 @@ export default function UsersPage() {
           >
             Todos los Usuarios
           </TabsTrigger>
-          <TabsTrigger
-            value="active"
-            onClick={() => setStatusFilter("active")}
-            className="data-[state=active]:bg-white data-[state=active]:text-[#4A102A]"
-          >
-            Usuarios Activos
-          </TabsTrigger>
-          <TabsTrigger
-            value="inactive"
-            onClick={() => setStatusFilter("inactive")}
-            className="data-[state=active]:bg-white data-[state=active]:text-[#4A102A]"
-          >
-            Usuarios Inactivos
-          </TabsTrigger>
+ 
         </TabsList>
 
         <TabsContent value="all">
@@ -502,7 +486,6 @@ export default function UsersPage() {
                         <th className="text-left p-4 font-medium text-gray-500">Contacto</th>
                         <th className="text-left p-4 font-medium text-gray-500">Paquete</th>
                         <th className="text-left p-4 font-medium text-gray-500">Fecha de Registro</th>
-                        <th className="text-left p-4 font-medium text-gray-500">Última Visita</th>
                         <th className="text-left p-4 font-medium text-gray-500">Estado</th>
                         <th className="text-left p-4 font-medium text-gray-500">Acciones</th>
                       </tr>
@@ -513,11 +496,7 @@ export default function UsersPage() {
                           <tr key={user.id} className="border-b border-gray-200 hover:bg-gray-50">
                             <td className="p-4">
                               <div className="flex items-center">
-                                <div className="relative w-10 h-10 rounded-full overflow-hidden mr-3 bg-gray-200 flex items-center justify-center">
-                                  <span className="text-sm font-medium text-gray-600">
-                                    {user.name.charAt(0).toUpperCase()}
-                                  </span>
-                                </div>
+        
                                 <div>
                                   <div className="font-medium text-gray-900">{user.name}</div>
                                   <div className="text-sm text-gray-500">ID: #{user.id}</div>
@@ -553,12 +532,7 @@ export default function UsersPage() {
                                 <span>{user.joinDate}</span>
                               </div>
                             </td>
-                            <td className="p-4">
-                              <div className="flex items-center text-gray-700">
-                                <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                                <span>{user.lastVisit}</span>
-                              </div>
-                            </td>
+                           
                             <td className="p-4">
                               <span
                                 className={`px-2 py-1 rounded-full text-xs ${

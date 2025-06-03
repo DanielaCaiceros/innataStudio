@@ -1,7 +1,6 @@
-// app/api/admin/users/route.ts
 import { NextResponse, type NextRequest } from "next/server";
-import { PrismaClient } from "@prisma/client";
 import { verifyToken } from "@/lib/jwt";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -121,17 +120,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, phone, package: packageType, password, notes } = body;
+    const { firstName, lastName, email, phone, password } = body;
 
     // Validar datos requeridos
-    if (!name || !email || !password) {
-      return NextResponse.json({ error: "Nombre, email y contraseña son requeridos" }, { status: 400 });
+    if (!firstName || !lastName || !email) {
+      return NextResponse.json({ error: "Nombre, apellido y email son requeridos" }, { status: 400 });
     }
 
-    // Separar nombre y apellido
-    const nameParts = name.trim().split(' ');
-    const firstName = nameParts[0];
-    const lastName = nameParts.slice(1).join(' ') || '';
+    // Generar contraseña temporal si no se proporciona
+    const tempPassword = password || Math.random().toString(36).slice(-8);
 
     // Verificar si el email ya existe
     const existingUser = await prisma.user.findUnique({
@@ -143,7 +140,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Hash de la contraseña
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
     // Crear usuario en una transacción
     const result = await prisma.$transaction(async (tx) => {
@@ -171,58 +168,17 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // Si se especifica un paquete, crear el paquete de usuario
-      if (packageType && packageType !== "individual") {
-        // Mapear tipos de paquete a IDs (ajusta según tu DB)
-        const packageMap: Record<string, number> = {
-          "5classes": 1,
-          "10classes": 2,
-          "monthly": 3
-        };
-
-        const packageId = packageMap[packageType];
-        if (packageId) {
-          const packageInfo = await tx.package.findUnique({
-            where: { id: packageId }
-          });
-
-          if (packageInfo) {
-            const expiryDate = new Date();
-            expiryDate.setDate(expiryDate.getDate() + packageInfo.validityDays);
-
-            await tx.userPackage.create({
-              data: {
-                userId: newUser.user_id,
-                packageId: packageId,
-                expiryDate: expiryDate,
-                classesRemaining: packageInfo.classCount || 0,
-                classesUsed: 0,
-                paymentStatus: "paid",
-                paymentMethod: "admin"
-              }
-            });
-
-            // Actualizar balance
-            await tx.userAccountBalance.update({
-              where: { userId: newUser.user_id },
-              data: {
-                totalClassesPurchased: packageInfo.classCount || 0,
-                classesAvailable: packageInfo.classCount || 0
-              }
-            });
-          }
-        }
-      }
-
       return newUser;
     });
 
     return NextResponse.json({
-      id: result.user_id,
-      name: `${result.firstName} ${result.lastName}`,
+      user_id: result.user_id,
+      firstName: result.firstName,
+      lastName: result.lastName,
       email: result.email,
       phone: result.phone || "",
-      status: result.status
+      status: result.status,
+      tempPassword: tempPassword // Solo para desarrollo, remover en producción
     }, { status: 201 });
 
   } catch (error) {

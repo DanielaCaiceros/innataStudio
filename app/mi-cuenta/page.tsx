@@ -4,8 +4,9 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { Calendar, Clock, MapPin, X, ChevronRight, Settings, LogOut } from "lucide-react"
+import { Calendar, Clock, MapPin, X, ChevronRight, Settings, LogOut, Users, Target, Zap, Heart, Flame } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -41,13 +42,50 @@ interface UserReservation {
   status: string
   canCancel: boolean
   package: string
+  category?: string
+  intensity?: string
+  capacity?: number
+  description?: string
 }
 
 interface UserProfile {
   name: string
   email: string
-  memberSince: string
   avatar?: string
+}
+
+// Función para obtener el ícono según la categoría
+const getCategoryIcon = (category: string) => {
+  switch (category?.toLowerCase()) {
+    case "hiit":
+      return <Zap className="h-6 w-6" />
+    case "ritmo":
+      return <Heart className="h-6 w-6" />
+    case "resistencia":
+      return <Target className="h-6 w-6" />
+    case "recuperacion":
+      return <Heart className="h-6 w-6" />
+    default:
+      return <Flame className="h-6 w-6" />
+  }
+}
+
+// Función para obtener el color según la intensidad
+const getIntensityColor = (intensity: string) => {
+  switch (intensity?.toLowerCase()) {
+    case "baja":
+      return "bg-green-100 text-green-800 border-green-200"
+    case "media":
+      return "bg-yellow-100 text-yellow-800 border-yellow-200"
+    case "media-alta":
+      return "bg-orange-100 text-orange-800 border-orange-200"
+    case "alta":
+      return "bg-red-100 text-red-800 border-red-200"
+    case "muy alta":
+      return "bg-purple-100 text-purple-800 border-purple-200"
+    default:
+      return "bg-gray-100 text-gray-800 border-gray-200"
+  }
 }
 
 export default function ProfilePage() {
@@ -216,43 +254,30 @@ export default function ProfilePage() {
   // Preparar datos del usuario
   const currentUser: UserProfile = {
     name: user?.name || "",
-    email: user?.email || "",
-    memberSince: "Miembro registrado" // Simplificado por ahora
-  }
+    email: user?.email || ""  }
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
-      <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="container mx-auto px-2 sm:px-4 py-6 sm:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8">
           {/* Sidebar - Perfil */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-3 mb-6 lg:mb-0">
             <Card className="border-brand-mint/20 shadow-sm">
               <CardHeader className="pb-4">
                 <div className="flex flex-col items-center">
-                
-                  <CardTitle className="text-xl font-bold text-center">{currentUser.name}</CardTitle>
-                  <CardDescription className="text-center">{currentUser.email}</CardDescription>
+                  <CardTitle className="text-lg sm:text-xl font-bold text-center break-words">{currentUser.name}</CardTitle>
+                  <CardDescription className="text-center break-words">{currentUser.email}</CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="pb-4">
                 <div className="space-y-4">
                   <div className="flex justify-between items-center py-2 border-b border-brand-mint/20">
-                    <span className="text-zinc-600">Miembro desde</span>
-                    <span className="font-medium text-brand-burgundy">{currentUser.memberSince}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-brand-mint/20">
-                    <span className="text-zinc-600">Clases disponibles</span>
-                    <span className="font-medium text-brand-burgundy">{isLoadingPackages ? "..." : totalAvailableClasses}</span>
+                    <span className="text-zinc-600 text-sm sm:text-base">Clases disponibles</span>
+                    <span className="font-medium text-brand-burgundy text-base sm:text-lg">{isLoadingPackages ? "..." : totalAvailableClasses}</span>
                   </div>
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col space-y-3">
-                <Button variant="outline" className="w-full justify-start" asChild>
-                  <Link href="/mi-cuenta/ajustes">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Ajustes de cuenta
-                  </Link>
-                </Button>
                 <Button
                   variant="outline"
                   className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
@@ -269,9 +294,9 @@ export default function ProfilePage() {
           {/* Main Content */}
           <div className="lg:col-span-9">
             <Tabs defaultValue="upcoming" className="w-full">
-              <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold">Mi Cuenta</h1>
-                <TabsList className="bg-brand-mint/10">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 gap-2 sm:gap-0">
+                <h1 className="text-2xl sm:text-3xl font-bold">Mi Cuenta</h1>
+                <TabsList className="bg-brand-mint/10 flex flex-wrap">
                   <TabsTrigger
                     value="upcoming"
                     className="data-[state=active]:bg-brand-sage data-[state=active]:text-white"
@@ -294,9 +319,9 @@ export default function ProfilePage() {
               </div>
 
               <TabsContent value="upcoming" className="mt-0">
-                <div className="mb-6 flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">Clases Reservadas</h2>
-                  <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white rounded-full">
+                <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0">
+                  <h2 className="text-lg sm:text-xl font-semibold">Clases Reservadas</h2>
+                  <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white rounded-full w-full sm:w-auto">
                     <Link href="/reservar">
                       Reservar Nueva Clase
                       <ChevronRight className="ml-1 h-4 w-4" />
@@ -305,57 +330,90 @@ export default function ProfilePage() {
                 </div>
 
                 {upcomingClasses.length === 0 ? (
-                  <div className="text-center py-12 bg-brand-cream/10 rounded-lg">
+                  <div className="text-center py-8 sm:py-12 bg-brand-cream/10 rounded-lg">
                     <p className="text-zinc-600">No tienes clases reservadas actualmente.</p>
-                    <Button asChild className="mt-4 bg-brand-sage hover:bg-brand-gray text-white">
+                    <Button asChild className="mt-4 bg-brand-sage hover:bg-brand-gray text-white w-full sm:w-auto">
                       <Link href="/reservar">Reservar una clase</Link>
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     {upcomingClasses.map((classItem) => (
-                      <Card key={classItem.id} className="overflow-hidden border-brand-mint/20 shadow-sm">
-                        <div className="relative h-40">
-                          <Image
-                            src="/placeholder.svg"
-                            alt={classItem.className}
-                            fill
-                            className="object-cover"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                          <div className="absolute bottom-4 left-4 right-4">
-                            <h3 className="text-xl font-bold text-white">{classItem.className}</h3>
-                            <p className="text-white/90">Con {classItem.instructor}</p>
+                      <Card 
+                        key={classItem.id} 
+                        className="bg-white border-gray-100 overflow-hidden rounded-3xl shadow-sm hover:shadow-lg transition-all duration-300 group"
+                      >
+                        {/* Header visual con ícono */}
+                        <div className="relative h-20 sm:h-24 bg-gradient-to-br from-brand-sage/50 via-brand-mint/25 to-brand-sage/20 flex items-center justify-center">
+                          <div className="absolute top-2 right-2 sm:top-3 sm:right-3">
+                            <Badge className="bg-white/90 text-brand-sage border-0 shadow-sm">
+                              {classItem.duration}
+                            </Badge>
                           </div>
                         </div>
-                        <CardContent className="pt-4">
-                          <div className="space-y-3">
-                            <div className="flex items-center text-zinc-700">
-                              <Calendar className="h-4 w-4 mr-2 text-brand-gray" />
-                              <span>{classItem.date}</span>
-                            </div>
-                            <div className="flex items-center text-zinc-700">
-                              <Clock className="h-4 w-4 mr-2 text-brand-gray" />
-                              <span>
-                                {classItem.time} • {classItem.duration}
-                              </span>
-                            </div>
-                            <div className="flex items-center text-zinc-700">
-                              <MapPin className="h-4 w-4 mr-2 text-brand-gray" />
-                              <span>{classItem.location}</span>
-                            </div>
+                        <CardContent className="p-4 sm:p-6">
+                          <div className="mb-2 sm:mb-4">
+                            <h3 className="text-lg sm:text-xl font-bold text-brand-sage mb-1 sm:mb-2 group-hover:text-brand-mint transition-colors">
+                              {classItem.className}
+                            </h3>
+                            <p className="text-gray-600 text-xs sm:text-sm leading-relaxed mb-1 sm:mb-2">
+                              Con {classItem.instructor}
+                            </p>
+                            {classItem.description && (
+                              <p className="text-gray-600 text-xs sm:text-sm leading-relaxed line-clamp-2">
+                                {classItem.description}
+                              </p>
+                            )}
                           </div>
+                          {/* Información de la clase */}
+                          <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600">
+                                <Calendar className="h-4 w-4 text-brand-sage" />
+                                <span>Fecha:</span>
+                              </div>
+                              <span className="font-semibold text-brand-sage">{classItem.date}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600">
+                                <Clock className="h-4 w-4 text-brand-sage" />
+                                <span>Hora:</span>
+                              </div>
+                              <span className="font-semibold text-brand-sage">{classItem.time}</span>
+                            </div>
+                            {classItem.intensity && (
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600">
+                                  <Target className="h-4 w-4 text-brand-sage" />
+                                  <span>Intensidad:</span>
+                                </div>
+                                <Badge className={`text-xs border ${getIntensityColor(classItem.intensity)}`}>
+                                  {classItem.intensity}
+                                </Badge>
+                              </div>
+                            )}
+                            {classItem.capacity && (
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600">
+                                  <Users className="h-4 w-4 text-brand-sage" />
+                                  <span>Capacidad:</span>
+                                </div>
+                                <span className="font-semibold text-brand-sage">{classItem.capacity} personas</span>
+                              </div>
+                            )}
+                          </div>
+                          {/* Botón de cancelar */}
+                          {classItem.canCancel && (
+                            <Button
+                              variant="outline"
+                              className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200 rounded-full group-hover:shadow-lg transition-all duration-300 text-xs sm:text-base"
+                              onClick={() => handleCancelClass(classItem)}
+                            >
+                              <X className="mr-2 h-4 w-4" />
+                              Cancelar Reserva
+                            </Button>
+                          )}
                         </CardContent>
-                        <CardFooter className="pt-0">
-                          <Button
-                            variant="outline"
-                            className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100"
-                            onClick={() => handleCancelClass(classItem)}
-                          >
-                            <X className="mr-2 h-4 w-4" />
-                            Cancelar Reserva
-                          </Button>
-                        </CardFooter>
                       </Card>
                     ))}
                   </div>
@@ -363,52 +421,51 @@ export default function ProfilePage() {
               </TabsContent>
 
               <TabsContent value="packages" className="mt-0">
-                <div className="mb-6 flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">Mis Paquetes</h2>
-                  <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white rounded-full">
+                <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0">
+                  <h2 className="text-lg sm:text-xl font-semibold">Mis Paquetes</h2>
+                  <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white rounded-full w-full sm:w-auto">
                     <Link href="/paquetes">
                       Comprar Paquete
                       <ChevronRight className="ml-1 h-4 w-4" />
                     </Link>
                   </Button>
                 </div>
-
                 {isLoadingPackages ? (
-                  <div className="text-center py-12">
+                  <div className="text-center py-8 sm:py-12">
                     <p className="text-zinc-600">Cargando paquetes...</p>
                   </div>
                 ) : userPackages.length === 0 ? (
-                  <div className="text-center py-12 bg-brand-cream/10 rounded-lg">
+                  <div className="text-center py-8 sm:py-12 bg-brand-cream/10 rounded-lg">
                     <p className="text-zinc-600 mb-4">No tienes paquetes activos actualmente.</p>
-                    <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white">
+                    <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white w-full sm:w-auto">
                       <Link href="/paquetes">Comprar un paquete</Link>
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     {userPackages.map((pkg) => (
                       <Card key={pkg.id} className="border-brand-mint/20 shadow-sm">
                         <CardHeader>
-                          <CardTitle className="text-lg font-semibold text-brand-burgundy">
+                          <CardTitle className="text-base sm:text-lg font-semibold text-brand-burgundy">
                             {pkg.name}
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <div className="space-y-3">
+                          <div className="space-y-2 sm:space-y-3">
                             <div className="flex justify-between items-center">
-                              <span className="text-zinc-600">Clases restantes</span>
-                              <span className="font-bold text-2xl text-brand-sage">
+                              <span className="text-zinc-600 text-sm">Clases restantes</span>
+                              <span className="font-bold text-xl sm:text-2xl text-brand-sage">
                                 {pkg.classesRemaining}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-zinc-600">Clases usadas</span>
+                              <span className="text-zinc-600 text-sm">Clases usadas</span>
                               <span className="font-medium text-zinc-700">
                                 {pkg.classesUsed}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-zinc-600">Expira el</span>
+                              <span className="text-zinc-600 text-sm">Expira el</span>
                               <span className="font-medium text-zinc-700">
                                 {new Date(pkg.expiryDate).toLocaleDateString('es-ES', {
                                   year: 'numeric',
@@ -436,34 +493,25 @@ export default function ProfilePage() {
               </TabsContent>
 
               <TabsContent value="history" className="mt-0">
-                <h2 className="text-xl font-semibold mb-6">Historial de Clases</h2>
-
+                <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6">Historial de Clases</h2>
                 {pastClasses.length === 0 ? (
-                  <div className="text-center py-12 bg-brand-cream/10 rounded-lg">
+                  <div className="text-center py-8 sm:py-12 bg-brand-cream/10 rounded-lg">
                     <p className="text-zinc-600">No tienes historial de clases.</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     {pastClasses.map((classItem) => (
                       <Card key={classItem.id} className="overflow-hidden border-brand-mint/20 shadow-sm">
                         <div className="flex flex-col md:flex-row">
-                          <div className="relative w-full md:w-48 h-32 md:h-auto">
-                            <Image
-                              src="/placeholder.svg"
-                              alt={classItem.className}
-                              fill
-                              className="object-cover"
-                            />
-                          </div>
-                          <div className="flex-1 p-4">
-                            <h3 className="text-lg font-bold">{classItem.className}</h3>
-                            <p className="text-zinc-600">Con {classItem.instructor}</p>
-                            <div className="mt-2 space-y-1">
-                              <div className="flex items-center text-zinc-700 text-sm">
+                          <div className="flex-1 p-3 sm:p-4">
+                            <h3 className="text-base sm:text-lg font-bold">{classItem.className}</h3>
+                            <p className="text-zinc-600 text-sm">Con {classItem.instructor}</p>
+                            <div className="mt-1 sm:mt-2 space-y-1">
+                              <div className="flex items-center text-zinc-700 text-xs sm:text-sm">
                                 <Calendar className="h-4 w-4 mr-2 text-brand-gray" />
                                 <span>{classItem.date}</span>
                               </div>
-                              <div className="flex items-center text-zinc-700 text-sm">
+                              <div className="flex items-center text-zinc-700 text-xs sm:text-sm">
                                 <Clock className="h-4 w-4 mr-2 text-brand-gray" />
                                 <span>
                                   {classItem.time} • {classItem.duration}
@@ -471,10 +519,10 @@ export default function ProfilePage() {
                               </div>
                             </div>
                           </div>
-                          <div className="p-4 flex items-center">
+                          <div className="p-3 sm:p-4 flex items-center">
                             <Button
                               variant="outline"
-                              className="bg-brand-mint/10 hover:bg-brand-mint/20 border-brand-mint/20"
+                              className="bg-brand-mint/10 hover:bg-brand-mint/20 border-brand-mint/20 w-full sm:w-auto text-xs sm:text-base"
                             >
                               Reservar Similar
                             </Button>
@@ -489,7 +537,6 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
-
       {/* Modal de Confirmación de Cancelación */}
       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -502,17 +549,17 @@ export default function ProfilePage() {
           <div className="py-4">
             {selectedClass && (
               <div className="space-y-2">
-                <div className="flex items-center text-zinc-700">
+                <div className="flex items-center text-zinc-700 text-xs sm:text-base">
                   <Calendar className="h-4 w-4 mr-2 text-brand-gray" />
                   <span>{selectedClass.date}</span>
                 </div>
-                <div className="flex items-center text-zinc-700">
+                <div className="flex items-center text-zinc-700 text-xs sm:text-base">
                   <Clock className="h-4 w-4 mr-2 text-brand-gray" />
                   <span>
                     {selectedClass.time} • {selectedClass.duration}
                   </span>
                 </div>
-                <p className="text-sm text-zinc-500 mt-2">
+                <p className="text-xs sm:text-sm text-zinc-500 mt-2">
                   Recuerda que las cancelaciones deben realizarse con al menos 4 horas de anticipación para recuperar tu
                   crédito.
                 </p>
