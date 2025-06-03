@@ -14,7 +14,7 @@ import { toast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { useRouter } from "next/navigation"
 import { 
-  formatTimeFromDBFixed, 
+  formatTimeFromDB, 
   isClassOnSelectedDate, 
   getUniqueTimeSlotsFromClasses, 
   filterClassesByDateAndTime,
