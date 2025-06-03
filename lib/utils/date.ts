@@ -1,52 +1,67 @@
-import { ScheduledClass } from "@/app/admin/classes/typesAndConstants"
 import { format, isSameDay } from "date-fns"
+import { es } from "date-fns/locale"
 
 /**
  * Convierte un string de tiempo de la BD (formato ISO) a formato HH:mm
- * @param timeString - String de tiempo en formato ISO (ej: "1970-01-01T18:00:00.000Z")
- * @returns String en formato HH:mm (ej: "18:00")
+ * Mantiene la hora UTC para consistencia
  */
-export function formatTimeFromDBFixed(timeString: string): string {
-    if (!timeString) return "00:00"
-    
-    try {
-      const date = new Date(timeString)
-      // Mantener en UTC para consistencia
-      const hours = date.getUTCHours().toString().padStart(2, '0')
-      const minutes = date.getUTCMinutes().toString().padStart(2, '0')
-      return `${hours}:${minutes}`
-    } catch (error) {
-      console.error("Error formateando tiempo:", error, timeString)
-      return "00:00"
-    }
-  }
+export function formatTimeFromDB(timeString: string): string {
+  if (!timeString) return "00:00"
   
-  /**
-   * Versión mejorada que crea fecha y hora local correctamente
-   */
-  export function createLocalClassDateTime(dateString: string, timeString: string): Date {
-    // Extraer componentes UTC
-    const classDate = new Date(dateString);
-    const timeDate = new Date(timeString);
-    
-    // Crear fecha local (no UTC) para comparación con Date() local
-    const localDateTime = new Date(
-      classDate.getUTCFullYear(),
-      classDate.getUTCMonth(), 
-      classDate.getUTCDate(),
-      timeDate.getUTCHours(),
-      timeDate.getUTCMinutes(),
-      0,
-      0
-    );
-    
-    return localDateTime;
+  try {
+    const date = new Date(timeString)
+    const hours = date.getUTCHours().toString().padStart(2, '0')
+    const minutes = date.getUTCMinutes().toString().padStart(2, '0')
+    return `${hours}:${minutes}`
+  } catch (error) {
+    console.error("Error formateando tiempo:", error, timeString)
+    return "00:00"
   }
+}
+
+/**
+ * Convierte una fecha UTC de la BD a formato local para mostrar
+ * Sin conversión de zona horaria (mantiene los mismos números)
+ */
+export function formatDateFromDB(dateString: string): string {
+  if (!dateString) return ""
+  
+  try {
+    const date = new Date(dateString)
+    // Usar UTC para mantener la fecha exacta sin conversión de zona horaria
+    const year = date.getUTCFullYear()
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  } catch (error) {
+    console.error("Error formateando fecha:", error, dateString)
+    return ""
+  }
+}
+
+/**
+ * Convierte una fecha UTC de la BD a fecha legible en español
+ */
+export function formatDateToSpanish(dateString: string): string {
+  if (!dateString) return ""
+  
+  try {
+    const date = new Date(dateString)
+    // Crear fecha local usando componentes UTC para evitar conversión
+    const localDate = new Date(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate()
+    )
+    return format(localDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })
+  } catch (error) {
+    console.error("Error formateando fecha a español:", error, dateString)
+    return ""
+  }
+}
 
 /**
  * Convierte una fecha UTC de la BD a fecha local para comparación
- * @param dateString - String de fecha en formato ISO UTC
- * @returns Date object para comparación local
  */
 export function convertUTCToLocalDate(dateString: string): Date {
   const utcDate = new Date(dateString)
@@ -55,9 +70,6 @@ export function convertUTCToLocalDate(dateString: string): Date {
 
 /**
  * Verifica si una clase es del día seleccionado
- * @param classDate - Fecha de la clase en formato ISO
- * @param selectedDate - Fecha seleccionada por el usuario
- * @returns boolean
  */
 export function isClassOnSelectedDate(classDate: string, selectedDate: Date): boolean {
   const classLocalDate = convertUTCToLocalDate(classDate)
@@ -66,21 +78,15 @@ export function isClassOnSelectedDate(classDate: string, selectedDate: Date): bo
 
 /**
  * Obtiene horarios únicos de una lista de clases
- * @param classes - Array de clases
- * @returns Array de horarios únicos ordenados
  */
 export function getUniqueTimeSlotsFromClasses(classes: Array<{ time: string }>): string[] {
-  const timeSlots = classes.map(cls => formatTimeFromDBFixed(cls.time))
+  const timeSlots = classes.map(cls => formatTimeFromDB(cls.time))
   const uniqueSlots = [...new Set(timeSlots)]
   return uniqueSlots.sort()
 }
 
 /**
  * Filtra clases por fecha y hora específica
- * @param classes - Array de clases
- * @param selectedDate - Fecha seleccionada
- * @param selectedTime - Hora seleccionada en formato HH:mm
- * @returns Array de clases filtradas
  */
 export function filterClassesByDateAndTime(
   classes: Array<{ date: string; time: string }>, 
@@ -89,41 +95,56 @@ export function filterClassesByDateAndTime(
 ): Array<{ date: string; time: string }> {
   return classes.filter(cls => {
     const isCorrectDate = isClassOnSelectedDate(cls.date, selectedDate)
-    const classTime = formatTimeFromDBFixed(cls.time)
+    const classTime = formatTimeFromDB(cls.time)
     const isCorrectTime = classTime === selectedTime
     
     return isCorrectDate && isCorrectTime
   })
 }
 
-// Agregar estas funciones al archivo de utils o directamente en reservar/page.tsx
-
 /**
  * Crea un Date object completo combinando fecha y hora de la clase
- * CORREGIDO: Mantiene las fechas en UTC para evitar problemas de zona horaria
+ * Mantiene las fechas en UTC para evitar problemas de zona horaria
  */
 export function createClassDateTime(dateString: string, timeString: string): Date {
-    // Parsear la fecha UTC
-    const classDate = new Date(dateString);
+  const classDate = new Date(dateString)
+  const timeDate = new Date(timeString)
+  
+  return new Date(Date.UTC(
+    classDate.getUTCFullYear(),
+    classDate.getUTCMonth(), 
+    classDate.getUTCDate(),
+    timeDate.getUTCHours(),
+    timeDate.getUTCMinutes(),
+    0,
+    0
+  ))
+}
+
+/**
+ * Verifica si una clase es reservable (no ha pasado y no está por iniciar)
+ */
+export function isClassReservable(dateString: string, timeString: string): boolean {
+  try {
+    const now = new Date()
+    const classDateTime = createClassDateTime(dateString, timeString)
     
-    // Parsear la hora UTC  
-    const timeDate = new Date(timeString);
+    // Si la clase ya pasó
+    if (classDateTime < now) {
+      return false
+    }
     
-    // Crear nueva fecha combinando fecha y hora en UTC
-    const combinedDate = new Date(Date.UTC(
-      classDate.getUTCFullYear(),
-      classDate.getUTCMonth(), 
-      classDate.getUTCDate(),
-      timeDate.getUTCHours(),
-      timeDate.getUTCMinutes(),
-      0,
-      0
-    ));
+    // Si faltan menos de 30 minutos para la clase
+    const THIRTY_MIN = 30 * 60 * 1000
+    const timeDifference = classDateTime.getTime() - now.getTime()
     
-    return combinedDate;
+    if (timeDifference < THIRTY_MIN) {
+      return false
+    }
+    
+    return true
+  } catch (error) {
+    console.error("Error verificando si la clase es reservable:", error)
+    return false
   }
-  
-  
- 
-  
-  
+}

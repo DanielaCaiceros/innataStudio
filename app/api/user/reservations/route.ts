@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
+import { formatDateFromDB, formatTimeFromDB, formatDateToSpanish } from "@/lib/utils/date"
 
 const prisma = new PrismaClient()
 
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") // upcoming/past
     
     const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    today.setUTCHours(0, 0, 0, 0)
     
     // Definir filtro para las reservaciones según el status
     const dateFilter = status === "past" 
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Formatear los datos para la respuesta
+    // Formatear los datos para la respuesta usando las utilidades corregidas
     const formattedReservations = reservations.map(res => {
       const instructorName = `${res.scheduledClass.instructor.user.firstName} ${res.scheduledClass.instructor.user.lastName}`
       
@@ -73,13 +74,19 @@ export async function GET(request: NextRequest) {
         id: res.id,
         className: res.scheduledClass.classType.name,
         instructor: instructorName,
-        date: res.scheduledClass.date.toISOString().split('T')[0],
-        time: res.scheduledClass.time.toTimeString().slice(0, 5),
+        date: formatDateFromDB(res.scheduledClass.date.toISOString()),
+        dateFormatted: formatDateToSpanish(res.scheduledClass.date.toISOString()),
+        time: formatTimeFromDB(res.scheduledClass.time.toISOString()),
         duration: `${res.scheduledClass.classType.duration} min`,
         location: "Sala Principal",
         status: res.status,
         canCancel: status !== "past" && res.status !== "cancelled",
-        package: res.userPackage?.package.name || "Pase individual"
+        package: res.userPackage?.package.name || "Pase individual",
+        // Campos adicionales para el frontend
+        category: res.scheduledClass.classType.category || "",
+        intensity: res.scheduledClass.classType.intensity || "",
+        capacity: res.scheduledClass.maxCapacity || 0,
+        description: res.scheduledClass.classType.description || ""
       }
     })
 

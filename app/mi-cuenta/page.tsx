@@ -32,6 +32,7 @@ interface UserPackage {
 }
 
 interface UserReservation {
+  dateFormatted: string
   id: number
   className: string
   instructor: string
@@ -52,6 +53,56 @@ interface UserProfile {
   name: string
   email: string
   avatar?: string
+}
+
+/**
+ * Formatea la hora de la base de datos para mostrar correctamente
+ * @param timeString - Hora en formato de la BD (ej: "12:00" o "1970-01-01T12:00:00.000Z")
+ * @returns Hora formateada (ej: "12:00")
+ */
+function formatDisplayTime(timeString: string): string {
+  if (!timeString) return "00:00";
+  
+  try {
+    // Si ya viene en formato HH:mm, devolverlo tal cual
+    if (timeString.match(/^\d{2}:\d{2}$/)) {
+      return timeString;
+    }
+    
+    // Si viene en formato ISO de la BD, extraer la hora UTC
+    if (timeString.includes('T')) {
+      const date = new Date(timeString);
+      const hours = date.getUTCHours().toString().padStart(2, '0');
+      const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+    
+    // Fallback
+    return timeString.substring(0, 5);
+  } catch (error) {
+    console.error("Error formateando hora:", error, timeString);
+    return "00:00";
+  }
+}
+
+/**
+ * Formatea la fecha para mostrar en formato legible
+ * @param dateString - Fecha en formato ISO
+ * @returns Fecha formateada
+ */
+function formatDisplayDate(dateString: string): string {
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-ES', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch (error) {
+    console.error("Error formateando fecha:", error, dateString);
+    return dateString;
+  }
 }
 
 // Función para obtener el ícono según la categoría
@@ -96,7 +147,7 @@ export default function ProfilePage() {
   const [selectedClass, setSelectedClass] = useState<UserReservation | null>(null)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [upcomingClasses, setUpcomingClasses] = useState<UserReservation[]>([])
-  const [pastClasses, setpastClasses] = useState<UserReservation[]>([])
+  const [pastClasses, setPastClasses] = useState<UserReservation[]>([])
   const [userPackages, setUserPackages] = useState<UserPackage[]>([])
   const [isLoadingClasses, setIsLoadingClasses] = useState(true)
   const [isLoadingPackages, setIsLoadingPackages] = useState(true)
@@ -135,7 +186,7 @@ export default function ProfilePage() {
         
         if (pastResponse.ok) {
           const pastData: UserReservation[] = await pastResponse.json();
-          setpastClasses(pastData);
+          setPastClasses(pastData);
         }
       } catch (error) {
         console.error("Error al cargar reservaciones:", error);
@@ -254,7 +305,8 @@ export default function ProfilePage() {
   // Preparar datos del usuario
   const currentUser: UserProfile = {
     name: user?.name || "",
-    email: user?.email || ""  }
+    email: user?.email || ""
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
@@ -372,7 +424,10 @@ export default function ProfilePage() {
                                 <Calendar className="h-4 w-4 text-brand-sage" />
                                 <span>Fecha:</span>
                               </div>
-                              <span className="font-semibold text-brand-sage">{classItem.date}</span>
+                              {/* Usa dateFormatted si está disponible, si no usa date */}
+                              <span className="font-semibold text-brand-sage">
+                                {classItem.dateFormatted || classItem.date}
+                              </span>
                             </div>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600">
@@ -494,44 +549,37 @@ export default function ProfilePage() {
 
               <TabsContent value="history" className="mt-0">
                 <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6">Historial de Clases</h2>
-                {pastClasses.length === 0 ? (
-                  <div className="text-center py-8 sm:py-12 bg-brand-cream/10 rounded-lg">
-                    <p className="text-zinc-600">No tienes historial de clases.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 sm:space-y-4">
-                    {pastClasses.map((classItem) => (
-                      <Card key={classItem.id} className="overflow-hidden border-brand-mint/20 shadow-sm">
-                        <div className="flex flex-col md:flex-row">
-                          <div className="flex-1 p-3 sm:p-4">
-                            <h3 className="text-base sm:text-lg font-bold">{classItem.className}</h3>
-                            <p className="text-zinc-600 text-sm">Con {classItem.instructor}</p>
-                            <div className="mt-1 sm:mt-2 space-y-1">
-                              <div className="flex items-center text-zinc-700 text-xs sm:text-sm">
-                                <Calendar className="h-4 w-4 mr-2 text-brand-gray" />
-                                <span>{classItem.date}</span>
-                              </div>
-                              <div className="flex items-center text-zinc-700 text-xs sm:text-sm">
-                                <Clock className="h-4 w-4 mr-2 text-brand-gray" />
-                                <span>
-                                  {classItem.time} • {classItem.duration}
-                                </span>
-                              </div>
-                            </div>
+                {pastClasses.map((classItem) => (
+                  <Card key={classItem.id} className="overflow-hidden border-brand-mint/20 shadow-sm">
+                    <div className="flex flex-col md:flex-row">
+                      <div className="flex-1 p-3 sm:p-4">
+                        <h3 className="text-base sm:text-lg font-bold">{classItem.className}</h3>
+                        <p className="text-zinc-600 text-sm">Con {classItem.instructor}</p>
+                        <div className="mt-1 sm:mt-2 space-y-1">
+                          <div className="flex items-center text-zinc-700 text-xs sm:text-sm">
+                            <Calendar className="h-4 w-4 mr-2 text-brand-gray" />
+                            {/* Usa dateFormatted si está disponible, si no usa date */}
+                            <span>{classItem.dateFormatted || classItem.date}</span>
                           </div>
-                          <div className="p-3 sm:p-4 flex items-center">
-                            <Button
-                              variant="outline"
-                              className="bg-brand-mint/10 hover:bg-brand-mint/20 border-brand-mint/20 w-full sm:w-auto text-xs sm:text-base"
-                            >
-                              Reservar Similar
-                            </Button>
+                          <div className="flex items-center text-zinc-700 text-xs sm:text-sm">
+                            <Clock className="h-4 w-4 mr-2 text-brand-gray" />
+                            <span>
+                              {classItem.time} • {classItem.duration}
+                            </span>
                           </div>
                         </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
+                      </div>
+                      <div className="p-3 sm:p-4 flex items-center">
+                        <Button
+                          variant="outline"
+                          className="bg-brand-mint/10 hover:bg-brand-mint/20 border-brand-mint/20 w-full sm:w-auto text-xs sm:text-base"
+                        >
+                          Reservar Similar
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
               </TabsContent>
             </Tabs>
           </div>
@@ -578,4 +626,4 @@ export default function ProfilePage() {
       </Dialog>
     </div>
   )
-}
+} 
