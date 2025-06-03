@@ -316,10 +316,10 @@ export default function ProfilePage() {
           <div className="lg:col-span-3 mb-6 lg:mb-0">
             <Card className="border-brand-mint/20 shadow-sm">
               <CardHeader className="pb-4">
-                <div className="flex flex-col items-center">
-                  <CardTitle className="text-lg sm:text-xl font-bold text-center break-words">{currentUser.name}</CardTitle>
-                  <CardDescription className="text-center break-words">{currentUser.email}</CardDescription>
-                </div>
+                  <div className="flex justify-between items-center py-2 border-b border-brand-mint/20">
+                    <span className="text-zinc-600 text-sm sm:text-base">Email</span>
+                    <span className="font-medium text-brand-burgundy text-base sm:text-sm">{currentUser.email}</span>
+                  </div>
               </CardHeader>
               <CardContent className="pb-4">
                 <div className="space-y-4">
@@ -425,7 +425,7 @@ export default function ProfilePage() {
                                 <span>Fecha:</span>
                               </div>
                               {/* Usa dateFormatted si está disponible, si no usa date */}
-                              <span className="font-semibold text-brand-sage">
+                              <span className="text-xs font-medium text-black">
                                 {classItem.dateFormatted || classItem.date}
                               </span>
                             </div>
@@ -434,7 +434,7 @@ export default function ProfilePage() {
                                 <Clock className="h-4 w-4 text-brand-sage" />
                                 <span>Hora:</span>
                               </div>
-                              <span className="font-semibold text-brand-sage">{classItem.time}</span>
+                              <span className="text-xs font-medium text-black">{classItem.time}</span>
                             </div>
                             {classItem.intensity && (
                               <div className="flex items-center justify-between">
@@ -608,7 +608,7 @@ export default function ProfilePage() {
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm text-zinc-500 mt-2">
-                  Recuerda que las cancelaciones deben realizarse con al menos 4 horas de anticipación para recuperar tu
+                  Recuerda que las cancelaciones deben realizarse con al menos 12 horas de anticipación para recuperar tu
                   crédito.
                 </p>
               </div>

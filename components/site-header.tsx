@@ -100,9 +100,9 @@ export function SiteHeader() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/reservar">
+                    <Link href="/mi-cuenta">
                       <ChevronRight className="mr-2 h-4 w-4" />
-                      Reservar Clase
+                      Mis Reservas
                     </Link>
                   </DropdownMenuItem>
                   {user?.role === 'admin' && (
