@@ -198,22 +198,22 @@ export default function SettingsPage() {
             <form className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="admin-name">Nombre Completo</Label>
-                <Input id="admin-name" defaultValue="María González" className="border-gray-300" />
+                <Input id="admin-name" defaultValue="Ghana Inés Miroslava Chávez García" className="border-gray-300" />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="admin-email">Correo Electrónico</Label>
-                <Input id="admin-email" type="email" defaultValue="admin@cyclestudio.com" className="border-gray-300" />
+                <Input id="admin-email" type="email" defaultValue="miroslavacg1@gmail.com" className="border-gray-300" />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="admin-phone">Teléfono</Label>
-                <Input id="admin-phone" defaultValue="(555) 000-1234" className="border-gray-300" />
+                <Input id="admin-phone" defaultValue="+527753571894" className="border-gray-300" />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="studio-name">Nombre del Estudio</Label>
-                <Input id="studio-name" defaultValue="Innata Cycling Studio" className="border-gray-300" />
+                <Input id="studio-name" defaultValue="Innata Indoor Cycling Studio "className="border-gray-300" />
               </div>
 
               <Button className="bg-[#4A102A] hover:bg-[#4A102A]/90 w-full">Guardar Cambios</Button>

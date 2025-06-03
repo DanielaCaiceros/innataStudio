@@ -4,8 +4,9 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { Calendar, Clock, MapPin, X, ChevronRight, Settings, LogOut } from "lucide-react"
+import { Calendar, Clock, MapPin, X, ChevronRight, Settings, LogOut, Users, Target, Zap, Heart, Flame } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -41,6 +42,10 @@ interface UserReservation {
   status: string
   canCancel: boolean
   package: string
+  category?: string
+  intensity?: string
+  capacity?: number
+  description?: string
 }
 
 interface UserProfile {
@@ -48,6 +53,40 @@ interface UserProfile {
   email: string
   memberSince: string
   avatar?: string
+}
+
+// Función para obtener el ícono según la categoría
+const getCategoryIcon = (category: string) => {
+  switch (category?.toLowerCase()) {
+    case "hiit":
+      return <Zap className="h-6 w-6" />
+    case "ritmo":
+      return <Heart className="h-6 w-6" />
+    case "resistencia":
+      return <Target className="h-6 w-6" />
+    case "recuperacion":
+      return <Heart className="h-6 w-6" />
+    default:
+      return <Flame className="h-6 w-6" />
+  }
+}
+
+// Función para obtener el color según la intensidad
+const getIntensityColor = (intensity: string) => {
+  switch (intensity?.toLowerCase()) {
+    case "baja":
+      return "bg-green-100 text-green-800 border-green-200"
+    case "media":
+      return "bg-yellow-100 text-yellow-800 border-yellow-200"
+    case "media-alta":
+      return "bg-orange-100 text-orange-800 border-orange-200"
+    case "alta":
+      return "bg-red-100 text-red-800 border-red-200"
+    case "muy alta":
+      return "bg-purple-100 text-purple-800 border-purple-200"
+    default:
+      return "bg-gray-100 text-gray-800 border-gray-200"
+  }
 }
 
 export default function ProfilePage() {
@@ -312,50 +351,92 @@ export default function ProfilePage() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {upcomingClasses.map((classItem) => (
-                      <Card key={classItem.id} className="overflow-hidden border-brand-mint/20 shadow-sm">
-                        <div className="relative h-40">
-                          <Image
-                            src="/placeholder.svg"
-                            alt={classItem.className}
-                            fill
-                            className="object-cover"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                          <div className="absolute bottom-4 left-4 right-4">
-                            <h3 className="text-xl font-bold text-white">{classItem.className}</h3>
-                            <p className="text-white/90">Con {classItem.instructor}</p>
+                      <Card 
+                        key={classItem.id} 
+                        className="bg-white border-gray-100 overflow-hidden rounded-3xl shadow-sm hover:shadow-lg transition-all duration-300 group"
+                      >
+                        {/* Header visual con ícono */}
+                        <div className="relative h-24 bg-gradient-to-br from-brand-sage/50 via-brand-mint/25 to-brand-sage/20 flex items-center justify-center">
+                          <div className="p-3 bg-white/90 backdrop-blur-sm rounded-2xl text-brand-sage group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                            {getCategoryIcon(classItem.category)}
+                          </div>
+                          <div className="absolute top-3 right-3">
+                            <Badge className="bg-white/90 text-brand-sage border-0 shadow-sm">
+                              {classItem.duration}
+                            </Badge>
                           </div>
                         </div>
-                        <CardContent className="pt-4">
-                          <div className="space-y-3">
-                            <div className="flex items-center text-zinc-700">
-                              <Calendar className="h-4 w-4 mr-2 text-brand-gray" />
-                              <span>{classItem.date}</span>
-                            </div>
-                            <div className="flex items-center text-zinc-700">
-                              <Clock className="h-4 w-4 mr-2 text-brand-gray" />
-                              <span>
-                                {classItem.time} • {classItem.duration}
-                              </span>
-                            </div>
-                            <div className="flex items-center text-zinc-700">
-                              <MapPin className="h-4 w-4 mr-2 text-brand-gray" />
-                              <span>{classItem.location}</span>
-                            </div>
+
+                        <CardContent className="p-6">
+                          <div className="mb-4">
+                            <h3 className="text-xl font-bold text-brand-sage mb-2 group-hover:text-brand-mint transition-colors">
+                              {classItem.className}
+                            </h3>
+                            <p className="text-gray-600 text-sm leading-relaxed mb-2">
+                              Con {classItem.instructor}
+                            </p>
+                            {classItem.description && (
+                              <p className="text-gray-600 text-sm leading-relaxed line-clamp-2">
+                                {classItem.description}
+                              </p>
+                            )}
                           </div>
+
+                          {/* Información de la clase */}
+                          <div className="space-y-3 mb-6">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <Calendar className="h-4 w-4 text-brand-sage" />
+                                <span>Fecha:</span>
+                              </div>
+                              <span className="font-semibold text-brand-sage">{classItem.date}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <Clock className="h-4 w-4 text-brand-sage" />
+                                <span>Hora:</span>
+                              </div>
+                              <span className="font-semibold text-brand-sage">{classItem.time}</span>
+                            </div>
+
+                            {classItem.intensity && (
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <Target className="h-4 w-4 text-brand-sage" />
+                                  <span>Intensidad:</span>
+                                </div>
+                                <Badge className={`text-xs border ${getIntensityColor(classItem.intensity)}`}>
+                                  {classItem.intensity}
+                                </Badge>
+                              </div>
+                            )}
+
+                            {classItem.capacity && (
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <Users className="h-4 w-4 text-brand-sage" />
+                                  <span>Capacidad:</span>
+                                </div>
+                                <span className="font-semibold text-brand-sage">{classItem.capacity} personas</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Botón de cancelar */}
+                          {classItem.canCancel && (
+                            <Button
+                              variant="outline"
+                              className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200 rounded-full group-hover:shadow-lg transition-all duration-300"
+                              onClick={() => handleCancelClass(classItem)}
+                            >
+                              <X className="mr-2 h-4 w-4" />
+                              Cancelar Reserva
+                            </Button>
+                          )}
                         </CardContent>
-                        <CardFooter className="pt-0">
-                          <Button
-                            variant="outline"
-                            className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100"
-                            onClick={() => handleCancelClass(classItem)}
-                          >
-                            <X className="mr-2 h-4 w-4" />
-                            Cancelar Reserva
-                          </Button>
-                        </CardFooter>
                       </Card>
                     ))}
                   </div>
