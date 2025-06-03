@@ -16,14 +16,14 @@ export async function signToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): Promi
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d') // Token expires in 7 days
+    .setExpirationTime('365d') // Token expires in 365 days
     .sign(secret)
 }
 
 export async function verifyToken(token: string): Promise<JWTPayload> {
   try {
     const { payload } = await jwtVerify(token, secret)
-    return payload as JWTPayload
+    return payload as unknown as JWTPayload
   } catch (error) {
     throw new Error('Invalid token')
   }

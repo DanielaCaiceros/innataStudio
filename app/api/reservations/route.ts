@@ -4,6 +4,53 @@ import { verifyToken } from "@/lib/jwt"
 
 const prisma = new PrismaClient()
 
+/**
+ * Crea un Date object completo combinando fecha y hora de la clase
+ * @param dateString - Fecha de la clase en formato ISO
+ * @param timeString - Hora de la clase en formato ISO
+ * @returns Date object con fecha y hora combinadas
+ */
+function createClassDateTime(dateString: string, timeString: string): Date {
+  const classDate = new Date(dateString)
+  const timeDate = new Date(timeString)
+  
+  return new Date(
+    classDate.getUTCFullYear(),
+    classDate.getUTCMonth(), 
+    classDate.getUTCDate(),
+    timeDate.getUTCHours(),
+    timeDate.getUTCMinutes(),
+    0,
+    0
+  )
+}
+
+/**
+ * Verifica si una clase es reservable (no ha pasado y no está a punto de empezar)
+ * @param dateString - Fecha de la clase
+ * @param timeString - Hora de la clase
+ * @returns boolean
+ */
+function isClassBookable(dateString: string, timeString: string): boolean {
+  const now = new Date()
+  const classDateTime = createClassDateTime(dateString, timeString)
+  
+  // Si la clase ya pasó
+  if (classDateTime < now) {
+    return false
+  }
+  
+  // Si faltan menos de 30 minutos para la clase
+  const THIRTY_MIN = 30 * 60 * 1000
+  const timeDifference = classDateTime.getTime() - now.getTime()
+  
+  if (timeDifference < THIRTY_MIN) {
+    return false
+  }
+  
+  return true
+}
+
 // POST - Crear nueva reserva
 export async function POST(request: NextRequest) {
   try {
@@ -39,29 +86,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Esta clase no está disponible para reservas" }, { status: 400 })
     }
 
-    // Validación: no permitir reservar si la clase ya pasó o está por iniciar muy pronto
-    const now = new Date()
-    // scheduledClass.date es la fecha (sin hora), scheduledClass.time es la hora (Date)
-    // Unimos fecha y hora para comparar correctamente
-    const classDate = scheduledClass.date
-    const classTime = scheduledClass.time
-    // Unir fecha y hora en un solo Date
-    const classDateTime = new Date(
-      classDate.getFullYear(),
-      classDate.getMonth(),
-      classDate.getDate(),
-      classTime.getHours(),
-      classTime.getMinutes(),
-      0, 0
-    )
-    // Si la clase ya pasó
-    if (classDateTime < now) {
-      return NextResponse.json({ error: "No puedes reservar una clase que ya pasó." }, { status: 400 })
-    }
-    // Si faltan menos de 30 minutos para la clase
-    const THIRTY_MIN = 30 * 60 * 1000
-    if (classDateTime.getTime() - now.getTime() < THIRTY_MIN) {
-      return NextResponse.json({ error: "No puedes reservar una clase que está por iniciar en menos de 30 minutos." }, { status: 400 })
+    // Validación usando las funciones de utilidad
+    const classDateString = scheduledClass.date.toISOString()
+    const classTimeString = scheduledClass.time.toISOString()
+    
+    if (!isClassBookable(classDateString, classTimeString)) {
+      const classDateTime = createClassDateTime(classDateString, classTimeString)
+      const now = new Date()
+      
+      if (classDateTime < now) {
+        return NextResponse.json({ 
+          error: "No puedes reservar una clase que ya pasó." 
+        }, { status: 400 })
+      } else {
+        return NextResponse.json({ 
+          error: "No puedes reservar una clase que está por iniciar en menos de 30 minutos." 
+        }, { status: 400 })
+      }
     }
 
     // Verificar que el usuario no tenga ya una reserva para esta clase

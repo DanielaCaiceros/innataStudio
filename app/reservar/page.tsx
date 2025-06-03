@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { format, isSameDay } from "date-fns"
+import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { CalendarIcon, Clock, ChevronRight } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -13,6 +13,13 @@ import { StripeCheckout } from "@/components/stripe-checkout"
 import { toast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { useRouter } from "next/navigation"
+import { 
+  formatTimeFromDBFixed, 
+  isClassOnSelectedDate, 
+  getUniqueTimeSlotsFromClasses, 
+  filterClassesByDateAndTime,
+  createClassDateTime
+} from "@/lib/utils/date"
 
 // Interfaces para datos de API
 interface ClassType {
@@ -38,8 +45,8 @@ interface ScheduledClass {
 
 export default function BookingPage() {
   const router = useRouter()
-  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth() // Renamed isLoading from useAuth
-  const [isLoading, setIsLoading] = useState(true) // This is for data loading
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
+  const [isLoading, setIsLoading] = useState(true)
   
   // Estados para la reserva
   const [date, setDate] = useState<Date | undefined>(new Date())
@@ -50,7 +57,7 @@ export default function BookingPage() {
   // Estados para modales
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false)
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); // New state for auth modal
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   
   // Estado para datos de la API
   const [availableClasses, setAvailableClasses] = useState<ScheduledClass[]>([])
@@ -89,16 +96,11 @@ export default function BookingPage() {
     const loadAvailableClasses = async () => {
       setIsLoading(true)
       try {
-        // Formatear fecha para query params si hay una fecha seleccionada
         const dateParam = date ? `date=${format(date, 'yyyy-MM-dd')}` : '';
         
         const response = await fetch(`/api/scheduled-clases/available?${dateParam}`);
         if (response.ok) {
           const data: ScheduledClass[] = await response.json();
-          // Log para depuración del formato de tiempo
-          if (data.length > 0) {
-            console.log("Ejemplo de formato de tiempo:", data[0].time, typeof data[0].time);
-          }
           setAvailableClasses(data);
         } else {
           console.error("Error al cargar clases disponibles");
@@ -131,13 +133,12 @@ export default function BookingPage() {
       
       console.log("Creando reserva para la clase:", scheduledClassId);
       
-      // Crear la reserva en el backend
       const response = await fetch("/api/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           scheduledClassId,
-          paymentId // Incluir el ID de pago para registrar la transacción
+          paymentId
         }),
         credentials: "include",
       });
@@ -148,7 +149,6 @@ export default function BookingPage() {
         throw new Error(data.error || "Error al crear la reserva");
       }
       
-      // Cerrar modal de pago y mostrar confirmación
       setIsPaymentOpen(false);
       setIsConfirmationOpen(true);
       
@@ -164,7 +164,6 @@ export default function BookingPage() {
         variant: "destructive",
       });
       
-      // Cerrar el modal de pago en caso de error
       setIsPaymentOpen(false);
     }
   }
@@ -179,18 +178,17 @@ export default function BookingPage() {
   }
 
   const handleConfirmBooking = async () => {
-    if (isAuthLoading) { // Check if auth state is resolving
+    if (isAuthLoading) {
       return;
     }
 
-    if (!isAuthenticated) { // If not authenticated, open auth modal
+    if (!isAuthenticated) {
       setIsAuthModalOpen(true);
       return;
     }
 
     if (!date || !selectedClass || !selectedTime) return
     
-    // Buscar la clase programada que coincida con la selección
     const selectedScheduledClass = availableClasses.find(
       cls => cls.id === selectedClass
     );
@@ -204,22 +202,17 @@ export default function BookingPage() {
       return;
     }
     
-    // Guardar el ID de la clase programada para la reserva
     setScheduledClassId(selectedScheduledClass.id);
     
-    // Verificar si el usuario tiene clases disponibles en sus paquetes
     if (userAvailableClasses > 0) {
-      // El usuario tiene clases disponibles, proceder directamente con la reserva
       try {
         console.log("Creando reserva usando paquete disponible:", selectedScheduledClass.id);
         
-        // Crear la reserva en el backend
         const response = await fetch("/api/reservations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             scheduledClassId: selectedScheduledClass.id
-            // No incluir paymentId ya que se usa un paquete existente
           }),
           credentials: "include",
         });
@@ -230,10 +223,7 @@ export default function BookingPage() {
           throw new Error(data.error || "Error al crear la reserva");
         }
         
-        // Actualizar el contador local de clases disponibles
         setUserAvailableClasses(prev => prev - 1);
-        
-        // Mostrar confirmación
         setIsConfirmationOpen(true);
         
         toast({
@@ -249,114 +239,151 @@ export default function BookingPage() {
         });
       }
     } else {
-      // El usuario no tiene clases disponibles, abrir modal de pago
       setIsPaymentOpen(true);
     }
   }
 
-  // Obtener las clases disponibles para la fecha seleccionada
+  // Obtener las clases disponibles para la fecha seleccionada usando las utilidades
   const getClassesForSelectedDate = () => {
     if (!date) return [];
     
     return availableClasses.filter((cls) => {
-      const classDate = new Date(cls.date);
-      return isSameDay(classDate, date);
+      return isClassOnSelectedDate(cls.date, date);
     });
   }
   
-  // Obtener horarios disponibles para la fecha seleccionada
+  // Obtener horarios disponibles para la fecha seleccionada usando las utilidades
   const getTimeSlotsForSelectedDate = () => {
     const classesForDate = getClassesForSelectedDate();
-    
-    // Extraer horarios únicos
-    return [...new Set(classesForDate.map((cls) => {
-      try {
-        // Asegurarnos de que el formato de tiempo es válido
-        let timeString = cls.time;
-        
-        // Si el tiempo ya incluye la T y la zona horaria, usar directamente
-        if (typeof timeString === 'string' && timeString.includes('T')) {
-          const date = new Date(timeString);
-          return format(date, "HH:mm");
-        }
-        
-        // Si es un string en formato HH:MM:SS, añadir la fecha base
-        if (typeof timeString === 'string' && timeString.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-          const date = new Date(`1970-01-01T${timeString}`);
-          return format(date, "HH:mm");
-        }
-        
-        // Caso de fallback - mostrar el tiempo tal cual está
-        return typeof timeString === 'string' ? timeString.substring(0, 5) : "00:00";
-      } catch (error) {
-        console.error("Error al formatear hora:", error, cls.time);
-        // En caso de error, devolver un formato de tiempo simple sin procesar
-        return typeof cls.time === 'string' ? cls.time.substring(0, 5) : "00:00";
-      }
-    }))].sort();
+    // Mapear a objetos con solo date y time para las utilidades
+    const classesWithDateTime = classesForDate.map(cls => ({
+      date: cls.date,
+      time: cls.time
+    }));
+    return getUniqueTimeSlotsFromClasses(classesWithDateTime);
   }
   
-  // Obtener clases disponibles para un horario específico
+  // Obtener clases disponibles para un horario específico usando las utilidades
   const getClassesForSelectedTime = (time: string) => {
     if (!date) return [];
     
-    return availableClasses.filter((cls) => {
-      const classDate = new Date(cls.date);
-      
-      try {
-        let formattedTime;
-        
-        // Si el tiempo ya incluye la T y la zona horaria, usar directamente
-        if (typeof cls.time === 'string' && cls.time.includes('T')) {
-          const timeDate = new Date(cls.time);
-          formattedTime = format(timeDate, "HH:mm");
-        }
-        // Si es un string en formato HH:MM:SS, añadir la fecha base
-        else if (typeof cls.time === 'string' && cls.time.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-          const timeDate = new Date(`1970-01-01T${cls.time}`);
-          formattedTime = format(timeDate, "HH:mm");
-        }
-        // Caso de fallback
-        else {
-          formattedTime = typeof cls.time === 'string' ? cls.time.substring(0, 5) : "00:00";
-        }
-        
-        return isSameDay(classDate, date) && formattedTime === time;
-      } catch (error) {
-        console.error("Error al comparar tiempos:", error, cls.time);
-        return false;
-      }
-    });
+    // Mapear a objetos con solo date y time para las utilidades
+    const classesWithDateTime = availableClasses.map(cls => ({
+      date: cls.date,
+      time: cls.time,
+      originalClass: cls // Mantener referencia al objeto original
+    }));
+    
+    const filteredDateTime = filterClassesByDateAndTime(classesWithDateTime, date, time);
+    
+    // Devolver las clases originales completas
+    return filteredDateTime.map(filtered => 
+      (filtered as any).originalClass as ScheduledClass
+    ).filter(Boolean);
   }
 
   // Utilidad para saber si la clase ya pasó o está por iniciar en menos de 30 minutos
-  function isClassReservable(cls: ScheduledClass) {
-    // Unir fecha y hora
-    const classDate = new Date(cls.date)
-    let classTime: Date
-    if (typeof cls.time === 'string' && cls.time.includes('T')) {
-      classTime = new Date(cls.time)
-    } else if (typeof cls.time === 'string' && cls.time.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-      classTime = new Date(`1970-01-01T${cls.time}`)
-    } else if (cls.time instanceof Date) {
-      classTime = cls.time
-    } else {
-      return false
-    }
-    const classDateTime = new Date(
-      classDate.getFullYear(),
-      classDate.getMonth(),
-      classDate.getDate(),
-      classTime.getHours(),
-      classTime.getMinutes(),
-      0, 0
-    )
-    const now = new Date()
-    const THIRTY_MIN = 30 * 60 * 1000
-    if (classDateTime < now) return false
-    if (classDateTime.getTime() - now.getTime() < THIRTY_MIN) return false
-    return true
+  // Función corregida para determinar si una clase es reservable
+// Función actualizada para determinar si una clase es reservable
+// Agrega esta función de debug temporalmente en tu archivo /app/reservar/page.tsx
+
+// Función de debug para verificar las fechas
+function debugClassDateTime(cls: ScheduledClass) {
+  console.log("=== DEBUG CLASE ===");
+  console.log("Clase:", cls.classType?.name);
+  console.log("Fecha original:", cls.date);
+  console.log("Hora original:", cls.time);
+  
+  // Intentar parsear la fecha
+  const classDate = new Date(cls.date);
+  console.log("Fecha parseada:", classDate);
+  console.log("Es válida la fecha?", !isNaN(classDate.getTime()));
+  
+  // Intentar parsear la hora
+  let classTime: Date;
+  if (typeof cls.time === 'string' && cls.time.includes('T')) {
+    classTime = new Date(cls.time);
+    console.log("Hora parseada (ISO):", classTime);
+  } else if (typeof cls.time === 'string' && cls.time.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
+    classTime = new Date(`1970-01-01T${cls.time}`);
+    console.log("Hora parseada (HH:mm):", classTime);
+  } else {
+    console.log("Formato de hora no reconocido:", typeof cls.time, cls.time);
+    return false;
   }
+  
+  console.log("Es válida la hora?", !isNaN(classTime.getTime()));
+  console.log("UTC Hours:", classTime.getUTCHours());
+  console.log("UTC Minutes:", classTime.getUTCMinutes());
+  
+  // Crear fecha completa
+  const classDateTime = new Date(
+    classDate.getUTCFullYear(),
+    classDate.getUTCMonth(), 
+    classDate.getUTCDate(),
+    classTime.getUTCHours(),
+    classTime.getUTCMinutes(),
+    0,
+    0
+  );
+  
+  console.log("Fecha y hora combinada:", classDateTime);
+  
+  const now = new Date();
+  console.log("Fecha actual:", now);
+  console.log("Diferencia en ms:", classDateTime.getTime() - now.getTime());
+  console.log("Diferencia en horas:", (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60));
+  
+  // Verificar si ya pasó
+  const hasPassed = classDateTime < now;
+  console.log("Ya pasó?", hasPassed);
+  
+  // Verificar 30 minutos
+  const THIRTY_MIN = 30 * 60 * 1000;
+  const timeDifference = classDateTime.getTime() - now.getTime();
+  const isWithin30Min = timeDifference < THIRTY_MIN && timeDifference > 0;
+  console.log("Está dentro de 30 min?", isWithin30Min);
+  
+  console.log("=== FIN DEBUG ===");
+  
+  return !hasPassed && !isWithin30Min;
+}
+
+// Reemplaza temporalmente tu función isClassReservable con esta:
+function isClassReservable(cls: ScheduledClass): boolean {
+  try {
+    const now = new Date();
+    const classDateTime = createClassDateTime(cls.date, cls.time);
+    
+    console.log("=== VALIDACIÓN CORREGIDA ===");
+    console.log("Ahora:", now);
+    console.log("Clase:", classDateTime);
+    console.log("Diferencia en horas:", (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60));
+    
+    // Si la clase ya pasó
+    if (classDateTime < now) {
+      console.log("❌ La clase ya pasó");
+      return false;
+    }
+    
+    // Si faltan menos de 30 minutos para la clase
+    const THIRTY_MIN = 30 * 60 * 1000;
+    const timeDifference = classDateTime.getTime() - now.getTime();
+    
+    if (timeDifference < THIRTY_MIN) {
+      console.log("❌ La clase está dentro de 30 minutos");
+      return false;
+    }
+    
+    console.log("✅ La clase es reservable");
+    return true;
+  } catch (error) {
+    console.error("Error verificando si la clase es reservable:", error);
+    return false;
+  }
+}
+
+
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
@@ -423,7 +450,7 @@ export default function BookingPage() {
                           }`}
                           onClick={() => {
                             setSelectedTime(time);
-                            setSelectedClass(null); // Resetear selección de clase
+                            setSelectedClass(null);
                           }}
                         >
                           {time}
@@ -487,85 +514,86 @@ export default function BookingPage() {
               <CardContent className="p-6">
                 <h3 className="text-xl font-bold mb-4 text-brand-mint-dark">Resumen de Reserva</h3>
 
-                <div className="space-y-4">                <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                  <span className="text-zinc-700">Fecha:</span>
-                  <span className="font-medium text-brand-burgundy">
-                    {date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : "No seleccionada"}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                  <span className="text-zinc-700">Horario:</span>
-                  <span className="font-medium text-brand-burgundy">
-                    {selectedTime ? `${selectedTime} hrs` : "No seleccionado"}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                  <span className="text-zinc-700">Clase:</span>
-                  <span className="font-medium text-brand-burgundy">
-                    {selectedClass 
-                      ? availableClasses.find(c => c.id === selectedClass)?.classType.name 
-                      : "No seleccionada"
-                    }
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                  <span className="text-zinc-700">Instructor:</span>
-                  <span className="font-medium text-brand-burgundy">
-                    {selectedClass 
-                      ? availableClasses.find(c => c.id === selectedClass)?.instructor.name
-                      : "No seleccionado"
-                    }
-                  </span>
-                </div>
-                
-                <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                  <span className="text-zinc-700">Duración:</span>
-                  <span className="font-medium text-brand-burgundy">
-                    {selectedClass 
-                      ? `${availableClasses.find(c => c.id === selectedClass)?.classType.duration} minutos`
-                      : "No seleccionada"
-                    }
-                  </span>
-                </div>
-                
-                <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                  <span className="text-zinc-700">Cupo disponible:</span>
-                  <span className="font-medium text-brand-burgundy">
-                    {selectedClass 
-                      ? `${availableClasses.find(c => c.id === selectedClass)?.availableSpots} lugares`
-                      : "N/A"
-                    }
-                  </span>
-                </div>
-                
-                {/* Mostrar clases disponibles del usuario si está autenticado */}
-                {isAuthenticated && (
-                  <div className="bg-brand-mint/10 rounded-lg p-3 mt-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-zinc-700 font-medium">Tus clases disponibles:</span>
-                      <span className="font-bold text-xl text-brand-sage">
-                        {isLoadingUserClasses ? "..." : userAvailableClasses}
-                      </span>
-                    </div>
-                    {userAvailableClasses > 0 ? (
-                      <p className="text-sm text-green-700 mt-1">
-                        ✓ Puedes reservar esta clase usando tu paquete
-                      </p>
-                    ) : (
-                      <p className="text-sm text-orange-700 mt-1">
-                        ⚠ Necesitarás pagar para reservar esta clase
-                      </p>
-                    )}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                    <span className="text-zinc-700">Fecha:</span>
+                    <span className="font-medium text-brand-burgundy">
+                      {date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : "No seleccionada"}
+                    </span>
                   </div>
-                )}
+
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                    <span className="text-zinc-700">Horario:</span>
+                    <span className="font-medium text-brand-burgundy">
+                      {selectedTime ? `${selectedTime} hrs` : "No seleccionado"}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                    <span className="text-zinc-700">Clase:</span>
+                    <span className="font-medium text-brand-burgundy">
+                      {selectedClass 
+                        ? availableClasses.find(c => c.id === selectedClass)?.classType.name 
+                        : "No seleccionada"
+                      }
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                    <span className="text-zinc-700">Instructor:</span>
+                    <span className="font-medium text-brand-burgundy">
+                      {selectedClass 
+                        ? availableClasses.find(c => c.id === selectedClass)?.instructor.name
+                        : "No seleccionado"
+                      }
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                    <span className="text-zinc-700">Duración:</span>
+                    <span className="font-medium text-brand-burgundy">
+                      {selectedClass 
+                        ? `${availableClasses.find(c => c.id === selectedClass)?.classType.duration} minutos`
+                        : "No seleccionada"
+                      }
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                    <span className="text-zinc-700">Cupo disponible:</span>
+                    <span className="font-medium text-brand-burgundy">
+                      {selectedClass 
+                        ? `${availableClasses.find(c => c.id === selectedClass)?.availableSpots} lugares`
+                        : "N/A"
+                      }
+                    </span>
+                  </div>
+                  
+                  {/* Mostrar clases disponibles del usuario si está autenticado */}
+                  {isAuthenticated && (
+                    <div className="bg-brand-mint/10 rounded-lg p-3 mt-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-zinc-700 font-medium">Tus clases disponibles:</span>
+                        <span className="font-bold text-xl text-brand-sage">
+                          {isLoadingUserClasses ? "..." : userAvailableClasses}
+                        </span>
+                      </div>
+                      {userAvailableClasses > 0 ? (
+                        <p className="text-sm text-green-700 mt-1">
+                          ✓ Puedes reservar esta clase usando tu paquete
+                        </p>
+                      ) : (
+                        <p className="text-sm text-orange-700 mt-1">
+                          ⚠ Necesitarás pagar para reservar esta clase
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <Button
                   className="w-full mt-6 bg-brand-mint hover:bg-brand-mint/90 font-bold text-lg py-6 rounded-full text-white"
-                  disabled={!date || !selectedClass || !selectedTime || (selectedClass && !isClassReservable(availableClasses.find(c => c.id === selectedClass)!))}
+                  disabled={!date || !selectedClass || !selectedTime || (selectedClass ? !isClassReservable(availableClasses.find(c => c.id === selectedClass)!) : false)}
                   onClick={handleConfirmBooking}
                 >
                   <span className="flex items-center gap-1">
