@@ -179,19 +179,9 @@ export default function PackageCheckoutPage() {
       <span className="font-medium">Precio base:</span>
       <span>${packageData.price.toFixed(2)}</span>
     </div>
-    {paymentMethod === "card" && (
-      <div className="flex justify-between items-center pb-2 border-b">
-        <span className="font-medium text-zinc-600">Comisión por pago en línea (3%):</span>
-        <span className="text-zinc-600">${(packageData.price * 0.03).toFixed(2)}</span>
-      </div>
-    )}
     <div className="flex justify-between items-center pt-2 text-lg font-bold">
       <span>Total:</span>
-      <span>
-        ${paymentMethod === "card" 
-          ? ((packageData.price +3)/ (1 - 0.036)).toFixed(2) 
-          : packageData.price.toFixed(2)}
-      </span>
+      <span>${packageData.price.toFixed(2)}</span>
     </div>
   </div>
             </CardContent>

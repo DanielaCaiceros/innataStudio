@@ -685,7 +685,12 @@ function isClassReservable(cls: ScheduledClass) {
       </Dialog>
 
       {/* Confirmation Dialog */}
-      <Dialog open={isConfirmationOpen} onOpenChange={setIsConfirmationOpen}>
+      <Dialog open={isConfirmationOpen} onOpenChange={(open) => {
+        setIsConfirmationOpen(open);
+        if (!open) {
+          router.push("/mi-cuenta");
+        }
+      }}>
         <DialogContent className="bg-white border-gray-200 text-zinc-900">
           <DialogHeader>
             <DialogTitle className="text-[#4A102A]">¡Reserva Confirmada!</DialogTitle>
@@ -716,12 +721,19 @@ function isClassReservable(cls: ScheduledClass) {
               Se ha enviado un correo de confirmación con los detalles de tu reserva. Te esperamos en el estudio.
             </p>
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
             <Button
               className="bg-brand-burgundy hover:bg-brand-burgundy/90 text-white"
               onClick={() => setIsConfirmationOpen(false)}
             >
               Cerrar
+            </Button>
+            <Button
+              variant="outline"
+              className="border-brand-burgundy text-brand-burgundy"
+              onClick={() => router.push("/mi-cuenta")}
+            >
+              Ver reservas
             </Button>
           </div>
         </DialogContent>
