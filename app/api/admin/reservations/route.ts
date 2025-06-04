@@ -1,3 +1,4 @@
+// app/api/admin/reservations/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { verifyToken } from "@/lib/jwt";
@@ -32,9 +33,16 @@ export async function GET(request: NextRequest) {
     }
     
     if (date) {
-      // Buscar clases programadas en la fecha especificada
+      // Crear el rango de fecha completo para el día seleccionado
+      const targetDate = new Date(date + "T00:00:00.000Z");
+      const nextDay = new Date(targetDate);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+      
       filter.scheduledClass = {
-        date: new Date(date)
+        date: {
+          gte: targetDate,
+          lt: nextDay
+        }
       };
     }
     
@@ -76,19 +84,34 @@ export async function GET(request: NextRequest) {
           }
         }
       },
-      orderBy: {
-        createdAt: "desc"
-      }
+      orderBy: [
+        {
+          scheduledClass: {
+            date: "desc"
+          }
+        },
+        {
+          scheduledClass: {
+            time: "asc"
+          }
+        }
+      ]
     });
 
-    // Formatear los datos para la respuesta
+    // Formatear los datos para la respuesta con manejo correcto de fechas
     const formattedReservations = reservations.map((res) => {
+      // Formatear la fecha de la clase
+      const classDate = new Date(res.scheduledClass.date);
+      const formattedDate = classDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      // Formatear la hora de la clase
+      const classTime = new Date(res.scheduledClass.time);
+      const hours = classTime.getUTCHours().toString().padStart(2, '0');
+      const minutes = classTime.getUTCMinutes().toString().padStart(2, '0');
+      const formattedTime = `${hours}:${minutes}`;
+      
       // Calcular clases restantes en el paquete
       const remainingClasses = res.userPackage?.classesRemaining || 0;
-      
-      // Formatear la fecha y hora
-      const date = res.scheduledClass.date;
-      const time = res.scheduledClass.time;
       
       return {
         id: res.id,
@@ -96,8 +119,8 @@ export async function GET(request: NextRequest) {
         email: res.user.email,
         phone: res.user.phone || "",
         class: res.scheduledClass.classType.name,
-        date: date.toISOString().split('T')[0],
-        time: time.toTimeString().slice(0, 5),
+        date: formattedDate,
+        time: formattedTime,
         status: res.status,
         package: res.userPackage?.package.name || "PASE INDIVIDUAL",
         remainingClasses: remainingClasses,
@@ -113,6 +136,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// ... resto del código POST se mantiene igual
 // POST - Crear nueva reserva (admin)
 export async function POST(request: NextRequest) {
   try {

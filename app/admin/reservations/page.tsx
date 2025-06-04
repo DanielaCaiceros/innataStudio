@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
+import { formatAdminDate, formatAdminTime } from "@/lib/utils/admin-date"
+
 import {
   Dialog,
   DialogContent,
@@ -196,7 +198,7 @@ export default function ReservationsPage() {
       )
     } catch (error) {
       console.error("Error al procesar el pago:", error)
-      alert(`Error al procesar el pago: ${error.message}`)
+      alert(`Error al procesar el pago: ${error instanceof Error ? error.message : String(error)}`)
 
       setReservations((prevReservations) =>
         prevReservations.map((r) =>
@@ -241,7 +243,7 @@ export default function ReservationsPage() {
         alert("Reservación cancelada con éxito")
       } catch (error) {
         console.error("Error al cancelar la reservación:", error)
-        alert(`Error al cancelar la reservación: ${error.message}`)
+        alert(`Error al cancelar la reservación: ${error instanceof Error ? error.message : String(error)}`)
 
         setReservations((prevReservations) =>
           prevReservations.map((r) => (r.id === reservationId ? { ...r, status: "cancelled" } : r)),
@@ -315,7 +317,7 @@ export default function ReservationsPage() {
         alert("Reservación actualizada con éxito")
       } catch (error) {
         console.error("Error al actualizar la reservación:", error)
-        alert(`Error al actualizar la reservación: ${error.message}`)
+        alert(`Error al actualizar la reservación: ${error instanceof Error ? error.message : String(error)}`)
 
         setReservations((prevReservations) =>
           prevReservations.map((r) =>
@@ -570,7 +572,7 @@ export default function ReservationsPage() {
                       setIsNewReservationOpen(false)
                     } catch (error) {
                       console.error("Error al crear la reservación:", error)
-                      alert(`Error al crear la reservación: ${error.message}`)
+                      alert(`Error al crear la reservación: ${error instanceof Error ? error.message : String(error)}`)
                     }
                   }}
                 >
