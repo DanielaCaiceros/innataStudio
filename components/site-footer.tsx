@@ -64,9 +64,10 @@ export function SiteFooter() {
           <h4 className="font-bold mb-4">HORARIOS</h4>
           <ul className="space-y-2 text-zinc-600">
             <li>Lunes a Viernes:</li>
-            <li className="ml-2">(7:00-7:45) (8:15-9:00) (6:00-6:45) (8:00-8:45)</li>
+            <li>| 7:00-8:00AM | 8:00-9:00AM |</li>
+            <li>| 6:00-7:00PM | 7:00-8:00PM |</li>
             <li>Sábado:</li>
-            <li className="ml-2">(8:00-8:45) (9:15-10:00)</li>
+            <li>| 8:00-9:00AM | 9:00-10:00AM |</li>
           </ul>
         </div>
 
