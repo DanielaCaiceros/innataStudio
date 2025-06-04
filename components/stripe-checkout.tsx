@@ -17,13 +17,6 @@ interface CheckoutFormProps {
   onCancel: () => void
 }
 
-// 👉 Función para calcular el monto bruto que se debe cobrar para recibir el neto deseado
-function calculateStripeGrossAmount(netAmount: number): number {
-  const fixedFee = 3.00
-  const percentage = 0.036
-  return parseFloat(((netAmount + fixedFee) / (1 - percentage)).toFixed(2))
-}
-
 function CheckoutForm({ amount, description, onSuccess, onCancel }: CheckoutFormProps) {
   const stripe = useStripe()
   const elements = useElements()
@@ -32,8 +25,8 @@ function CheckoutForm({ amount, description, onSuccess, onCancel }: CheckoutForm
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
 
-  const grossAmount = calculateStripeGrossAmount(amount) // Monto a cobrar incluyendo comisiones
-  const totalAmount = parseFloat((grossAmount ).toFixed(2)) // Total final a cobrar
+  // El usuario paga exactamente el amount recibido (precio base)
+  const totalAmount = parseFloat((amount).toFixed(2))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -148,7 +141,7 @@ function CheckoutForm({ amount, description, onSuccess, onCancel }: CheckoutForm
       <div className="space-y-2">
         <div className="flex justify-between text-sm">
           <span className="text-gray-500">Subtotal</span>
-          <span>${grossAmount.toFixed(2)}</span>
+          <span>${totalAmount.toFixed(2)}</span>
         </div>
 
         <div className="flex justify-between font-medium">
