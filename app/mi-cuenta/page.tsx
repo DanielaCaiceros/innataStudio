@@ -457,8 +457,17 @@ export default function ProfilePage() {
                               </div>
                             )}
                           </div>
-                          {/* Botón de cancelar */}
-                          {classItem.canCancel && (
+                          {/* Botón de cancelar o estado cancelado */}
+                          {classItem.status === "cancelled" ? (
+                            <Button
+                              variant="outline"
+                              className="w-full text-red-400 bg-red-50 border-red-200 rounded-full cursor-not-allowed opacity-80"
+                              disabled
+                            >
+                              <X className="mr-2 h-4 w-4" />
+                              Reserva Cancelada
+                            </Button>
+                          ) : classItem.canCancel && (
                             <Button
                               variant="outline"
                               className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200 rounded-full group-hover:shadow-lg transition-all duration-300 text-xs sm:text-base"
@@ -626,4 +635,4 @@ export default function ProfilePage() {
       </Dialog>
     </div>
   )
-} 
+}
