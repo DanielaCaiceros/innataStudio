@@ -161,11 +161,11 @@ export default function PackageCheckoutPage() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center pb-2 border-b">
                   <span className="font-medium">Paquete:</span>
-                  <span>{packageData.name}</span>
+                  <span className="font-xs">{packageData.name}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b">
                   <span className="font-medium">Descripción:</span>
-                  <span>{packageData.description}</span>
+                  <span className="font-xs">{packageData.description}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b">
                   <span className="font-medium">Clases incluidas:</span>
@@ -195,7 +195,7 @@ export default function PackageCheckoutPage() {
             </CardHeader>
             <CardContent>
               <Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as "card" | "transfer")}>
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-1">
                   <TabsTrigger value="card" className="flex items-center gap-2">
                     <CreditCard className="h-4 w-4" /> Tarjeta
                   </TabsTrigger>
@@ -207,11 +207,10 @@ export default function PackageCheckoutPage() {
                     description={`Paquete ${packageData.name} - ${packageData.classCount} clases`}
                     onSuccess={handlePaymentSuccess}
                     onCancel={handlePaymentCancel}
-                    metadata={{
-                      packageId: packageId,
-                      userId: user?.user_id?.toString(),
-                      packageType: packageData.name
-                    }}
+                    name={user?.name}
+                    email={user?.email || ''}
+                    firstName={user?.firstName}
+                    lastName={user?.lastName}
                   />
                 </TabsContent>
 
