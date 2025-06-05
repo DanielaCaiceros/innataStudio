@@ -11,10 +11,19 @@ const montserrat = Montserrat({
 })
 
 export const metadata = {
-  title: "Innata Studio - El primer indoor cycling studio en Apan ",
+  title: "Innata Studio ",
   description:
     "Estudio de indoor cycling con clases de alta intensidad, instructores certificados y la mejor experiencia fitness.",
-  generator: 'v0.dev'
+  generator: 'v0.dev',
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+    other: {
+      rel: 'apple-touch-icon-precomposed',
+      url: '/icon.svg',
+    },
+  }
 }
 
 export default function RootLayout({
