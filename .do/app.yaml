@@ -1,0 +1,45 @@
+name: innata-studio
+services:
+- name: web
+  source_dir: /
+  github:
+    repo: DanielaCaiceros/innataStudio
+    branch: main
+  run_command: npm start
+  build_command: npm ci --legacy-peer-deps && npx prisma generate && npm run build
+  environment_slug: node-js
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  envs:
+  - key: NODE_ENV
+    value: production
+  - key: DATABASE_URL
+    value: ${db.DATABASE_URL}
+  - key: JWT_SECRET
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+  - key: NEXTAUTH_SECRET
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+  - key: NEXTAUTH_URL
+    scope: RUN_AND_BUILD_TIME
+    value: ${APP_URL}
+  - key: NEXT_PUBLIC_APP_URL
+    scope: RUN_AND_BUILD_TIME
+    value: ${APP_URL}
+  - key: STRIPE_SECRET_KEY
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+  - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+  - key: RESEND_API_KEY
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+  http_port: 3000
+databases:
+- engine: PG
+  name: innata-db
+  num_nodes: 1
+  size: db-s-dev-database
+  version: "14"

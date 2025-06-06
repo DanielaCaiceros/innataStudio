@@ -1,12 +1,17 @@
 {
-  "name": "my-v0-project",
+  "name": "innata-studio",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -41,6 +46,13 @@
     "@stripe/react-stripe-js": "^3.7.0",
     "@stripe/stripe-js": "^7.3.0",
     "@types/bcrypt": "^5.0.2",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/node": "^22",
+    "@types/nodemailer": "^6.4.17",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18",
+    "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.20",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
@@ -56,10 +68,11 @@
     "next": "15.2.4",
     "next-auth": "^4.24.11",
     "next-themes": "^0.4.4",
+    "postcss": "^8",
     "prisma": "^6.8.2",
-    "react": "^19",
+    "react": "^18.3.1",
     "react-day-picker": "8.10.1",
-    "react-dom": "^19",
+    "react-dom": "^18.3.1",
     "react-hook-form": "^7.54.1",
     "react-resizable-panels": "^2.1.7",
     "recharts": "2.15.0",
@@ -67,21 +80,12 @@
     "sonner": "^1.7.1",
     "stripe": "^18.1.1",
     "tailwind-merge": "^2.5.5",
+    "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5",
     "uuid": "^11.1.0",
     "vaul": "^0.9.6",
     "zod": "^3.24.1"
   },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.9",
-    "@types/node": "^22",
-    "@types/nodemailer": "^6.4.17",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@types/uuid": "^10.0.0",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.17",
-    "typescript": "^5"
-  }
+  "devDependencies": {}
 }
