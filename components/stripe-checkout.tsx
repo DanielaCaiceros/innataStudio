@@ -15,15 +15,19 @@ interface CheckoutFormProps {
   description: string
   onSuccess: (paymentId: string) => void
   onCancel: () => void
+  name?: string
+  email?: string
 }
 
-function CheckoutForm({ amount, description, onSuccess, onCancel }: CheckoutFormProps) {
+function CheckoutForm({ amount, description, onSuccess, onCancel, name: initialName = "", email: initialEmail = "", firstName = "", lastName = "" }: CheckoutFormProps & { firstName?: string, lastName?: string }) {
   const stripe = useStripe()
   const elements = useElements()
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
-  const [email, setEmail] = useState("")
-  const [name, setName] = useState("")
+  // Si name no viene, usar firstName + lastName
+  const defaultName = initialName || ((firstName || "") + (lastName ? ` ${lastName}` : ""))
+  const [email, setEmail] = useState(initialEmail)
+  const [name, setName] = useState(defaultName)
 
   // El usuario paga exactamente el amount recibido (precio base)
   const totalAmount = parseFloat((amount).toFixed(2))
@@ -39,12 +43,14 @@ function CheckoutForm({ amount, description, onSuccess, onCancel }: CheckoutForm
     setError(null)
 
     const cardElement = elements.getElement(CardElement)
-
     if (!cardElement) {
       setProcessing(false)
       setError("Error al cargar el formulario de pago")
       return
     }
+
+    // Forzamos el tipo porque ya validamos que cardElement no es null
+    const paymentMethodCard = cardElement as any
 
     try {
       const response = await fetch('/api/create-payment-intent', {
@@ -70,7 +76,7 @@ function CheckoutForm({ amount, description, onSuccess, onCancel }: CheckoutForm
         data.clientSecret,
         {
           payment_method: {
-            card: cardElement,
+            card: paymentMethodCard,
             billing_details: {
               name,
               email,
@@ -167,10 +173,10 @@ function CheckoutForm({ amount, description, onSuccess, onCancel }: CheckoutForm
   )
 }
 
-export function StripeCheckout({ amount, description, onSuccess, onCancel }: CheckoutFormProps) {
+export function StripeCheckout({ amount, description, onSuccess, onCancel, name, email, firstName, lastName, ...rest }: CheckoutFormProps & { firstName?: string, lastName?: string }) {
   return (
     <Elements stripe={stripePromise}>
-      <CheckoutForm amount={amount} description={description} onSuccess={onSuccess} onCancel={onCancel} />
+      <CheckoutForm amount={amount} description={description} onSuccess={onSuccess} onCancel={onCancel} name={name} email={email} firstName={firstName} lastName={lastName} {...rest} />
     </Elements>
   )
 }
