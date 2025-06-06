@@ -11,10 +11,13 @@ export async function POST(request: NextRequest) {
     const { userId, verificationToken } = await registerUser(body);
     
     // Enviar correo de verificación
+    console.log('Llamando a sendVerificationEmail desde el registro...');
+    console.log('Parámetros para sendVerificationEmail:', body.email, body.firstName, verificationToken);
     try {
       await sendVerificationEmail(body.email, body.firstName, verificationToken);
+      console.log('sendVerificationEmail llamado exitosamente.');
     } catch (emailError) {
-      console.error('Error sending verification email:', emailError);
+      console.error('Error al llamar sendVerificationEmail desde el registro:', emailError);
       // No fallar el registro si el email no se puede enviar
       // El usuario puede solicitar un reenvío más tarde
     }

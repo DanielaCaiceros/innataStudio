@@ -1,4 +1,4 @@
-// lib/email.ts
+// lib/email.ts - Versión actualizada para Resend
 
 import { Resend } from 'resend';
 
@@ -9,35 +9,98 @@ export async function sendVerificationEmail(email: string, name: string, token: 
   const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/verify?token=${token}`;
   
   console.log('Sending verification email to:', email);
-  console.log('Using Resend API key:', process.env.RESEND_API_KEY ? 'Present' : 'Missing');
+  console.log('Verification link:', verificationLink);
   
   try {
-    await resend.emails.send({
-      from: 'Innata Studio <onboarding@resend.dev>',
-      to: email,
-      subject: 'Verifica tu cuenta en Innata Studio',
+    const { data, error } = await resend.emails.send({
+      from: `${process.env.SMTP_FROM_NAME} <${process.env.SMTP_FROM_EMAIL}>`,
+      to: [email],
+      subject: '🚴‍♀️ Verifica tu cuenta en Innata Studio',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e1e1; border-radius: 5px;">
-          <div style="text-align: center; margin-bottom: 20px;">
-            <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 150px;" />
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">
+          <!-- Header con gradiente -->
+          <div style="background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+            <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
+            <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              ¡Bienvenido(a) a Innata Studio! 🚴‍♀️
+            </h1>
           </div>
-          <h2 style="color: #4A102A; text-align: center;">¡Bienvenido(a) a Innata Studio!</h2>
-          <p>Hola ${name},</p>
-          <p>Gracias por registrarte en Innata Studio. Para completar tu registro y verificar tu cuenta, haz clic en el siguiente botón:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${verificationLink}" style="background-color: #4A102A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 50px; font-weight: bold;">Verificar mi cuenta</a>
+          
+          <!-- Contenido principal -->
+          <div style="padding: 40px 30px; background-color: #ffffff;">
+            <p style="color: #2c3e50; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">
+              Hola ${name},
+            </p>
+            
+            <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+              ¡Gracias por unirte a nuestra comunidad de ciclismo indoor! Para completar tu registro y comenzar a reservar clases increíbles, necesitamos verificar tu dirección de correo electrónico.
+            </p>
+            
+            <!-- Botón de verificación -->
+            <div style="text-align: center; margin: 40px 0;">
+              <a href="${verificationLink}" 
+                 style="display: inline-block; background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 15px rgba(114, 125, 115, 0.3); transition: all 0.3s ease;">
+                ✨ Verificar mi cuenta
+              </a>
+            </div>
+            
+            <!-- Información adicional -->
+            <div style="background-color: #f8f9fa; padding: 25px; border-radius: 12px; border-left: 4px solid #AAB99A; margin: 30px 0;">
+              <p style="color: #495057; font-size: 14px; margin: 0 0 15px 0; font-weight: 600;">
+                📱 ¿Problemas con el botón? Copia y pega este enlace:
+              </p>
+              <p style="word-break: break-all; background-color: #ffffff; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; color: #6c757d; margin: 0; border: 1px solid #e9ecef;">
+                ${verificationLink}
+              </p>
+            </div>
+            
+            <!-- Información de expiración -->
+            <div style="background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.1) 100%); padding: 20px; border-radius: 8px; margin: 25px 0;">
+              <p style="color: #e65100; font-size: 14px; margin: 0; font-weight: 500;">
+                ⏰ Este enlace expirará en 24 horas por seguridad.
+              </p>
+            </div>
+            
+            <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0;">
+              Si no solicitaste esta cuenta, puedes ignorar este correo de forma segura.
+            </p>
           </div>
-          <p>Si el botón no funciona, puedes copiar y pegar el siguiente enlace en tu navegador:</p>
-          <p style="word-break: break-all; background-color: #f5f5f5; padding: 10px; border-radius: 5px;">${verificationLink}</p>
-          <p>Este enlace expirará en 24 horas.</p>
-          <p>Si no has solicitado este correo, puedes ignorarlo.</p>
-          <hr style="border: none; border-top: 1px solid #e1e1e1; margin: 20px 0;" />
-          <p style="text-align: center; color: #777; font-size: 12px;">
-            © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
-          </p>
+          
+          <!-- Footer -->
+          <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e9ecef;">
+            <p style="color: #6c757d; font-size: 12px; margin: 0 0 10px 0;">
+              © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+            </p>
+            <p style="color: #6c757d; font-size: 12px; margin: 0;">
+              🏃‍♀️ ¡Prepárate para transformar tu cuerpo y mente!
+            </p>
+          </div>
         </div>
       `,
+      // Versión de texto plano como fallback
+      text: `
+        ¡Bienvenido(a) a Innata Studio!
+
+        Hola ${name},
+
+        Gracias por registrarte en Innata Studio. Para completar tu registro y verificar tu cuenta, visita el siguiente enlace:
+
+        ${verificationLink}
+
+        Este enlace expirará en 24 horas.
+
+        Si no has solicitado este correo, puedes ignorarlo.
+
+        © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+      `
     });
+
+    if (error) {
+      console.error('Resend API error:', error);
+      throw new Error(`Error de Resend: ${error.message}`);
+    }
+
+    console.log('Email sent successfully:', data);
   } catch (error) {
     console.error('Error sending verification email:', error);
     throw new Error('No se pudo enviar el correo de verificación. Por favor intenta más tarde.');
@@ -49,32 +112,85 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
   const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
   
   try {
-    await resend.emails.send({
-      from: 'Innata Studio <onboarding@resend.dev>',
-      to: email,
-      subject: 'Restablece tu contraseña en Innata Studio',
+    const { data, error } = await resend.emails.send({
+      from: `${process.env.SMTP_FROM_NAME} <${process.env.SMTP_FROM_EMAIL}>`,
+      to: [email],
+      subject: '🔐 Restablece tu contraseña - Innata Studio',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e1e1; border-radius: 5px;">
-          <div style="text-align: center; margin-bottom: 20px;">
-            <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 150px;" />
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">
+          <div style="background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+            <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
+            <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0;">
+              🔐 Restablecer Contraseña
+            </h1>
           </div>
-          <h2 style="color: #4A102A; text-align: center;">Restablece tu contraseña</h2>
-          <p>Hola ${name},</p>
-          <p>Has solicitado restablecer tu contraseña en Innata Studio. Haz clic en el siguiente botón para crear una nueva contraseña:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetLink}" style="background-color: #4A102A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 50px; font-weight: bold;">Restablecer contraseña</a>
+          
+          <div style="padding: 40px 30px; background-color: #ffffff;">
+            <p style="color: #2c3e50; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">
+              Hola ${name},
+            </p>
+            
+            <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+              Has solicitado restablecer tu contraseña en Innata Studio. Haz clic en el siguiente botón para crear una nueva contraseña:
+            </p>
+            
+            <div style="text-align: center; margin: 40px 0;">
+              <a href="${resetLink}" 
+                 style="display: inline-block; background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);">
+                🔑 Restablecer contraseña
+              </a>
+            </div>
+            
+            <div style="background-color: #f8f9fa; padding: 25px; border-radius: 12px; border-left: 4px solid #dc3545; margin: 30px 0;">
+              <p style="color: #495057; font-size: 14px; margin: 0 0 15px 0; font-weight: 600;">
+                📱 ¿Problemas con el botón? Copia y pega este enlace:
+              </p>
+              <p style="word-break: break-all; background-color: #ffffff; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; color: #6c757d; margin: 0; border: 1px solid #e9ecef;">
+                ${resetLink}
+              </p>
+            </div>
+            
+            <div style="background: linear-gradient(135deg, rgba(220, 53, 69, 0.1) 0%, rgba(200, 35, 51, 0.1) 100%); padding: 20px; border-radius: 8px; margin: 25px 0;">
+              <p style="color: #dc3545; font-size: 14px; margin: 0; font-weight: 500;">
+                ⏰ Este enlace expirará en 1 hora por seguridad.
+              </p>
+            </div>
+            
+            <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0;">
+              Si no has solicitado este cambio, puedes ignorar este correo. Tu contraseña permanecerá sin cambios.
+            </p>
           </div>
-          <p>Si el botón no funciona, puedes copiar y pegar el siguiente enlace en tu navegador:</p>
-          <p style="word-break: break-all; background-color: #f5f5f5; padding: 10px; border-radius: 5px;">${resetLink}</p>
-          <p>Este enlace expirará en 1 hora.</p>
-          <p>Si no has solicitado este correo, puedes ignorarlo. Tu contraseña permanecerá sin cambios.</p>
-          <hr style="border: none; border-top: 1px solid #e1e1e1; margin: 20px 0;" />
-          <p style="text-align: center; color: #777; font-size: 12px;">
-            © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
-          </p>
+          
+          <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e9ecef;">
+            <p style="color: #6c757d; font-size: 12px; margin: 0;">
+              © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+            </p>
+          </div>
         </div>
       `,
+      text: `
+        Restablecer Contraseña - Innata Studio
+
+        Hola ${name},
+
+        Has solicitado restablecer tu contraseña. Visita este enlace para crear una nueva:
+
+        ${resetLink}
+
+        Este enlace expirará en 1 hora.
+
+        Si no solicitaste este cambio, ignora este correo.
+
+        © ${new Date().getFullYear()} Innata Studio.
+      `
     });
+
+    if (error) {
+      console.error('Resend API error:', error);
+      throw new Error(`Error de Resend: ${error.message}`);
+    }
+
+    console.log('Password reset email sent successfully:', data);
   } catch (error) {
     console.error('Error sending password reset email:', error);
     throw new Error('No se pudo enviar el correo de restablecimiento. Por favor intenta más tarde.');
@@ -93,44 +209,114 @@ export async function sendBookingConfirmationEmail(
     confirmationCode: string;
   }
 ): Promise<void> {
-  const mailOptions = {
-    from: `"${process.env.SMTP_FROM_NAME}" <${process.env.SMTP_FROM_EMAIL}>`,
-    to: email,
-    subject: 'Confirmación de reserva - Innata Studio',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e1e1e1; border-radius: 5px;">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 150px;" />
-        </div>
-        <h2 style="color: #4A102A; text-align: center;">¡Reserva Confirmada!</h2>
-        <p>Hola ${name},</p>
-        <p>Tu reserva ha sido confirmada exitosamente. Aquí tienes los detalles:</p>
-        
-        <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p><strong>Clase:</strong> ${bookingDetails.className}</p>
-          <p><strong>Fecha:</strong> ${bookingDetails.date}</p>
-          <p><strong>Hora:</strong> ${bookingDetails.time}</p>
-          <p><strong>Instructor:</strong> ${bookingDetails.instructor}</p>
-          <p><strong>Código de confirmación:</strong> ${bookingDetails.confirmationCode}</p>
-        </div>
-        
-        <p>Recuerda llegar 15 minutos antes de tu clase. Si necesitas cancelar tu reserva, puedes hacerlo hasta 4 horas antes del inicio de la clase desde tu perfil.</p>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.NEXT_PUBLIC_APP_URL}/mi-cuenta" style="background-color: #4A102A; color: white; padding: 12px 24px; text-decoration: none; border-radius: 50px; font-weight: bold;">Ver mis reservas</a>
-        </div>
-        
-        <p>¡Te esperamos en el estudio!</p>
-        <hr style="border: none; border-top: 1px solid #e1e1e1; margin: 20px 0;" />
-        <p style="text-align: center; color: #777; font-size: 12px;">
-          © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
-        </p>
-      </div>
-    `,
-  };
-
   try {
-    await resend.emails.send(mailOptions);
+    const { data, error } = await resend.emails.send({
+      from: `${process.env.SMTP_FROM_NAME} <${process.env.SMTP_FROM_EMAIL}>`,
+      to: [email],
+      subject: '🎉 Confirmación de reserva - Innata Studio',
+      html: `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">
+          <div style="background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+            <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
+            <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0;">
+              🎉 ¡Reserva Confirmada!
+            </h1>
+          </div>
+          
+          <div style="padding: 40px 30px; background-color: #ffffff;">
+            <p style="color: #2c3e50; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">
+              Hola ${name},
+            </p>
+            
+            <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+              ¡Tu reserva ha sido confirmada exitosamente! Aquí tienes todos los detalles:
+            </p>
+            
+            <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 12px; margin: 30px 0; border: 1px solid #dee2e6;">
+              <h3 style="color: #495057; font-size: 18px; margin: 0 0 20px 0; font-weight: 600;">📋 Detalles de tu clase:</h3>
+              
+              <div style="display: grid; gap: 15px;">
+                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+                  <span style="color: #6c757d; font-weight: 500;">🚴‍♀️ Clase:</span>
+                  <span style="color: #495057; font-weight: 600;">${bookingDetails.className}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+                  <span style="color: #6c757d; font-weight: 500;">📅 Fecha:</span>
+                  <span style="color: #495057; font-weight: 600;">${bookingDetails.date}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+                  <span style="color: #6c757d; font-weight: 500;">⏰ Hora:</span>
+                  <span style="color: #495057; font-weight: 600;">${bookingDetails.time}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+                  <span style="color: #6c757d; font-weight: 500;">👨‍🏫 Instructor:</span>
+                  <span style="color: #495057; font-weight: 600;">${bookingDetails.instructor}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 10px 0;">
+                  <span style="color: #6c757d; font-weight: 500;">🎫 Código:</span>
+                  <span style="color: #28a745; font-weight: 700; font-family: monospace;">${bookingDetails.confirmationCode}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div style="background: linear-gradient(135deg, rgba(40, 167, 69, 0.1) 0%, rgba(25, 135, 84, 0.1) 100%); padding: 25px; border-radius: 12px; margin: 30px 0; border: 1px solid rgba(40, 167, 69, 0.2);">
+              <p style="color: #155724; font-size: 14px; margin: 0 0 10px 0; font-weight: 600;">
+                📝 Instrucciones importantes:
+              </p>
+              <ul style="color: #155724; font-size: 14px; margin: 0; padding-left: 20px;">
+                <li>Llega 15 minutos antes de tu clase</li>
+                <li>Trae agua y toalla</li>
+                <li>Usa ropa cómoda para ejercicio</li>
+                <li>Las cancelaciones deben hacerse 4 horas antes</li>
+              </ul>
+            </div>
+            
+            <div style="text-align: center; margin: 40px 0;">
+              <a href="${process.env.NEXT_PUBLIC_APP_URL}/mi-cuenta" 
+                 style="display: inline-block; background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 15px rgba(114, 125, 115, 0.3);">
+                📱 Ver mis reservas
+              </a>
+            </div>
+            
+            <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0; text-align: center;">
+              ¡Te esperamos en el estudio! 🚴‍♀️💪
+            </p>
+          </div>
+          
+          <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e9ecef;">
+            <p style="color: #6c757d; font-size: 12px; margin: 0;">
+              © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+            </p>
+          </div>
+        </div>
+      `,
+      text: `
+        ¡Reserva Confirmada! - Innata Studio
+
+        Hola ${name},
+
+        Tu reserva ha sido confirmada exitosamente:
+
+        Clase: ${bookingDetails.className}
+        Fecha: ${bookingDetails.date}
+        Hora: ${bookingDetails.time}
+        Instructor: ${bookingDetails.instructor}
+        Código de confirmación: ${bookingDetails.confirmationCode}
+
+        Recuerda llegar 15 minutos antes de tu clase.
+
+        ¡Te esperamos en el estudio!
+
+        © ${new Date().getFullYear()} Innata Studio.
+      `
+    });
+
+    if (error) {
+      console.error('Resend API error:', error);
+      throw new Error(`Error de Resend: ${error.message}`);
+    }
+
+    console.log('Booking confirmation email sent successfully:', data);
   } catch (error) {
     console.error('Error sending booking confirmation email:', error);
     throw new Error('No se pudo enviar el correo de confirmación. Por favor verifica tu reserva en tu perfil.');
