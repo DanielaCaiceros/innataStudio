@@ -322,3 +322,192 @@ export async function sendBookingConfirmationEmail(
     throw new Error('No se pudo enviar el correo de confirmación. Por favor verifica tu reserva en tu perfil.');
   }
 }
+
+// Agregar esta función al final de tu archivo lib/email.ts existente
+
+// Función para enviar correo de cancelación de clase
+export async function sendCancellationEmail(
+  email: string, 
+  name: string, 
+  cancellationDetails: {
+    className: string;
+    packageName?: string;
+    date: string;
+    time: string;
+    instructor: string;
+    cancellationTime: string;
+    refundStatus: 'refunded' | 'no_refund';
+    hoursBeforeClass: number;
+  }
+): Promise<void> {
+  try {
+    const isRefunded = cancellationDetails.refundStatus === 'refunded';
+    const subject = isRefunded 
+      ? '✅ Cancelación confirmada - Clase reagendable' 
+      : '❌ Cancelación confirmada - Sin reembolso';
+
+    const { data, error } = await resend.emails.send({
+      from: `${process.env.SMTP_FROM_NAME} <${process.env.SMTP_FROM_EMAIL}>`,
+      to: [email],
+      subject: `${subject} - Innata Studio`,
+      html: `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">
+          <div style="background: linear-gradient(135deg, ${isRefunded ? '#28a745' : '#dc3545'} 0%, ${isRefunded ? '#20c997' : '#c82333'} 100%); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+            <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
+            <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0;">
+              ${isRefunded ? '✅ Cancelación Confirmada' : '❌ Cancelación Sin Reembolso'}
+            </h1>
+          </div>
+          
+          <div style="padding: 40px 30px; background-color: #ffffff;">
+            <p style="color: #2c3e50; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">
+              Hola ${name},
+            </p>
+            
+            <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+              Tu reserva ha sido cancelada exitosamente. Aquí están los detalles:
+            </p>
+            
+            <!-- Detalles de la reserva cancelada -->
+            <div style="background-color: #f8f9fa; padding: 25px; border-radius: 12px; margin: 30px 0; border-left: 4px solid ${isRefunded ? '#28a745' : '#dc3545'};">
+              <h3 style="color: #2c3e50; font-size: 18px; font-weight: 700; margin: 0 0 15px 0;">
+                📅 Detalles de la reserva cancelada
+              </h3>
+              <p style="color: #495057; font-size: 14px; margin: 0 0 8px 0;">
+                <strong>Clase:</strong> ${cancellationDetails.className}
+              </p>
+              ${cancellationDetails.packageName ? `
+                <p style="color: #495057; font-size: 14px; margin: 0 0 8px 0;">
+                  <strong>Paquete:</strong> ${cancellationDetails.packageName}
+                </p>
+              ` : ''}
+              <p style="color: #495057; font-size: 14px; margin: 0 0 8px 0;">
+                <strong>Fecha:</strong> ${cancellationDetails.date}
+              </p>
+              <p style="color: #495057; font-size: 14px; margin: 0 0 8px 0;">
+                <strong>Hora:</strong> ${cancellationDetails.time}
+              </p>
+              <p style="color: #495057; font-size: 14px; margin: 0 0 8px 0;">
+                <strong>Instructor:</strong> ${cancellationDetails.instructor}
+              </p>
+              <p style="color: #495057; font-size: 14px; margin: 0 0 8px 0;">
+                <strong>Cancelado el:</strong> ${cancellationDetails.cancellationTime}
+              </p>
+              <p style="color: #495057; font-size: 14px; margin: 0;">
+                <strong>Tiempo de anticipación:</strong> ${cancellationDetails.hoursBeforeClass} horas
+              </p>
+            </div>
+            
+            <!-- Política de cancelación aplicada -->
+            <div style="background: linear-gradient(135deg, ${isRefunded ? 'rgba(40, 167, 69, 0.1)' : 'rgba(220, 53, 69, 0.1)'} 0%, ${isRefunded ? 'rgba(32, 201, 151, 0.1)' : 'rgba(200, 35, 51, 0.1)'} 100%); padding: 25px; border-radius: 12px; margin: 30px 0;">
+              <h3 style="color: ${isRefunded ? '#28a745' : '#dc3545'}; font-size: 18px; font-weight: 700; margin: 0 0 15px 0;">
+                📋 Política de Cancelación Aplicada
+              </h3>
+              
+              ${isRefunded ? `
+                <div style="background-color: #d4edda; padding: 20px; border-radius: 8px; border: 1px solid #c3e6cb;">
+                  <p style="color: #155724; font-size: 14px; margin: 0 0 10px 0; font-weight: 600;">
+                    ✅ Cancelación con más de 12 horas de anticipación
+                  </p>
+                  <ul style="color: #155724; font-size: 14px; margin: 0; padding-left: 20px;">
+                    <li>La clase ha sido regresada a tu saldo</li>
+                    <li>Puedes reagendar cuando gustes</li>
+                    <li>No hay penalización</li>
+                  </ul>
+                </div>
+              ` : `
+                <div style="background-color: #f8d7da; padding: 20px; border-radius: 8px; border: 1px solid #f5c6cb;">
+                  <p style="color: #721c24; font-size: 14px; margin: 0 0 10px 0; font-weight: 600;">
+                    ❌ Cancelación con menos de 12 horas de anticipación
+                  </p>
+                  <ul style="color: #721c24; font-size: 14px; margin: 0; padding-left: 20px;">
+                    <li>La clase se pierde (no hay reembolso)</li>
+                    <li>Estado: "Cancelada sin reembolso"</li>
+                    <li>No se puede reagendar</li>
+                  </ul>
+                </div>
+              `}
+            </div>
+            
+            ${isRefunded ? `
+              <div style="text-align: center; margin: 40px 0;">
+                <a href="${process.env.NEXT_PUBLIC_APP_URL}/clases" 
+                   style="display: inline-block; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);">
+                  🚴‍♀️ Reservar nueva clase
+                </a>
+              </div>
+            ` : `
+              <div style="text-align: center; margin: 40px 0;">
+                <a href="${process.env.NEXT_PUBLIC_APP_URL}/paquetes" 
+                   style="display: inline-block; background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 15px rgba(114, 125, 115, 0.3);">
+                  💪 Adquirir nuevo paquete
+                </a>
+              </div>
+            `}
+            
+            <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0; text-align: center;">
+              ${isRefunded 
+                ? '¡Esperamos verte pronto en el estudio! 🚴‍♀️💪' 
+                : 'Recuerda que puedes cancelar con más de 12 horas de anticipación para reagendar. 📅'
+              }
+            </p>
+          </div>
+          
+          <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e9ecef;">
+            <p style="color: #6c757d; font-size: 12px; margin: 0 0 10px 0;">
+              © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+            </p>
+            <p style="color: #6c757d; font-size: 12px; margin: 0;">
+              Si tienes dudas sobre nuestra política de cancelación, contáctanos.
+            </p>
+          </div>
+        </div>
+      `,
+      text: `
+        ${isRefunded ? 'Cancelación Confirmada - Clase Reagendable' : 'Cancelación Confirmada - Sin Reembolso'} - Innata Studio
+
+        Hola ${name},
+
+        Tu reserva ha sido cancelada exitosamente.
+
+        DETALLES DE LA RESERVA CANCELADA:
+        - Clase: ${cancellationDetails.className}
+        ${cancellationDetails.packageName ? `- Paquete: ${cancellationDetails.packageName}` : ''}
+        - Fecha: ${cancellationDetails.date}
+        - Hora: ${cancellationDetails.time}
+        - Instructor: ${cancellationDetails.instructor}
+        - Cancelado el: ${cancellationDetails.cancellationTime}
+        - Tiempo de anticipación: ${cancellationDetails.hoursBeforeClass} horas
+
+        POLÍTICA DE CANCELACIÓN APLICADA:
+        ${isRefunded 
+          ? `✅ Cancelación con más de 12 horas de anticipación:
+          - La clase ha sido regresada a tu saldo
+          - Puedes reagendar cuando gustes
+          - No hay penalización`
+          : `❌ Cancelación con menos de 12 horas de anticipación:
+          - La clase se pierde (no hay reembolso)
+          - Estado: "Cancelada sin reembolso"
+          - No se puede reagendar`
+        }
+
+        ${isRefunded 
+          ? '¡Esperamos verte pronto en el estudio!' 
+          : 'Recuerda que puedes cancelar con más de 12 horas de anticipación para reagendar.'
+        }
+
+        © ${new Date().getFullYear()} Innata Studio.
+      `
+    });
+
+    if (error) {
+      console.error('Resend API error:', error);
+      throw new Error(`Error de Resend: ${error.message}`);
+    }
+
+    console.log('Cancellation email sent successfully:', data);
+  } catch (error) {
+    console.error('Error sending cancellation email:', error);
+    throw new Error('No se pudo enviar el correo de cancelación. Por favor verifica el estado de tu reserva en tu perfil.');
+  }
+}
