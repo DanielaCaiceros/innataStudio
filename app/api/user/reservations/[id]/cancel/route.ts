@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
+import { sendCancellationConfirmationEmail } from '@/lib/email'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale/es'
 
 const prisma = new PrismaClient()
 
@@ -28,9 +31,23 @@ export async function POST(
     const reservation = await prisma.reservation.findUnique({
       where: { id: reservationId },
       include: {
-        scheduledClass: true,
-        userPackage: true
-      }
+        scheduledClass: {
+          include: {
+            classType: true, // Include classType for className
+          },
+        },
+        userPackage: {
+          include: {
+            package: true, // Include package for packageName
+          },
+        },
+        user: { // Include user for email and name
+          select: {
+            email: true,
+            firstName: true,
+          },
+        },
+      },
     })
 
     if (!reservation) {
@@ -54,7 +71,7 @@ export async function POST(
     const hoursUntilClass = (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60)
 
     // Determinar si se puede reembolsar la clase
-    const canRefund = hoursUntilClass >= 24
+    const canRefund = hoursUntilClass >= 12
 
     // Obtener datos de la solicitud
     const body = await request.json()
@@ -97,6 +114,35 @@ export async function POST(
           classesUsed: { decrement: 1 }
         }
       })
+    }
+
+    // Enviar correo de confirmación de cancelación
+    if (reservation.user && reservation.scheduledClass.classType) {
+      try {
+        const classDate = new Date(reservation.scheduledClass.date);
+        // Prisma Date fields are already Date objects. For time fields, they are often set to 1970-01-01 with the correct time in UTC.
+        const classTime = new Date(reservation.scheduledClass.time); 
+
+        const emailDetails = {
+          className: reservation.scheduledClass.classType.name,
+          date: format(classDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
+          time: format(classTime, "HH:mm", { locale: es }),
+          isRefundable: canRefund,
+          packageName: reservation.userPackage?.package?.name,
+        };
+
+        await sendCancellationConfirmationEmail(
+          reservation.user.email,
+          reservation.user.firstName ?? "Usuario", // Fallback for name if it can be null
+          emailDetails
+        );
+        console.log(`Cancellation email sent for reservation ${reservationId}`);
+      } catch (emailError) {
+        console.error(`Failed to send cancellation email for reservation ${reservationId}:`, emailError);
+        // Do not re-throw; a failed email should not fail the cancellation process.
+      }
+    } else {
+      console.error(`Missing user, scheduledClass, or classType details for reservation ${reservationId}, cannot send email.`);
     }
 
     return NextResponse.json({
