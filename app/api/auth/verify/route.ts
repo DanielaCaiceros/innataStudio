@@ -8,15 +8,18 @@ export async function GET(request: NextRequest) {
     const token = searchParams.get('token');
     
     if (!token) {
+      // Fix: usar la URL de producción en lugar de request.url
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://innatastudio.com';
       return NextResponse.redirect(
-        new URL('/login?error=Token de verificación no proporcionado', request.url)
+        new URL('/login?error=Token de verificación no proporcionado', baseUrl)
       );
     }
 
     await verifyEmail(token);
 
-    // Redirigir a la página de inicio de sesión con mensaje de éxito
-    return NextResponse.redirect(new URL('/login?verified=true', request.url));
+    // Fix: usar la URL de producción en lugar de request.url
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://innatastudio.com';
+    return NextResponse.redirect(new URL('/login?verified=true', baseUrl));
   } catch (error: any) {
     console.error('Error verificando email:', error);
     
@@ -26,8 +29,10 @@ export async function GET(request: NextRequest) {
       errorMessage = getFriendlyErrorMessage(error.code, error.message);
     }
     
+    // Fix: usar la URL de producción en lugar de request.url
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://innatastudio.com';
     return NextResponse.redirect(
-      new URL(`/login?error=${encodeURIComponent(errorMessage)}`, request.url)
+      new URL(`/login?error=${encodeURIComponent(errorMessage)}`, baseUrl)
     );
   }
 }
