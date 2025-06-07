@@ -159,6 +159,7 @@ model Package {
   stripePriceId       String?              @map("stripe_price_id") @db.VarChar(255)
   createdAt           DateTime?            @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt           DateTime?            @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  is_first_time_only  Boolean?             @default(false)
   cashPaymentRequests CashPaymentRequest[]
   userPackages        UserPackage[]
 

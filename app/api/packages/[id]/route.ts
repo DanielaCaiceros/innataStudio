@@ -10,7 +10,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const packageId = parseInt(params.id);
+    const resolvedParams = await params;
+    const packageId = parseInt(resolvedParams.id);
 
     if (isNaN(packageId)) {
       return NextResponse.json({ error: "ID de paquete inválido" }, { status: 400 });
