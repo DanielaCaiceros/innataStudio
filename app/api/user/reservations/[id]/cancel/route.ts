@@ -1,111 +1,97 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
-import { verifyToken } from "@/lib/jwt"
+// app/api/reservations/[id]/cancel/route.ts
 
-const prisma = new PrismaClient()
+import { NextRequest, NextResponse } from 'next/server';
+import { cancelReservation, CancellationError } from '@/lib/services/cancellation.service';
 
-// POST - Cancelar una reservación
+// Función auxiliar para obtener el userId de la sesión
+// Adapta esto según tu sistema de autenticación
+async function getUserIdFromRequest(request: NextRequest): Promise<number | null> {
+  try {
+    // Opción 1: Si usas cookies de sesión
+    const sessionCookie = request.cookies.get('session-token');
+    if (!sessionCookie) return null;
+    
+    // Aquí deberías decodificar tu cookie de sesión y extraer el userId
+    // Esto es un placeholder - adapta según tu implementación
+    const userId = 1; // Reemplaza con tu lógica de autenticación
+    
+    return userId;
+  } catch (error) {
+    console.error('Error getting user from session:', error);
+    return null;
+  }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Verificar autenticación
-    const token = request.cookies.get("auth_token")?.value
-    if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    // Verificar autenticación - adapta según tu sistema
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'No autorizado' },
+        { status: 401 }
+      );
     }
 
-    const payload = await verifyToken(token)
-    const userId = Number.parseInt(payload.userId)
-
-    const reservationId = parseInt(params.id)
+    const reservationId = parseInt(params.id);
     if (isNaN(reservationId)) {
-      return NextResponse.json({ error: "ID de reservación no válido" }, { status: 400 })
+      return NextResponse.json(
+        { error: 'ID de reserva inválido' },
+        { status: 400 }
+      );
     }
 
-    // Verificar que la reservación existe y pertenece al usuario
-    const reservation = await prisma.reservation.findUnique({
-      where: { id: reservationId },
-      include: {
-        scheduledClass: true,
-        userPackage: true
-      }
-    })
-
-    if (!reservation) {
-      return NextResponse.json({ error: "Reservación no encontrada" }, { status: 404 })
+    // Obtener el motivo de cancelación del body (opcional)
+    let reason: string | undefined;
+    try {
+      const body = await request.json();
+      reason = body.reason;
+    } catch {
+      // Si no hay body o no es JSON válido, continúa sin reason
     }
 
-    if (reservation.userId !== userId) {
-      return NextResponse.json({ error: "No tienes permiso para cancelar esta reservación" }, { status: 403 })
-    }
-
-    // Verificar que la reservación no esté ya cancelada
-    if (reservation.status === "cancelled") {
-      return NextResponse.json({ error: "Esta reservación ya está cancelada" }, { status: 400 })
-    }
-
-    // Verificar la política de cancelación (24 horas antes de la clase)
-    const classDateTime = new Date(
-      `${reservation.scheduledClass.date.toISOString().split('T')[0]}T${reservation.scheduledClass.time.toTimeString().slice(0, 8)}`
-    )
-    const now = new Date()
-    const hoursUntilClass = (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60)
-
-    // Determinar si se puede reembolsar la clase
-    const canRefund = hoursUntilClass >= 24
-
-    // Obtener datos de la solicitud
-    const body = await request.json()
-    const { reason = "Cancelado por el usuario" } = body
-
-    // Actualizar la reservación
-    await prisma.reservation.update({
-      where: { id: reservationId },
-      data: {
-        status: "cancelled",
-        cancellationReason: reason,
-        cancelledAt: new Date(),
-        canRefund
-      }
-    })
-
-    // Incrementar los espacios disponibles en la clase
-    await prisma.scheduledClass.update({
-      where: { id: reservation.scheduledClassId },
-      data: {
-        availableSpots: { increment: 1 }
-      }
-    })
-
-    // Si se puede reembolsar y viene de un paquete, devolver la clase al paquete
-    if (canRefund && reservation.userPackageId) {
-      await prisma.userPackage.update({
-        where: { id: reservation.userPackageId },
-        data: {
-          classesRemaining: { increment: 1 },
-          classesUsed: { decrement: 1 }
-        }
-      })
-
-      // Actualizar balance general del usuario
-      await prisma.userAccountBalance.update({
-        where: { userId },
-        data: {
-          classesAvailable: { increment: 1 },
-          classesUsed: { decrement: 1 }
-        }
-      })
-    }
+    // Cancelar la reserva
+    const result = await cancelReservation(
+      reservationId,
+      userId,
+      reason
+    );
 
     return NextResponse.json({
       success: true,
-      message: "Reservación cancelada correctamente",
-      refunded: canRefund
-    })
+      data: result
+    });
+
   } catch (error) {
-    console.error("Error al cancelar reservación:", error)
-    return NextResponse.json({ error: "Error al cancelar la reservación" }, { status: 500 })
+    console.error('Error in cancel reservation API:', error);
+
+    if (error instanceof CancellationError) {
+      let statusCode = 400;
+      
+      switch (error.code) {
+        case 'RESERVATION_NOT_FOUND':
+          statusCode = 404;
+          break;
+        case 'INTERNAL_ERROR':
+          statusCode = 500;
+          break;
+      }
+
+      return NextResponse.json(
+        { 
+          error: error.message,
+          code: error.code 
+        },
+        { status: statusCode }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Error interno del servidor' },
+      { status: 500 }
+    );
   }
 }
