@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
+import { sendBookingConfirmationEmail } from '@/lib/email'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 const prisma = new PrismaClient()
 
@@ -247,7 +250,48 @@ export async function POST(request: NextRequest) {
 
       return reservation
     })
-
+    const reservationWithDetails = await prisma.reservation.findUnique({
+      where: { id: result.id },
+      include: {
+        user: true,
+        scheduledClass: {
+          include: {
+            classType: true,
+            instructor: {
+              include: {
+                user: true
+              }
+            }
+          }
+        }
+      }
+    })
+    
+    if (reservationWithDetails) {
+      try {
+        // Formatear los datos para el email
+        const bookingDetails = {
+          className: reservationWithDetails.scheduledClass.classType.name,
+          date: format(reservationWithDetails.scheduledClass.date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
+          time: format(reservationWithDetails.scheduledClass.time, "HH:mm"),
+          instructor: `${reservationWithDetails.scheduledClass.instructor.user.firstName} ${reservationWithDetails.scheduledClass.instructor.user.lastName}`,
+          confirmationCode: `RES-${result.id.toString().padStart(6, '0')}`
+        }
+    
+        // Enviar email de confirmación
+        await sendBookingConfirmationEmail(
+          reservationWithDetails.user.email,
+          reservationWithDetails.user.firstName,
+          bookingDetails
+        )
+        
+        console.log('Email de confirmación enviado exitosamente para reserva:', result.id)
+      } catch (emailError) {
+        console.error('Error enviando email de confirmación:', emailError)
+        // No fallar la reserva si hay error en el email
+      }
+    }
+    
     return NextResponse.json(
       {
         message: "Reserva creada exitosamente",
