@@ -6,7 +6,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Función para enviar correo de verificación
 export async function sendVerificationEmail(email: string, name: string, token: string): Promise<void> {
-  const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/verify?token=${token}`;
+  const verificationLink = `https://innatastudio.com/api/auth/verify?token=${token}`;
   
   console.log('Sending verification email to:', email);
   console.log('Verification link:', verificationLink);
