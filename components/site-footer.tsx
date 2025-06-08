@@ -66,6 +66,8 @@ export function SiteFooter() {
             <li>Lunes a Viernes:</li>
             <li>| 7:00-8:00AM | 8:00-9:00AM |</li>
             <li>| 6:00-7:00PM | 7:00-8:00PM |</li>
+            <li>| 8:00-9:00PM |</li>
+
             <li>Sábado:</li>
             <li>| 8:00-9:00AM | 9:00-10:00AM |</li>
           </ul>

@@ -22,20 +22,20 @@ interface Bike {
 // Datos de ejemplo para las bicicletas (en el futuro vendrá del backend)
 const sampleBikes: Bike[] = [
   // Fila superior (2 bicis en las columnas 1 y 3)
-  { id: 6, x: 28, y: 30, available: true },
-  { id: 7, x: 73, y: 30, available: true },
+  { id: 6, x: 26, y: 23, available: true },
+  { id: 1, x: 73, y: 28, available: true },
 
   // Fila media (4 bicis en las columnas 1, 2, 3, 4)
-  { id: 5, x: 28, y: 52, available: true },
-  { id: 3, x: 43, y: 52, available: false }, // No disponible como ejemplo
-  { id: 4, x: 58, y: 52, available: true },
-  { id: 10, x: 73, y: 52, available: true },
+  { id: 5, x: 26, y: 49, available: true },
+  { id: 4, x: 43, y: 52, available: false }, // No disponible como ejemplo
+  { id: 3, x: 58, y: 52, available: true },
+  { id: 2, x: 73, y: 55, available: true },
 
   // Fila inferior (4 bicis en las columnas 1, 2, 3, 4)
-  { id: 1, x: 28, y: 74, available: true },
-  { id: 2, x: 43, y: 74, available: true },
-  { id: 9, x: 58, y: 74, available: false }, // No disponible como ejemplo
-  { id: 8, x: 73, y: 74, available: true },
+  { id: 7, x: 26, y: 74, available: true },
+  { id: 8, x: 37, y: 80, available: true },
+  { id: 9, x: 50, y: 80, available: false }, // No disponible como ejemplo
+  { id: 10, x: 63, y: 80, available: true },
 ]
 
 export function BikeSelectionDialog({
@@ -71,10 +71,10 @@ export function BikeSelectionDialog({
               className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10"
               style={{
                 left: "50%", // Centrado entre las columnas 2 y 3 (35% + 50%) / 2
-                top: "25%",
+                top: "24%",
               }}
             >
-              <div className="w-12 h-12 bg-gradient-to-br from-white to-gray-100 rounded-full flex items-center justify-center text-black font-bold text-sm border-2 border-brand-cream shadow-lg">
+              <div className="w-11 h-11 bg-gradient-to-br from-white to-gray-100 rounded-full flex items-center justify-center text-black font-bold text-sm border-2 border-brand-cream shadow-lg">
                 <div className="text-center">
                   <div className="text-xs font-medium">COACH</div>
                 </div>
@@ -89,7 +89,7 @@ export function BikeSelectionDialog({
                 <button
                   key={bike.id}
                   className={`
-                    absolute w-10 h-10 rounded-full text-sm font-bold transition-all duration-300 border-2 shadow-lg transform -translate-x-1/2 -translate-y-1/2
+                    absolute w-8 h-8 rounded-full text-sm font-bold transition-all duration-300 border-2 shadow-lg transform -translate-x-1/2 -translate-y-1/2
                     ${
                       !bike.available
                         ? "bg-gray-500 border-gray-600 opacity-60 cursor-not-allowed text-gray-300"
