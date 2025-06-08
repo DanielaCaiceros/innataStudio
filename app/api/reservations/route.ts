@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient, Prisma } from "@prisma/client" // Import Prisma
 import { verifyToken } from "@/lib/jwt"
 import { sendBookingConfirmationEmail } from '@/lib/email'
 import { format } from 'date-fns'
@@ -191,9 +191,10 @@ export async function POST(request: NextRequest) {
         data: {
           userId,
           scheduledClassId: Number.parseInt(scheduledClassId),
-          userPackageId: userPackage?.id,
+          userPackageId: userPackage?.id, // Será null si se usa paymentId
           status: "confirmed",
-          paymentMethod: userPackage ? "package" : "pending",
+          // Ajustar paymentMethod basado en paymentId o userPackage
+          paymentMethod: paymentId ? "stripe" : (userPackage ? "package" : "pending"),
         },
         include: {
           scheduledClass: {
@@ -204,8 +205,28 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      // Si se usa un paquete, actualizar sus clases disponibles
-      if (userPackage) {
+      let newPayment = null; // Para almacenar el pago si se crea uno
+      if (paymentId) {
+        // Crear registro de Payment si se proporcionó paymentId (pago con Stripe)
+        newPayment = await tx.payment.create({
+          data: {
+            userId,
+            userPackageId: null, // No se usa paquete para esta transacción específica
+            amount: new Prisma.Decimal(69.00), // Precio de clase individual
+            currency: "mxn",
+            paymentMethod: "stripe",
+            stripePaymentIntentId: paymentId,
+            status: "completed",
+            paymentDate: new Date(),
+            metadata: { "reservationId": reservation.id, "notes": "Single class purchase" },
+          }
+        });
+
+        // No se descuenta de userAccountBalance ya que es un pago directo, no de paquete.
+        // Opcionalmente, se podría registrar una "compra" de clase individual en userAccountBalance si se quisiera rastrear.
+
+      } else if (userPackage) {
+        // Si se usa un paquete, actualizar sus clases disponibles
         await tx.userPackage.update({
           where: { id: userPackage.id },
           data: {
@@ -214,12 +235,12 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        // Actualizar el balance del usuario
+        // Actualizar el balance del usuario (solo si se usa paquete)
         await tx.userAccountBalance.upsert({
           where: { userId },
-          create: {
+          create: { // Esto podría necesitar ajuste si el usuario no tiene balance previo
             userId,
-            classesAvailable: (userPackage.classesRemaining || 0) - 1,
+            classesAvailable: (userPackage.classesRemaining || 0) - 1, // Asumiendo que classesRemaining ya está actualizado o es el valor antes de la tx
             classesUsed: 1,
           },
           update: {
@@ -229,7 +250,7 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // Actualizar espacios disponibles en la clase
+      // Actualizar espacios disponibles en la clase (esto siempre sucede)
       await tx.scheduledClass.update({
         where: { id: Number.parseInt(scheduledClassId) },
         data: {
@@ -237,23 +258,42 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Crear transacción de balance
-      await tx.balanceTransaction.create({
-        data: {
-          userId,
-          type: "debit",
-          amount: 1,
-          description: `Reserva de clase: ${scheduledClass.classType.name}`,
-          relatedReservationId: reservation.id,
-        },
-      })
+      // Crear transacción de balance condicionalmente
+      if (paymentId && newPayment) {
+        // Transacción para compra de clase individual con Stripe
+        await tx.balanceTransaction.create({
+          data: {
+            userId,
+            type: "single_class_paid", // Changed from "purchase_single_class"
+            amount: 0, // El valor monetario está en el registro Payment
+            description: `Compra de clase individual: ${scheduledClass.classType.name} (Stripe)`,
+            relatedReservationId: reservation.id,
+            relatedPaymentId: newPayment.id,
+          },
+        });
+      } else if (userPackage) {
+        // Transacción para débito de clase de un paquete
+        await tx.balanceTransaction.create({
+          data: {
+            userId,
+            type: "debit",
+            amount: 1, // Se debita 1 clase del paquete
+            description: `Reserva de clase: ${scheduledClass.classType.name}`,
+            relatedReservationId: reservation.id,
+          },
+        });
+      }
+      // Considerar un caso 'else' aquí si ni paymentId ni userPackage están presentes, aunque la lógica previa debería evitarlo.
 
       return reservation
     })
+
+    // Obtener detalles completos de la reserva para el correo y la respuesta.
+    // 'result' ya es la reserva con scheduledClass y classType incluidos desde la transacción.
     const reservationWithDetails = await prisma.reservation.findUnique({
-      where: { id: result.id },
+      where: { id: result.id }, // result.id es el ID de la reserva creada
       include: {
-        user: true,
+        user: true, // Necesario para el email
         scheduledClass: {
           include: {
             classType: true,

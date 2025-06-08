@@ -104,70 +104,91 @@ export async function POST(request: NextRequest) {
     const expiryDate = new Date()
     expiryDate.setDate(purchaseDate.getDate() + packageInfo.validityDays)
 
-    // Crear el registro UserPackage
-    const userPackage = await prisma.userPackage.create({
-      data: {
-        userId,
-        packageId: Number(packageId),
-        purchaseDate,
-        expiryDate,
-        classesRemaining: packageInfo.classCount || 0,
-        classesUsed: 0,
-        isActive: true,
-        paymentMethod: "online",
-        paymentStatus: "paid"
-      },
-      include: {
-        package: true
-      }
-    })
-
-    // Actualizar el balance del usuario si existe
-    await prisma.userAccountBalance.upsert({
-      where: { userId },
-      update: {
-        totalClassesPurchased: {
-          increment: packageInfo.classCount || 0
+    // Iniciar transacción de base de datos
+    const { userPackage, payment } = await prisma.$transaction(async (tx) => {
+      // Crear el registro UserPackage
+      const createdUserPackage = await tx.userPackage.create({
+        data: {
+          userId,
+          packageId: Number(packageId),
+          purchaseDate,
+          expiryDate,
+          classesRemaining: packageInfo.classCount || 0,
+          classesUsed: 0,
+          isActive: true,
+          paymentMethod: "online", // Esto podría ser actualizado por el nuevo registro de Payment
+          paymentStatus: "paid"    // Esto podría ser actualizado por el nuevo registro de Payment
         },
-        classesAvailable: {
-          increment: packageInfo.classCount || 0
-        },
-        lastUpdated: new Date()
-      },
-      create: {
-        userId,
-        totalClassesPurchased: packageInfo.classCount || 0,
-        classesUsed: 0,
-        classesAvailable: packageInfo.classCount || 0,
-        lastUpdated: new Date()
-      }
-    })
+        include: {
+          package: true
+        }
+      })
 
-    // Crear una transacción de balance para el registro
-    await prisma.balanceTransaction.create({
-      data: {
-        userId,
-        type: "purchase",
-        amount: packageInfo.classCount || 0,
-        description: `Compra de paquete: ${packageInfo.name}`,
-        createdAt: new Date()
-      }
-    })
+      // Crear el registro de Payment
+      const createdPayment = await tx.payment.create({
+        data: {
+          userId,
+          userPackageId: createdUserPackage.id,
+          amount: Number(packageInfo.price), // Asegurarse que sea un número
+          paymentMethod: "stripe",
+          stripePaymentIntentId: paymentId, // paymentId del request body
+          status: "completed",
+          paymentDate: new Date(),
+          currency: "mxn",
+        }
+      })
+
+      // Actualizar el balance del usuario si existe
+      await tx.userAccountBalance.upsert({
+        where: { userId },
+        update: {
+          totalClassesPurchased: {
+            increment: packageInfo.classCount || 0
+          },
+          classesAvailable: {
+            increment: packageInfo.classCount || 0
+          },
+          lastUpdated: new Date()
+        },
+        create: {
+          userId,
+          totalClassesPurchased: packageInfo.classCount || 0,
+          classesUsed: 0,
+          classesAvailable: packageInfo.classCount || 0,
+          lastUpdated: new Date()
+        }
+      })
+
+      // Crear una transacción de balance para el registro
+      await tx.balanceTransaction.create({
+        data: {
+          userId,
+          type: "purchase",
+          amount: packageInfo.classCount || 0,
+          description: `Compra de paquete: ${packageInfo.name}`,
+          createdAt: new Date(),
+          relatedPaymentId: createdPayment.id // Enlazar con el payment creado
+        }
+      })
+
+      return { userPackage: createdUserPackage, payment: createdPayment };
+    });
 
     // Enviar correo de confirmación de compra de paquete
     try {
-      const user = await prisma.user.findUnique({
+      // Utilizar el 'userPackage' retornado por la transacción
+      const user = await prisma.user.findUnique({ 
         where: { user_id: userId },
         select: { email: true, firstName: true }
       })
 
-      if (user && user.email && user.firstName) {
+      if (user && user.email && user.firstName && userPackage) {
         const packageDetails = {
           packageName: userPackage.package.name,
           classCount: userPackage.package.classCount || 0,
           expiryDate: userPackage.expiryDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
           purchaseDate: userPackage.purchaseDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
-          price: userPackage.package.price.toNumber(), // Asegurarse que el precio sea un número
+          price: Number(userPackage.package.price), // Asegurarse que el precio sea un número
         }
 
         await sendPackagePurchaseConfirmationEmail(user.email, user.firstName, packageDetails)
@@ -183,10 +204,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       userPackage: {
-        id: userPackage.id,
+        id: userPackage.id, // userPackage retornado por la transacción
         packageName: userPackage.package.name,
         classesRemaining: userPackage.classesRemaining,
         expiryDate: userPackage.expiryDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+      },
+      payment: { // Opcional: retornar información del pago
+        id: payment.id,
+        status: payment.status,
+        amount: payment.amount
       }
     })
 
