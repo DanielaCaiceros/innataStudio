@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       name: pkg.package.name,
       classesRemaining: pkg.classesRemaining,
       classesUsed: pkg.classesUsed,
-      expiryDate: pkg.expiryDate.toISOString().split('T')[0],
+      expiryDate: pkg.expiryDate.toISOString(),
       isActive: pkg.isActive
     }))
 

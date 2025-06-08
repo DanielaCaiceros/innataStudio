@@ -534,7 +534,8 @@ export default function ProfilePage() {
                                 {new Date(pkg.expiryDate).toLocaleDateString('es-ES', {
                                   year: 'numeric',
                                   month: 'long',
-                                  day: 'numeric'
+                                  day: 'numeric',
+                                  timeZone: 'UTC' // Add this option
                                 })}
                               </span>
                             </div>
