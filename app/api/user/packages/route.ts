@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient, User } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
+import { sendPackagePurchaseConfirmationEmail } from "@/lib/email"
 
 const prisma = new PrismaClient()
 
@@ -153,18 +154,48 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Enviar correo de confirmación de compra de paquete
+    try {
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { email: true, firstName: true }
+      })
+
+      if (user && user.email && user.firstName) {
+        const packageDetails = {
+          packageName: userPackage.package.name,
+          classCount: userPackage.package.classCount || 0,
+          expiryDate: userPackage.expiryDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
+          purchaseDate: userPackage.purchaseDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
+          price: userPackage.package.price.toNumber(), // Asegurarse que el precio sea un número
+        }
+
+        await sendPackagePurchaseConfirmationEmail(user.email, user.firstName, packageDetails)
+        console.log(`Package confirmation email sent to user ${userId}`)
+      } else {
+        console.error(`User details not found for user ${userId}, cannot send package confirmation email.`)
+      }
+    } catch (emailError) {
+      console.error(`Failed to send package confirmation email to user ${userId}:`, emailError)
+      // No relanzar el error, ya que la compra fue exitosa.
+    }
+
     return NextResponse.json({
       success: true,
       userPackage: {
         id: userPackage.id,
         packageName: userPackage.package.name,
         classesRemaining: userPackage.classesRemaining,
-        expiryDate: userPackage.expiryDate.toISOString().split('T')[0]
+        expiryDate: userPackage.expiryDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
       }
     })
 
   } catch (error) {
     console.error("Error creating user package:", error)
+    // Determinar si el error es por el paquete "PRIMERA VEZ"
+    if (error instanceof Error && error.message.includes("El paquete PRIMERA VEZ solo puede ser adquirido una vez por usuario.")) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     return NextResponse.json({ 
       error: "Error interno del servidor al procesar la compra" 
     }, { status: 500 })
