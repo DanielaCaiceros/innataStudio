@@ -6,7 +6,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Función para enviar correo de verificación
 export async function sendVerificationEmail(email: string, name: string, token: string): Promise<void> {
-  const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/verify?token=${token}`;
+  const verificationLink = `https://innatastudio.com/api/auth/verify?token=${token}`;
   
   console.log('Sending verification email to:', email);
   console.log('Verification link:', verificationLink);
@@ -320,5 +320,158 @@ export async function sendBookingConfirmationEmail(
   } catch (error) {
     console.error('Error sending booking confirmation email:', error);
     throw new Error('No se pudo enviar el correo de confirmación. Por favor verifica tu reserva en tu perfil.');
+  }
+}
+
+export async function sendCancellationConfirmationEmail(
+  email: string,
+  name: string,
+  details: {
+    className: string;
+    date: string; // Expected format: "EEEE, d 'de' MMMM 'de' yyyy"
+    time: string; // Expected format: "HH:mm"
+    isRefundable: boolean;
+    packageName?: string; // Optional: name of the package if applicable
+  }
+): Promise<void> {
+  const subject = details.isRefundable
+    ? "😔 Cancelación de clase confirmada - Crédito devuelto"
+    : "😔 Cancelación de clase confirmada";
+
+  const refundableBodyHTML = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">
+      <div style="background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+        <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
+        <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0;">
+          Cancelación Confirmada
+        </h1>
+      </div>
+      <div style="padding: 40px 30px; background-color: #ffffff;">
+        <p style="color: #2c3e50; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">
+          Hola ${name},
+        </p>
+        <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+          Hemos procesado la cancelación de tu clase: <strong>${details.className}</strong> programada para el <strong>${details.date}</strong> a las <strong>${details.time} hrs</strong>.
+        </p>
+        <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+          Como cancelaste con más de 12 horas de anticipación, hemos <strong>devuelto el crédito de esta clase a tu saldo</strong>${details.packageName ? ` en tu paquete (<strong>${details.packageName}</strong>)` : ''}. Puedes usarlo para reservar otra clase cuando quieras.
+        </p>
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; border-radius: 12px; margin: 25px 0; text-align: left;">
+          <h4 style="color: #495057; font-size: 16px; margin: 0 0 15px 0; font-weight: 600;">Detalles de la clase cancelada:</h4>
+          <p style="color: #5a6c7d; font-size: 15px; margin: 5px 0;"><strong>Clase:</strong> ${details.className}</p>
+          <p style="color: #5a6c7d; font-size: 15px; margin: 5px 0;"><strong>Fecha:</strong> ${details.date}</p>
+          <p style="color: #5a6c7d; font-size: 15px; margin: 5px 0;"><strong>Hora:</strong> ${details.time} hrs</p>
+        </div>
+        <div style="text-align: center; margin: 40px 0;">
+          <a href="${process.env.NEXT_PUBLIC_APP_URL}/reservar"
+             style="display: inline-block; background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 16px;">
+            Reservar otra clase
+          </a>
+        </div>
+        <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0;">
+          Si tienes alguna pregunta, no dudes en contactarnos.
+        </p>
+      </div>
+      <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e9ecef;">
+        <p style="color: #6c757d; font-size: 12px; margin: 0 0 10px 0;">
+          © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+        </p>
+      </div>
+    </div>
+  `;
+
+  const nonRefundableBodyHTML = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">
+      <div style="background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+        <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
+        <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0;">
+          Cancelación Confirmada
+        </h1>
+      </div>
+      <div style="padding: 40px 30px; background-color: #ffffff;">
+        <p style="color: #2c3e50; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">
+          Hola ${name},
+        </p>
+        <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+          Hemos procesado la cancelación de tu clase: <strong>${details.className}</strong> programada para el <strong>${details.date}</strong> a las <strong>${details.time} hrs</strong>.
+        </p>
+        <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+          De acuerdo con nuestra política de cancelación, las cancelaciones realizadas con menos de 12 horas de anticipación no son elegibles para reembolso. Por lo tanto, el crédito de esta clase no ha sido devuelto a tu saldo.
+        </p>
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; border-radius: 12px; margin: 25px 0; text-align: left; border-left: 4px solid #dc3545;">
+          <h4 style="color: #495057; font-size: 16px; margin: 0 0 15px 0; font-weight: 600;">Detalles de la clase cancelada:</h4>
+          <p style="color: #5a6c7d; font-size: 15px; margin: 5px 0;"><strong>Clase:</strong> ${details.className}</p>
+          <p style="color: #5a6c7d; font-size: 15px; margin: 5px 0;"><strong>Fecha:</strong> ${details.date}</p>
+          <p style="color: #5a6c7d; font-size: 15px; margin: 5px 0;"><strong>Hora:</strong> ${details.time} hrs</p>
+        </div>
+        <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0;">
+          Entendemos que pueden surgir imprevistos. Si tienes alguna pregunta o situación especial, por favor contáctanos.
+        </p>
+      </div>
+      <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e9ecef;">
+        <p style="color: #6c757d; font-size: 12px; margin: 0 0 10px 0;">
+          © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+        </p>
+      </div>
+    </div>
+  `;
+
+  const refundableBodyText = `
+Hola ${name},
+
+Hemos procesado la cancelación de tu clase: ${details.className} programada para el ${details.date} a las ${details.time} hrs.
+
+Como cancelaste con más de 12 horas de anticipación, hemos devuelto el crédito de esta clase a tu saldo${details.packageName ? ` en tu paquete (${details.packageName})` : ''}. Puedes usarlo para reservar otra clase cuando quieras.
+
+Detalles de la clase cancelada:
+Clase: ${details.className}
+Fecha: ${details.date}
+Hora: ${details.time} hrs
+
+Puedes reservar otra clase aquí: ${process.env.NEXT_PUBLIC_APP_URL}/reservar
+
+Si tienes alguna pregunta, no dudes en contactarnos.
+
+© ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+  `;
+
+  const nonRefundableBodyText = `
+Hola ${name},
+
+Hemos procesado la cancelación de tu clase: ${details.className} programada para el ${details.date} a las ${details.time} hrs.
+
+De acuerdo con nuestra política de cancelación, las cancelaciones realizadas con menos de 12 horas de anticipación no son elegibles para reembolso. Por lo tanto, el crédito de esta clase no ha sido devuelto a tu saldo.
+
+Detalles de la clase cancelada:
+Clase: ${details.className}
+Fecha: ${details.date}
+Hora: ${details.time} hrs
+
+Entendemos que pueden surgir imprevistos. Si tienes alguna pregunta o situación especial, por favor contáctanos.
+
+© ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+  `;
+
+  const htmlBody = details.isRefundable ? refundableBodyHTML : nonRefundableBodyHTML;
+  const textBody = details.isRefundable ? refundableBodyText : nonRefundableBodyText;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `${process.env.SMTP_FROM_NAME} <${process.env.SMTP_FROM_EMAIL}>`,
+      to: [email],
+      subject: subject,
+      html: htmlBody,
+      text: textBody,
+    });
+
+    if (error) {
+      console.error('Resend API error sending cancellation email:', error);
+      // Do not throw error up to the caller
+    } else {
+      console.log('Cancellation confirmation email sent successfully:', data);
+    }
+  } catch (error) {
+    console.error('Error sending cancellation confirmation email:', error);
+    // Do not throw error up to the caller
   }
 }

@@ -80,6 +80,24 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
 
+    // Verificar si es un paquete "primera vez" y si el usuario ya lo ha comprado antes
+    if (packageInfo.is_first_time_only === true) {
+      const existingFirstTimePackage = await prisma.userPackage.findFirst({
+        where: {
+          userId: userId,
+          package: {
+            is_first_time_only: true,
+          },
+        },
+      })
+
+      if (existingFirstTimePackage) {
+        return NextResponse.json({
+          error: "El paquete PRIMERA VEZ solo puede ser adquirido una vez por usuario."
+        }, { status: 400 })
+      }
+    }
+
     // Calcular fecha de expiración
     const purchaseDate = new Date()
     const expiryDate = new Date()

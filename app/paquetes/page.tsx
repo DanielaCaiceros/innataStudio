@@ -160,6 +160,7 @@ export default function PackagesPage() {
       <section className="py-10 bg-white">
         <div className="container px-4 md:px-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 anim-fade-in">
+
             {filteredPackages.map((pkg) => (
               <Card key={pkg.id} className="bg-white border-gray-100 overflow-hidden rounded-3xl shadow-sm flex flex-col h-full">
                 {/* Gradient Header */}
