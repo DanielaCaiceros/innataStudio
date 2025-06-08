@@ -47,7 +47,7 @@ export default function AboutPage() {
       {/* Hero Section */}
       <section className="relative h-[30vh] flex items-center justify-center overflow-hidden">
         <div className="container relative z-10 px-4 md:px-6 space-y-1 text-center">
-          <h1 className="text-3xl md:text-6xl font-bold tracking-tight text-black">NUESTRO EQUIPO</h1>
+          <h1 className="text-3xl md:text-6xl font-bold tracking-tight text-black anim-slide-in-up">NUESTRO EQUIPO</h1>
       
           
         </div>
@@ -64,9 +64,9 @@ export default function AboutPage() {
             {instructors.map((instructor) => (
               <Card
                 key={instructor.id}
-                className="bg-white border-gray-100 rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group"
+                className="bg-white border-gray-100 rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group anim-slide-in-up"
               >
-                <div className="relative h-80 overflow-hidden">
+                <div className="relative h-80 overflow-hidden ">
                   <Image
                     src={instructor.image || "/placeholder.svg"}
                     alt={instructor.name}

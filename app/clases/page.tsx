@@ -123,7 +123,7 @@ export default function ClassesPage() {
       <section className="py-5 pt-14 bg-gradient-to-br from-white via-gray-50 to-brand-sage/5">
         <div className="container px-4 md:px-6 text-center">
 
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6">
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 anim-slide-in-up">
             NUESTRAS <span className="text-brand-sage">CLASES</span>
           </h1>
           <p className="text-xl max-w-3xl mx-auto text-gray-600 mb-4 leading-relaxed">
@@ -137,7 +137,7 @@ export default function ClassesPage() {
       <section className="py-10 bg-gray-50">
         <div className="container px-4 md:px-6">
           {/* Filtros y ordenamiento */}
-          <div className="flex flex-col md:flex-row gap-4 mb-8 p-6 bg-white rounded-2xl shadow-sm border border-gray-100">
+          <div className="flex flex-col md:flex-row gap-4 mb-8 p-6 bg-white rounded-2xl shadow-sm border border-gray-100 anim-fade-in">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-3">
                 <Filter className="h-4 w-4 text-gray-500" />
@@ -180,7 +180,7 @@ export default function ClassesPage() {
           )}
 
           {/* Grid de clases */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 anim-fade-in">
             {isLoading ? (
               // Skeleton loaders
               Array.from({ length: 6 }).map((_, index) => <ClassCardSkeleton key={index} />)
@@ -191,7 +191,7 @@ export default function ClassesPage() {
                   className="bg-white border-gray-100 overflow-hidden rounded-3xl shadow-sm hover:shadow-lg transition-all duration-300 group cursor-pointer"
                 >
                   {/* Header visual con ícono */}
-                  <div className="relative h-24 bg-gradient-to-br from-brand-sage/50 via-brand-mint/25 to-brand-sage/20 flex items-center justify-center">
+                  <div className="relative h-24 bg-gradient-to-br from-brand-sage/50 via-brand-mint/25 to-brand-sage/20 flex items-center justify-center ">
                     <div className="p-3 bg-white/90 backdrop-blur-sm rounded-2xl text-brand-sage group-hover:scale-110 transition-transform duration-300 shadow-sm">
                       {getCategoryIcon(classType.category)}
                     </div>

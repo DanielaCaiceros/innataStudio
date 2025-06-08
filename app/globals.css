@@ -93,3 +93,46 @@
 .animate-scrollRight {
   animation: scrollRight 30s linear infinite;
 }
+
+@layer utilities {
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slide-in-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .anim-fade-in {
+    animation: fade-in 0.5s ease-out forwards;
+  }
+
+  .anim-slide-in-up {
+    animation: slide-in-up 0.5s ease-out forwards;
+  }
+
+  /* Optional: if we want a faster version */
+  .anim-fade-in-fast {
+    animation: fade-in 0.3s ease-out forwards;
+  }
+  .anim-slide-in-up-fast {
+    animation: slide-in-up 0.3s ease-out forwards;
+  }
+
+  @keyframes bounce {
+    0%, 80%, 100% { 
+      transform: scale(0);
+      opacity: 0.5;
+    }
+    40% { 
+      transform: scale(1.0);
+      opacity: 1;
+    }
+  }
+
+  .anim-bounce {
+    animation: bounce 1.4s infinite ease-in-out both;
+  }
+}

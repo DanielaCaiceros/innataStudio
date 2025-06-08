@@ -42,28 +42,28 @@ export function LoadingAnimation() {
         {/* Animated dots */}
         <div className="flex justify-center mb-6 space-x-3">
           <div
-            className="w-4 h-4 rounded-full bg-[#4A102A]"
+            className="w-4 h-4 rounded-full bg-brand-sage"
             style={{
               animation: "bounce 1.4s infinite ease-in-out both",
               animationDelay: "0s",
             }}
           />
           <div
-            className="w-4 h-4 rounded-full bg-[#85193C]"
+            className="w-4 h-4 rounded-full bg-brand-mint"
             style={{
               animation: "bounce 1.4s infinite ease-in-out both",
               animationDelay: "0.2s",
             }}
           />
           <div
-            className="w-4 h-4 rounded-full bg-[#C5172E]"
+            className="w-4 h-4 rounded-full bg-brand-gray"
             style={{
               animation: "bounce 1.4s infinite ease-in-out both",
               animationDelay: "0.4s",
             }}
           />
           <div
-            className="w-4 h-4 rounded-full bg-[#FCF259]"
+            className="w-4 h-4 rounded-full bg-brand-cream"
             style={{
               animation: "bounce 1.4s infinite ease-in-out both",
               animationDelay: "0.6s",
@@ -84,7 +84,7 @@ export function LoadingAnimation() {
 
         {/* Loading text */}
         <div className="text-center">
-          <p className="text-[#85193C] font-medium">Preparando tu experiencia Innata</p>
+          <p className="text-black font-medium">Preparando tu experiencia Innata</p>
         </div>
       </div>
 
