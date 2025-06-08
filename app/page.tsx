@@ -153,11 +153,11 @@ export default function Home() {
                 {" "}
                 <h2 className="text-3xl md:text-4xl font-bold mb-6 text-white">Meet the team</h2>
                 <p className="text-xl text-white/90 mb-6">
-                  Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-                </p>
+Amamos pensar que todos somos atletas.
+              </p>
                 <p className="text-xl text-white/90 mb-8">
-                   Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. 
-                </p>
+Encuentra en nosotros un alto estándar de autenticidad y energía.
+Somos coaches que te motivan y guían a tu mejor versión posible.                  </p>
                 <Link
                   href="/nosotros"
                   className="bg-white hover:bg-gray-100 text-zinc-800 rounded-full px-8 py-4 text-lg inline-flex items-center gap-2 w-fit"
