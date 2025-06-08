@@ -91,7 +91,7 @@ export default function PackagesPage() {
 
       <section className="py-10 pt-20 bg-white">
         <div className="container px-4 md:px-6 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-2">
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-2 anim-slide-in-up">
             NUESTROS PAQUETES
           </h1>
           <p className="text-xl max-w-3xl mx-auto text-zinc-700 mb-2">
@@ -103,7 +103,7 @@ export default function PackagesPage() {
       {/* Packages Section */}
       <section className="py-10 bg-white">
         <div className="container px-4 md:px-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 anim-fade-in">
             {packages.map((pkg) => (
               <Card key={pkg.id} className="bg-white border-gray-100 overflow-hidden rounded-3xl shadow-sm flex flex-col h-full">
                 {/* Gradient Header */}
@@ -152,11 +152,11 @@ export default function PackagesPage() {
       {/* FAQ Section */}
       <section className="py-20 bg-[#F0F0D7]/30">
         <div className="container px-4 md:px-6">
-          <h2 className="text-3xl font-bold text-center mb-12">
+          <h2 className="text-3xl font-bold text-center mb-12 anim-fade-in">
             PREGUNTAS <span className="text-[#727D73]">FRECUENTES</span>
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto anim-fade-in">
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-[#727D73]">¿Cuánto tiempo duran las clases?</h3>
               <p className="text-zinc-600">

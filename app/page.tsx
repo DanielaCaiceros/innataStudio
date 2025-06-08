@@ -23,7 +23,7 @@ export default function Home() {
             />
 
             {/* Content */}
-            <div className="relative z-20 h-full flex flex-col justify-center p-8 md:p-16 max-w-2xl">
+            <div className="relative z-20 h-full flex flex-col justify-center p-8 md:p-16 max-w-2xl anim-slide-in-up">
               <h2 className="text-xl md:text-2xl font-medium text-white/90 mb-2">Innata Studio</h2>
               <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-white mb-6">
                 RIDE TO
@@ -132,7 +132,7 @@ export default function Home() {
       {/* CTA Section */}
       <section className="py-20 bg-brand-mint/10">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center">
+          <div className="max-w-3xl mx-auto text-center anim-slide-in-up">
             <h2 className="text-3xl md:text-4xl font-bold mb-6 text-zinc-800">Vuélvete miembro</h2>
             <p className="text-xl mb-8 text-zinc-700">
               Elige el plan que mejor se adapte a tu estilo de vida. Nuestra misión es hacer el ejercicio más cómodo y
