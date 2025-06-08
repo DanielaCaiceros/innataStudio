@@ -475,3 +475,146 @@ Entendemos que pueden surgir imprevistos. Si tienes alguna pregunta o situación
     // Do not throw error up to the caller
   }
 }
+
+// Función para enviar correo de confirmación de compra de paquete
+export async function sendPackagePurchaseConfirmationEmail(
+  email: string,
+  name: string,
+  packageDetails: {
+    packageName: string;
+    classCount: number;
+    expiryDate: string; // Formato: "dd/MM/yyyy"
+    purchaseDate: string; // Formato: "dd/MM/yyyy"
+    price: number;
+  }
+): Promise<void> {
+  const subject = "¡Confirmación de Compra de Paquete - Innata Studio!";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+  const htmlBody = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">
+      <!-- Header con gradiente -->
+      <div style="background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+        <img src="${appUrl}/innataBlack.png" alt="Innata Studio" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
+        <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          ¡Gracias por tu Compra! 🛍️
+        </h1>
+      </div>
+      
+      <!-- Contenido principal -->
+      <div style="padding: 40px 30px; background-color: #ffffff;">
+        <p style="color: #2c3e50; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">
+          Hola ${name},
+        </p>
+        
+        <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+          ¡Felicidades por adquirir tu nuevo paquete de clases en Innata Studio! Estamos emocionados de tenerte con nosotros. Aquí están los detalles de tu compra:
+        </p>
+        
+        <!-- Detalles del Paquete -->
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 12px; margin: 30px 0; border: 1px solid #dee2e6;">
+          <h3 style="color: #495057; font-size: 18px; margin: 0 0 20px 0; font-weight: 600; border-bottom: 2px solid #AAB99A; padding-bottom: 10px;">📦 Detalles de tu Paquete:</h3>
+          
+          <div style="display: grid; gap: 15px;">
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+              <span style="color: #6c757d; font-weight: 500;">🏷️ Nombre del Paquete:</span>
+              <span style="color: #495057; font-weight: 600;">${packageDetails.packageName}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+              <span style="color: #6c757d; font-weight: 500;">🚲 Número de Clases:</span>
+              <span style="color: #495057; font-weight: 600;">${packageDetails.classCount}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+              <span style="color: #6c757d; font-weight: 500;">💰 Precio:</span>
+              <span style="color: #495057; font-weight: 600;">$${packageDetails.price.toFixed(2)} MXN</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+              <span style="color: #6c757d; font-weight: 500;">🛍️ Fecha de Compra:</span>
+              <span style="color: #495057; font-weight: 600;">${packageDetails.purchaseDate}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0;">
+              <span style="color: #6c757d; font-weight: 500;">⏳ Fecha de Expiración:</span>
+              <span style="color: #dd7777; font-weight: 600;">${packageDetails.expiryDate}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Call to Action Buttons -->
+        <div style="text-align: center; margin: 40px 0;">
+          <a href="${appUrl}/reservar" 
+             style="display: inline-block; background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); color: #ffffff; padding: 16px 28px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 15px rgba(114, 125, 115, 0.3); margin: 0 10px;">
+            Reserva tu próxima clase
+          </a>
+          <a href="${appUrl}/mi-cuenta" 
+             style="display: inline-block; background: linear-gradient(135deg, #AAB99A 0%, #727D73 100%); color: #ffffff; padding: 16px 28px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 15px rgba(114, 125, 115, 0.3); margin: 0 10px;">
+            Ir a Mi Cuenta
+          </a>
+        </div>
+        
+        <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0; text-align: center;">
+          ¡Prepárate para sudar, sonreír y superar tus límites! Si tienes alguna pregunta, no dudes en contactarnos.
+        </p>
+      </div>
+      
+      <!-- Footer -->
+      <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e9ecef;">
+        <p style="color: #6c757d; font-size: 12px; margin: 0 0 10px 0;">
+          © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+        </p>
+        <p style="color: #6c757d; font-size: 12px; margin: 0;">
+          📍 Calle Prada 23, Local 103, Colonia Residencial El Refugio, Querétaro, Qro. CP 76146
+        </p>
+      </div>
+    </div>
+  `;
+
+  const textBody = `
+¡Gracias por tu Compra - Innata Studio!
+
+Hola ${name},
+
+¡Felicidades por adquirir tu nuevo paquete de clases en Innata Studio!
+
+Detalles de tu Paquete:
+- Nombre del Paquete: ${packageDetails.packageName}
+- Número de Clases: ${packageDetails.classCount}
+- Precio: $${packageDetails.price.toFixed(2)} MXN
+- Fecha de Compra: ${packageDetails.purchaseDate}
+- Fecha de Expiración: ${packageDetails.expiryDate}
+
+Reserva tu próxima clase: ${appUrl}/reservar
+Ir a Mi Cuenta: ${appUrl}/mi-cuenta
+
+¡Prepárate para sudar, sonreír y superar tus límites!
+
+© ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+Calle Prada 23, Local 103, Colonia Residencial El Refugio, Querétaro, Qro. CP 76146
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `${process.env.SMTP_FROM_NAME} <${process.env.SMTP_FROM_EMAIL}>`,
+      to: [email],
+      subject: subject,
+      html: htmlBody,
+      text: textBody,
+    });
+
+    if (error) {
+      console.error('Error sending package purchase confirmation email via Resend:', error);
+      throw new Error('No se pudo enviar el correo de confirmación de paquete.');
+    }
+
+    console.log('Package purchase confirmation email sent successfully:', data);
+  } catch (error) {
+    console.error('Failed to send package purchase confirmation email:', error);
+    // Re-throw la excepción para que el llamador sepa que la operación falló.
+    // Asegúrate de que el error sea una instancia de Error.
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      // Si no es una instancia de Error, envuélvelo en una.
+      throw new Error('Ocurrió un error desconocido al enviar el correo de confirmación de paquete.');
+    }
+  }
+}
