@@ -1,5 +1,6 @@
 "use client"
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 import Link from "next/link"
 import { Check, ChevronRight, LogIn, UserPlus } from "lucide-react" // Añadir LogIn y UserPlus
@@ -71,18 +72,73 @@ const packages = [
 
 export default function PackagesPage() {
    const router = useRouter();
-  const { isAuthenticated } = useAuth()
-    const [showAuthModal, setShowAuthModal] = useState(false)
-  const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null)
+   const { isAuthenticated } = useAuth()
+   const [showAuthModal, setShowAuthModal] = useState(false)
+   const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null)
+   const [hasFirstTimePackage, setHasFirstTimePackage] = useState(false)
+   const [isLoading, setIsLoading] = useState(true)
+   const [filteredPackages, setFilteredPackages] = useState(packages)
+   
+   // Verificar si el usuario ha comprado el paquete primera vez
+   useEffect(() => {
+     const checkFirstTimePackage = async () => {
+       if (isAuthenticated) {
+         try {
+           const response = await fetch("/api/user/has-purchased-first-time-package");
+           const data = await response.json();
+           setHasFirstTimePackage(data.hasPurchased);
+           
+           // Siempre mostramos todos los paquetes, pero modificaremos la visualización del botón
+           setFilteredPackages(packages);
+         } catch (error) {
+           console.error("Error al verificar el paquete primera vez:", error);
+           setFilteredPackages(packages);
+         }
+       } else {
+         // Si no está autenticado, mostrar todos los paquetes
+         setFilteredPackages(packages);
+       }
+       setIsLoading(false);
+     };
+     
+     checkFirstTimePackage();
+   }, [isAuthenticated]);
   
-    const handlePurchaseClick = (packageId: number) => {
+   const handlePurchaseClick = (packageId: number) => {
+    // Verificar si el usuario no está autenticado
     if (!isAuthenticated) {
       setSelectedPackageId(packageId)
       setShowAuthModal(true)
       return
     }
+    
+    // Verificar si está intentando comprar el paquete "PRIMERA VEZ" y ya lo ha adquirido
+    if (packageId === 1 && hasFirstTimePackage) {
+      // Mostrar un mensaje informativo
+      const toast = document.createElement('div');
+      toast.className = 'fixed top-4 right-4 bg-amber-100 border border-amber-300 text-amber-800 px-4 py-3 rounded shadow-md';
+      toast.innerHTML = `
+        <div class="flex items-center">
+          <div class="py-1"><svg class="h-6 w-6 mr-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg></div>
+          <div>
+            <p class="font-bold">Paquete no disponible</p>
+            <p class="text-sm">El paquete PRIMERA VEZ solo puede ser adquirido una vez.</p>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(toast);
+      
+      // Eliminar el toast después de 3 segundos
+      setTimeout(() => {
+        document.body.removeChild(toast);
+      }, 3000);
+      
+      return;
+    }
 
-  router.push(`/paquetes/checkout?packageId=${packageId}`);
+    router.push(`/paquetes/checkout?packageId=${packageId}`);
   }
   
   return (
@@ -104,7 +160,7 @@ export default function PackagesPage() {
       <section className="py-10 bg-white">
         <div className="container px-4 md:px-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {packages.map((pkg) => (
+            {filteredPackages.map((pkg) => (
               <Card key={pkg.id} className="bg-white border-gray-100 overflow-hidden rounded-3xl shadow-sm flex flex-col h-full">
                 {/* Gradient Header */}
                 <div className={`bg-gradient-to-r ${pkg.gradient} h-14 flex items-center justify-center`}>
@@ -134,14 +190,30 @@ export default function PackagesPage() {
                 </CardContent>
 
 <CardFooter className="mt-auto pt-4">
-                  <Button
-                    onClick={() => handlePurchaseClick(pkg.id)}
-                    className={`w-full bg-gradient-to-r ${pkg.gradient} hover:opacity-90 text-white font-bold rounded-full transition-all duration-300`}
-                  >
-                    <span className="flex items-center justify-center gap-1">
-                      {pkg.buttonText} <ChevronRight className="h-4 w-4" />
-                    </span>
-                  </Button>
+                  {pkg.id === 1 && hasFirstTimePackage ? (
+                    <div className="space-y-2">
+                      <Button
+                        disabled
+                        className="w-full bg-gray-300 text-gray-600 font-bold rounded-full cursor-not-allowed"
+                      >
+                        <span className="flex items-center justify-center gap-1">
+                          Ya adquirido
+                        </span>
+                      </Button>
+                      <p className="text-xs text-amber-600 text-center">
+                        Este paquete solo puede adquirirse una vez por usuario
+                      </p>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => handlePurchaseClick(pkg.id)}
+                      className={`w-full bg-gradient-to-r ${pkg.gradient} hover:opacity-90 text-white font-bold rounded-full transition-all duration-300`}
+                    >
+                      <span className="flex items-center justify-center gap-1">
+                        {pkg.buttonText} <ChevronRight className="h-4 w-4" />
+                      </span>
+                    </Button>
+                  )}
                 </CardFooter>
               </Card>
             ))}

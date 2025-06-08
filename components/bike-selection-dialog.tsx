@@ -1,0 +1,175 @@
+"use client"
+
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+
+interface BikeSelectionDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  selectedBikeId: number | null
+  onBikeSelected: (bikeId: number) => void
+  onConfirm: () => void
+}
+
+interface Bike {
+  id: number
+  x: number
+  y: number
+  available: boolean
+}
+
+// Datos de ejemplo para las bicicletas (en el futuro vendrá del backend)
+const sampleBikes: Bike[] = [
+  // Fila superior (2 bicis en las columnas 1 y 3)
+  { id: 6, x: 28, y: 30, available: true },
+  { id: 7, x: 73, y: 30, available: true },
+
+  // Fila media (4 bicis en las columnas 1, 2, 3, 4)
+  { id: 5, x: 28, y: 52, available: true },
+  { id: 3, x: 43, y: 52, available: false }, // No disponible como ejemplo
+  { id: 4, x: 58, y: 52, available: true },
+  { id: 10, x: 73, y: 52, available: true },
+
+  // Fila inferior (4 bicis en las columnas 1, 2, 3, 4)
+  { id: 1, x: 28, y: 74, available: true },
+  { id: 2, x: 43, y: 74, available: true },
+  { id: 9, x: 58, y: 74, available: false }, // No disponible como ejemplo
+  { id: 8, x: 73, y: 74, available: true },
+]
+
+export function BikeSelectionDialog({
+  open,
+  onOpenChange,
+  selectedBikeId,
+  onBikeSelected,
+  onConfirm
+}: BikeSelectionDialogProps) {
+  // Estado local para la selección de la bicicleta
+  const [localSelectedBikeId, setLocalSelectedBikeId] = useState<number | null>(selectedBikeId)
+
+  // Actualizar el estado local cuando cambia la prop
+  const handleBikeSelected = (bikeId: number) => {
+    setLocalSelectedBikeId(bikeId)
+    onBikeSelected(bikeId)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-brand-sage text-center text-xl font-bold">Selecciona tu bicicleta</DialogTitle>
+          <DialogDescription className="text-gray-600 text-center">
+            Elige el número de la bicicleta que prefieres para tu clase
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4 space-y-4">
+          {/* Mapa de bicicletas con distribución exacta */}
+          <div className="relative w-full h-[200px] rounded-xl bg-gradient-to-b from-gray-900 to-black text-white overflow-hidden shadow-lg border border-gray-200">
+            {/* Posición del COACH - centrado en el grid */}
+            <div
+              className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10"
+              style={{
+                left: "50%", // Centrado entre las columnas 2 y 3 (35% + 50%) / 2
+                top: "25%",
+              }}
+            >
+              <div className="w-12 h-12 bg-gradient-to-br from-white to-gray-100 rounded-full flex items-center justify-center text-black font-bold text-sm border-2 border-brand-cream shadow-lg">
+                <div className="text-center">
+                  <div className="text-xs font-medium">COACH</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bicicletas con posiciones exactas según el grid ajustado */}
+            {sampleBikes.map((bike) => {
+              const isSelected = localSelectedBikeId === bike.id
+
+              return (
+                <button
+                  key={bike.id}
+                  className={`
+                    absolute w-10 h-10 rounded-full text-sm font-bold transition-all duration-300 border-2 shadow-lg transform -translate-x-1/2 -translate-y-1/2
+                    ${
+                      !bike.available
+                        ? "bg-gray-500 border-gray-600 opacity-60 cursor-not-allowed text-gray-300"
+                        : isSelected
+                          ? "bg-brand-mint border-brand-burgundy text-white ring-4 ring-brand-burgundy/40 scale-110 shadow-xl z-20"
+                          : "bg-white border-brand-sage text-black hover:bg-brand-sage hover:border-brand-sage hover:text-white hover:scale-105"
+                    }
+                  `}
+                  style={{
+                    left: `${bike.x}%`,
+                    top: `${bike.y}%`,
+                  }}
+                  onClick={() => bike.available && handleBikeSelected(bike.id)}
+                  disabled={!bike.available}
+                >
+                  {bike.id}
+                </button>
+              )
+            })}
+
+            {/* Indicador de entrada - centrado en el grid */}
+            <div
+              className="absolute transform -translate-x-1/2 z-10"
+              style={{
+                left: "42.5%", // Centrado entre las columnas 2 y 3
+                bottom: "8%",
+              }}
+            >
+            </div>
+
+            {/* Efectos de ambiente */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
+          </div>
+
+          {/* Leyenda */}
+          <div className="grid grid-cols-3 gap-4 p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-white border-2 border-brand-sage shadow-sm"></div>
+              <span className="text-sm font-medium text-gray-700">Disponible</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-gray-500 border-2 border-gray-600 opacity-60"></div>
+              <span className="text-sm font-medium text-gray-700">Reservada</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-brand-mint border-2 border-brand-burgundy ring-2 ring-brand-burgundy/30 shadow-sm"></div>
+              <span className="text-sm font-medium text-gray-700">Seleccionada</span>
+            </div>
+          </div>
+
+          {/* Información de selección */}
+          {localSelectedBikeId && (
+            <div className="p-3 bg-gradient-to-r from-brand-cream to-brand-mint/10 rounded-lg border border-brand-burgundy/20">
+              <div className="text-center">
+                <p className="text-brand-burgundy font-bold">✓ Bicicleta #{localSelectedBikeId} seleccionada</p>
+                <p className="text-sm text-brand-burgundy/80 mt-1">
+                  Confirma tu selección para continuar con la reserva
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between pt-2">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="border-brand-burgundy text-brand-burgundy hover:bg-brand-burgundy/10"
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="bg-brand-mint hover:bg-brand-mint/90 text-white"
+              disabled={!localSelectedBikeId}
+              onClick={onConfirm}
+            >
+              Confirmar Selección
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}

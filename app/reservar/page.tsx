@@ -13,6 +13,7 @@ import { StripeCheckout } from "@/components/stripe-checkout"
 import { toast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { useRouter } from "next/navigation"
+import { BikeSelectionDialog } from "@/components/bike-selection-dialog"
 import { 
   formatTimeFromDB, 
   isClassOnSelectedDate, 
@@ -53,6 +54,8 @@ export default function BookingPage() {
   const [selectedClass, setSelectedClass] = useState<number | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [scheduledClassId, setScheduledClassId] = useState<number | null>(null)
+  const [selectedBikeId, setSelectedBikeId] = useState<number | null>(null)
+  const [isBikeDialogOpen, setIsBikeDialogOpen] = useState(false)
   
   // Estados para modales
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
@@ -131,14 +134,20 @@ export default function BookingPage() {
         throw new Error("No se ha seleccionado una clase para reservar");
       }
       
+      if (!selectedBikeId) {
+        throw new Error("No se ha seleccionado una bicicleta");
+      }
+      
       console.log("Creando reserva para la clase:", scheduledClassId);
+      console.log("Bicicleta seleccionada:", selectedBikeId);
       
       const response = await fetch("/api/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           scheduledClassId,
-          paymentId
+          paymentId,
+          bikeId: selectedBikeId
         }),
         credentials: "include",
       });
@@ -204,15 +213,30 @@ export default function BookingPage() {
     
     setScheduledClassId(selectedScheduledClass.id);
     
+    // Abrir el diálogo de selección de bicicleta antes de continuar con la reserva
+    setIsBikeDialogOpen(true);
+  }
+  
+  const handleBikeSelected = async () => {
+    if (!scheduledClassId || !selectedBikeId) return;
+    
+    const selectedScheduledClass = availableClasses.find(
+      cls => cls.id === selectedClass
+    );
+    
+    if (!selectedScheduledClass) return;
+    
     if (userAvailableClasses > 0) {
       try {
         console.log("Creando reserva usando paquete disponible:", selectedScheduledClass.id);
+        console.log("Bicicleta seleccionada:", selectedBikeId);
         
         const response = await fetch("/api/reservations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
-            scheduledClassId: selectedScheduledClass.id
+            scheduledClassId: selectedScheduledClass.id,
+            bikeId: selectedBikeId
           }),
           credentials: "include",
         });
@@ -587,6 +611,16 @@ function isClassReservable(cls: ScheduledClass) {
                     </span>
                   </div>
                   
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                    <span className="text-zinc-700">Bicicleta seleccionada:</span>
+                    <span className="font-medium text-brand-burgundy">
+                      {selectedBikeId 
+                        ? `Bicicleta #${selectedBikeId}` 
+                        : "Ninguna"
+                      }
+                    </span>
+                  </div>
+                  
                   {/* Mostrar clases disponibles del usuario si está autenticado */}
                   {isAuthenticated && (
                     <div className="bg-brand-mint/10 rounded-lg p-3 mt-4">
@@ -771,6 +805,18 @@ function isClassReservable(cls: ScheduledClass) {
           </div>
         </DialogContent>
       </Dialog>
+
+  {/* Bike Selection Dialog */}
+      <BikeSelectionDialog 
+        open={isBikeDialogOpen}
+        onOpenChange={setIsBikeDialogOpen}
+        selectedBikeId={selectedBikeId}
+        onBikeSelected={setSelectedBikeId}
+        onConfirm={() => {
+          setIsBikeDialogOpen(false);
+          handleBikeSelected();
+        }}
+      />
     </div>
   )
 }

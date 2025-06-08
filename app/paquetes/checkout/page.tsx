@@ -30,69 +30,99 @@ export default function PackageCheckoutPage() {
   
   // Cargar los datos del paquete seleccionado
   useEffect(() => {
-    // En una implementación real, aquí cargarías los datos del paquete desde la API
-    // Por ahora, usaremos datos estáticos basados en el ID
-    const packages = [
-      {
-        id: 1,
-        name: "PRIMERA VEZ",
-        price: 49.00,
-        description: "Perfecto para probar nuestras clases",
-        classCount: 1,
-        validityDays: 30,
-        isOnlyForNewCustomers: true,
-      },
-      {
-        id: 2,
-        name: "PASE INDIVIDUAL",
-        price: 69.00,
-        description: "Perfecto para probar nuestras clases",
-        classCount: 1,
-        validityDays: 30,
-        isOnlyForNewCustomers: false,
-      },
-      {
-        id: 3,
-        name: "SEMANA ILIMITADA",
-        price: 299.00,
-        description: "Tiempo limitado",
-        classCount: 17, // hasta 17 clases
-        validityDays: 7,
-        isOnlyForNewCustomers: false,
-      },
-      {
-        id: 4,
-        name: "PAQUETE 10 CLASES",
-        price: 599.00,
-        description: "Ahorra $100 con este paquete",
-        classCount: 10,
-        validityDays: 30,
-        isOnlyForNewCustomers: false,
-      },
-    ]
-    
-    if (packageId) {
-      const foundPackage = packages.find(p => p.id === Number(packageId))
-      if (foundPackage) {
-        setPackageData(foundPackage)
-      } else {
+    const fetchData = async () => {
+      try {
+        // Verificar si el usuario ya ha comprado el paquete PRIMERA VEZ
+        if (packageId === "1") {  // ID del paquete "PRIMERA VEZ"
+          const response = await fetch("/api/user/has-purchased-first-time-package");
+          const data = await response.json();
+          
+          if (data.hasPurchased) {
+            toast({
+              title: "Paquete no disponible",
+              description: "El paquete PRIMERA VEZ solo puede ser adquirido una vez por usuario.",
+              variant: "destructive"
+            });
+            router.push("/paquetes");
+            return;
+          }
+        }
+
+        // En una implementación real, aquí cargarías los datos del paquete desde la API
+        // Por ahora, usaremos datos estáticos basados en el ID
+        const packages = [
+          {
+            id: 1,
+            name: "PRIMERA VEZ",
+            price: 49.00,
+            description: "Perfecto para probar nuestras clases",
+            classCount: 1,
+            validityDays: 30,
+            isOnlyForNewCustomers: true,
+          },
+          {
+            id: 2,
+            name: "PASE INDIVIDUAL",
+            price: 69.00,
+            description: "Perfecto para probar nuestras clases",
+            classCount: 1,
+            validityDays: 30,
+            isOnlyForNewCustomers: false,
+          },
+          {
+            id: 3,
+            name: "SEMANA ILIMITADA",
+            price: 299.00,
+            description: "Tiempo limitado",
+            classCount: 17, // hasta 17 clases
+            validityDays: 7,
+            isOnlyForNewCustomers: false,
+          },
+          {
+            id: 4,
+            name: "PAQUETE 10 CLASES",
+            price: 599.00,
+            description: "Ahorra $100 con este paquete",
+            classCount: 10,
+            validityDays: 30,
+            isOnlyForNewCustomers: false,
+          },
+        ]
+        
+        if (packageId) {
+          const foundPackage = packages.find(p => p.id === Number(packageId))
+          if (foundPackage) {
+            setPackageData(foundPackage)
+          } else {
+            toast({
+              title: "Error",
+              description: "Paquete no encontrado",
+              variant: "destructive"
+            })
+            router.push("/paquetes")
+          }
+        } else {
+          toast({
+            title: "Error",
+            description: "No se especificó ningún paquete",
+            variant: "destructive"
+          })
+          router.push("/paquetes")
+        }
+        
+        setIsLoading(false)
+      } catch (error) {
+        console.error("Error al cargar los datos del paquete:", error)
         toast({
           title: "Error",
-          description: "Paquete no encontrado",
-          variant: "destructive"
+          description: "Error de conexión al cargar los datos del paquete",
+          variant: "destructive",
         })
-        router.push("/paquetes")
+        setIsLoading(false)
       }
-    } else {
-      toast({
-        title: "Error",
-        description: "No se especificó ningún paquete",
-        variant: "destructive"
-      })
-      router.push("/paquetes")
     }
     
-    setIsLoading(false)
+    fetchData()
   }, [packageId, router, toast])
 
   const handlePaymentSuccess = async (paymentId: string) => {
