@@ -763,23 +763,30 @@ export default function ReservationsPage() {
                               : "Cancelada"}
                         </span>
                       </td>
-                      <td className="p-4">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${
-                            reservation.paymentStatus === "paid"
-                              ? "bg-green-500/20 text-green-700"
-                              : reservation.paymentStatus === "pending"
-                                ? "bg-yellow-500/20 text-yellow-700"
-                                : "bg-red-500/20 text-red-700"
-                          }`}
-                        >
-                          {reservation.paymentStatus === "paid"
-                            ? `Pagado (${reservation.paymentMethod === "online" ? "Stripe" : "Efectivo"})`
-                            : reservation.paymentStatus === "pending"
-                              ? "Pendiente"
-                              : "Reembolsado"}
-                        </span>
-                      </td>
+<td className="p-4">
+  <div className="space-y-1">
+    <span
+      className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+        reservation.paymentStatus === "paid"
+          ? "bg-green-500/20 text-green-700"
+          : reservation.paymentStatus === "pending"
+            ? "bg-yellow-500/20 text-yellow-700"
+            : "bg-red-500/20 text-red-700"
+      }`}
+    >
+      {reservation.paymentStatus === "paid"
+        ? "Pagado"
+        : reservation.paymentStatus === "pending"
+          ? "Pendiente"
+          : "Reembolsado"}
+    </span>
+    {reservation.paymentStatus === "paid" && (
+      <div className="text-xs text-gray-600">
+        {reservation.paymentMethod === "online" ? "Stripe" : "Efectivo"}
+      </div>
+    )}
+  </div>
+</td>
                       <td className="p-4">
                         <div className="flex gap-2">
                           {reservation.paymentStatus === "pending" && (
