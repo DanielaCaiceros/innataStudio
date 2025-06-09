@@ -10,7 +10,7 @@ import { es } from "date-fns/locale"
 import { CalendarIcon, Clock, ChevronRight } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { StripeCheckout } from "@/components/stripe-checkout"
-import { toast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { useRouter } from "next/navigation"
 import { BikeSelectionDialog } from "@/components/bike-selection-dialog"
@@ -45,6 +45,7 @@ interface ScheduledClass {
 }
 
 export default function BookingPage() {
+  const { toast } = useToast()
   const router = useRouter()
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const [isLoading, setIsLoading] = useState(true)
@@ -147,7 +148,7 @@ export default function BookingPage() {
         body: JSON.stringify({ 
           scheduledClassId,
           paymentId,
-          bikeNumber: selectedBikeId
+          bikeId: selectedBikeId
         }),
         credentials: "include",
       });
@@ -155,6 +156,8 @@ export default function BookingPage() {
       const data = await response.json();
       
       if (!response.ok) {
+        // Cerrar el diálogo de pago antes de mostrar el error
+        setIsPaymentOpen(false);
         throw new Error(data.error || "Error al crear la reserva");
       }
       
@@ -173,6 +176,7 @@ export default function BookingPage() {
         variant: "destructive",
       });
       
+      // Asegurar que el diálogo de pago se cierre en caso de error
       setIsPaymentOpen(false);
     }
   }
@@ -236,7 +240,7 @@ export default function BookingPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             scheduledClassId: selectedScheduledClass.id,
-            bikeNumber: selectedBikeId
+            bikeId: selectedBikeId
           }),
           credentials: "include",
         });
@@ -244,10 +248,13 @@ export default function BookingPage() {
         const data = await response.json();
         
         if (!response.ok) {
+          // Cerrar el diálogo de selección de bicicleta antes de mostrar el error
+          setIsBikeDialogOpen(false);
           throw new Error(data.error || "Error al crear la reserva");
         }
         
         setUserAvailableClasses(prev => prev - 1);
+        setIsBikeDialogOpen(false);
         setIsConfirmationOpen(true);
         
         toast({
@@ -263,6 +270,7 @@ export default function BookingPage() {
         });
       }
     } else {
+      setIsBikeDialogOpen(false);
       setIsPaymentOpen(true);
     }
   }
