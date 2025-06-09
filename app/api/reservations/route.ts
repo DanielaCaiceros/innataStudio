@@ -75,8 +75,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Validar número de bicicleta
-    if (bikeNumber) {
-      if (bikeNumber < 1 || bikeNumber > 10) {
+    let parsedBikeNumber = null
+    if (bikeNumber !== undefined && bikeNumber !== null) {
+      parsedBikeNumber = Number(bikeNumber)
+      if (isNaN(parsedBikeNumber) || parsedBikeNumber < 1 || parsedBikeNumber > 10) {
         return NextResponse.json({ error: "El número de bicicleta debe estar entre 1 y 10" }, { status: 400 })
       }
 
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest) {
       const existingBikeReservation = await prisma.reservation.findFirst({
         where: {
           scheduledClassId: Number.parseInt(scheduledClassId),
-          bikeNumber,
+          bikeNumber: parsedBikeNumber,
           status: "confirmed"
         }
       })
@@ -213,7 +215,7 @@ export async function POST(request: NextRequest) {
           userId,
           scheduledClassId: Number.parseInt(scheduledClassId),
           userPackageId: userPackage?.id,
-          bikeNumber: bikeNumber ? Number.parseInt(bikeNumber) : null,
+          bikeNumber: parsedBikeNumber,
           status: "confirmed",
           // Ajustar paymentMethod basado en paymentId o userPackage
           paymentMethod: paymentId ? "stripe" : (userPackage ? "package" : "pending"),
