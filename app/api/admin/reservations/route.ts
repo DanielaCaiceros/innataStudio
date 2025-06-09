@@ -2,6 +2,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { verifyToken } from "@/lib/jwt";
+import { addHours, format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 
 const prisma = new PrismaClient();
 
@@ -160,7 +162,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ... resto del código POST se mantiene igual
 // POST - Crear nueva reserva (admin)
 export async function POST(request: NextRequest) {
   try {
@@ -182,12 +183,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Faltan datos requeridos" }, { status: 400 });
     }
 
+    // --- NUEVA LÓGICA PARA MANEJO DE FECHA Y HORA (ALMACENAMIENTO) ---
+    // El usuario proporciona fecha (YYYY-MM-DD) y hora (HH:MM) en hora local de México (UTC-6).
+    // Necesitamos almacenar esto en la base de datos como su equivalente UTC.
+
+    const [year, month, day] = date.split('-').map(Number);
+    const [hours, minutes] = time.split(':').map(Number);
+
+    // Crear un objeto Date representando la hora de la clase en UTC.
+    // México es UTC-6, por lo que sumamos 6 horas a los componentes de hora local para obtener UTC.
+    // El mes es 0-indexado en Date.UTC, por eso 'month - 1'.
+    const scheduledTimeUTC = new Date(Date.UTC(year, month - 1, day, hours + 6, minutes, 0, 0));
+
+    // Para el campo scheduledClass.date, necesitamos el inicio del día en UTC para esta clase.
+    const scheduledDateUTC = new Date(Date.UTC(
+      scheduledTimeUTC.getUTCFullYear(),
+      scheduledTimeUTC.getUTCMonth(),
+      scheduledTimeUTC.getUTCDate()
+    ));
+    // --- FIN NUEVA LÓGICA ---
+
     // Buscar la clase programada o crearla si no existe
     let scheduledClass = await prisma.scheduledClass.findFirst({
       where: {
         classTypeId: classId,
-        date: new Date(date),
-        time: new Date(`${date}T${time}:00`)
+        // Usar las nuevas fechas UTC calculadas
+        date: scheduledDateUTC,
+        time: scheduledTimeUTC
       }
     });
 
@@ -213,8 +235,9 @@ export async function POST(request: NextRequest) {
         data: {
           classTypeId: classId,
           instructorId: instructor.id,
-          date: new Date(date),
-          time: new Date(`${date}T${time}:00`),
+          // Usar las nuevas fechas UTC calculadas
+          date: scheduledDateUTC,
+          time: scheduledTimeUTC,
           maxCapacity: classType.capacity,
           availableSpots: classType.capacity - 1, // Restar 1 por la reservación que estamos creando
           status: "scheduled"
@@ -333,15 +356,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Formatear la respuesta
+    // Formatear la respuesta para el frontend del admin (también debe usar la zona horaria local)
+    // Asumiendo que `reservation.scheduledClass.date` y `reservation.scheduledClass.time` ya son UTC del DB.
+    const classDateTimeUTC = new Date(Date.UTC(
+      reservation.scheduledClass.date.getUTCFullYear(),
+      reservation.scheduledClass.date.getUTCMonth(),
+      reservation.scheduledClass.date.getUTCDate(),
+      reservation.scheduledClass.time.getUTCHours(),
+      reservation.scheduledClass.time.getUTCMinutes()
+    ));
+
+    const mexicoCityTimeZone = 'America/Mexico_City';
+
     const formattedReservation = {
       id: reservation.id,
       user: `${reservation.user.firstName} ${reservation.user.lastName}`,
       email: reservation.user.email,
       phone: reservation.user.phone || "",
       class: reservation.scheduledClass.classType.name,
-      date: reservation.scheduledClass.date.toISOString().split('T')[0],
-      time: reservation.scheduledClass.time.toTimeString().slice(0, 5),
+      date: formatInTimeZone(classDateTimeUTC, mexicoCityTimeZone, 'yyyy-MM-dd'),
+      time: formatInTimeZone(classDateTimeUTC, mexicoCityTimeZone, 'HH:mm'),
       status: reservation.status,
       package: reservation.userPackage?.package.name || "PASE INDIVIDUAL",
       remainingClasses: reservation.userPackage?.classesRemaining || 0,

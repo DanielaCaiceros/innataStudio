@@ -149,7 +149,7 @@ export default function BookingPage() {
         body: JSON.stringify({ 
           scheduledClassId,
           paymentId,
-          bikeId: selectedBikeId
+          bikeNumber: selectedBikeId
         }),
         credentials: "include",
       });
@@ -287,7 +287,7 @@ export default function BookingPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             scheduledClassId: selectedScheduledClass.id,
-            bikeId: selectedBikeId
+            bikeNumber: selectedBikeId
           }),
           credentials: "include",
         });
@@ -649,12 +649,18 @@ function isClassReservable(cls: ScheduledClass) {
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Duración:</span>
                     <span className="font-medium text-brand-burgundy">
-                      {selectedClass 
-                        ? `${availableClasses.find(c => c.id === selectedClass)?.classType.duration} minutos`
-                        : "No seleccionada"
-                      }
+                      {selectedClass ? `${availableClasses.find((c) => c.id === selectedClass)?.classType.duration} minutos` : ""}
                     </span>
                   </div>
+                  
+                  {selectedBikeId && (
+                    <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                      <span className="text-zinc-700">Bicicleta:</span>
+                      <span className="font-medium text-brand-burgundy">
+                        🚲 Bicicleta #{selectedBikeId}
+                      </span>
+                    </div>
+                  )}
                   
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Cupo disponible:</span>
@@ -662,16 +668,6 @@ function isClassReservable(cls: ScheduledClass) {
                       {selectedClass 
                         ? `${availableClasses.find(c => c.id === selectedClass)?.availableSpots} lugares`
                         : "N/A"
-                      }
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                    <span className="text-zinc-700">Bicicleta seleccionada:</span>
-                    <span className="font-medium text-brand-burgundy">
-                      {selectedBikeId 
-                        ? `Bicicleta #${selectedBikeId}` 
-                        : "Ninguna"
                       }
                     </span>
                   </div>
@@ -841,6 +837,11 @@ function isClassReservable(cls: ScheduledClass) {
                 <p className="font-medium">
                   Duración: {selectedClass ? `${availableClasses.find((c) => c.id === selectedClass)?.classType.duration} minutos` : ""}
                 </p>
+                {selectedBikeId && (
+                  <p className="font-medium text-brand-burgundy">
+                    🚲 Bicicleta #{selectedBikeId}
+                  </p>
+                )}
               </div>
             </div>
             <p className="text-sm text-gray-500">

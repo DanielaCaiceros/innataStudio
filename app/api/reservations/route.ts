@@ -2,8 +2,9 @@ import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient, Prisma } from "@prisma/client" // Import Prisma
 import { verifyToken } from "@/lib/jwt"
 import { sendBookingConfirmationEmail } from '@/lib/email'
-import { format } from 'date-fns'
+import { format, addHours, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { formatInTimeZone } from 'date-fns-tz'
 
 const prisma = new PrismaClient()
 
@@ -79,8 +80,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Validar número de bicicleta
-    if (bikeNumber) {
-      if (bikeNumber < 1 || bikeNumber > 10) {
+    let parsedBikeNumber = null
+    if (bikeNumber !== undefined && bikeNumber !== null) {
+      parsedBikeNumber = Number(bikeNumber)
+      if (isNaN(parsedBikeNumber) || parsedBikeNumber < 1 || parsedBikeNumber > 10) {
         return NextResponse.json({ error: "El número de bicicleta debe estar entre 1 y 10" }, { status: 400 })
       }
 
@@ -88,7 +91,7 @@ export async function POST(request: NextRequest) {
       const existingBikeReservation = await prisma.reservation.findFirst({
         where: {
           scheduledClassId: Number.parseInt(scheduledClassId),
-          bikeNumber,
+          bikeNumber: parsedBikeNumber,
           status: "confirmed"
         }
       })
@@ -245,48 +248,48 @@ export async function POST(request: NextRequest) {
 
     // Crear la reserva en una transacción
     const result = await prisma.$transaction(async (tx) => {
-      let reservation;
+  let reservation;
 
-      // If an existing reservation is found (and it's not 'confirmed' due to the check above), update it.
-      // Otherwise, create a new one.
-      if (existingReservation) {
-        // Update the existing reservation
-        reservation = await tx.reservation.update({
-          where: { id: existingReservation.id },
-          data: {
-            status: "confirmed",
-            userPackageId: userPackage?.id, // Asegurar que el paquete se asocie si se usa
-            bikeNumber: bikeNumber ? Number.parseInt(bikeNumber) : null, // Actualizar bicicleta si se cambió
-            paymentMethod: paymentId ? "stripe" : (userPackage ? "package" : (paymentMethod || "pending")),
-          },
+  // If an existing reservation is found (and it's not 'confirmed' due to the check above), update it.
+  // Otherwise, create a new one.
+  if (existingReservation) {
+    // Update the existing reservation
+    reservation = await tx.reservation.update({
+      where: { id: existingReservation.id },
+      data: {
+        status: "confirmed",
+        userPackageId: userPackage?.id, // Asegurar que el paquete se asocie si se usa
+        bikeNumber: parsedBikeNumber, // Usar parsedBikeNumber como en main
+        paymentMethod: paymentId ? "stripe" : (userPackage ? "package" : (paymentMethod || "pending")),
+      },
+      include: {
+        scheduledClass: {
           include: {
-            scheduledClass: {
-              include: {
-                classType: true
-              }
-            }
+            classType: true
           }
-        });
-      } else {
-        // Create a new reservation
-        reservation = await tx.reservation.create({
-          data: {
-            userId,
-            scheduledClassId: Number.parseInt(scheduledClassId),
-            userPackageId: userPackage?.id,
-            bikeNumber: bikeNumber ? Number.parseInt(bikeNumber) : null,
-            status: "confirmed",
-            paymentMethod: paymentId ? "stripe" : (userPackage ? "package" : (paymentMethod || "pending")),
-          },
-          include: {
-            scheduledClass: {
-              include: {
-                classType: true
-              }
-            }
-          }
-        })
+        }
       }
+    });
+  } else {
+    // Create a new reservation
+    reservation = await tx.reservation.create({
+      data: {
+        userId,
+        scheduledClassId: Number.parseInt(scheduledClassId),
+        userPackageId: userPackage?.id,
+        bikeNumber: parsedBikeNumber, // Usar parsedBikeNumber como en main
+        status: "confirmed",
+        paymentMethod: paymentId ? "stripe" : (userPackage ? "package" : (paymentMethod || "pending")),
+      },
+      include: {
+        scheduledClass: {
+          include: {
+            classType: true
+          }
+        }
+      }
+    })
+  }
 
       let newPayment = null; // Para almacenar el pago si se crea uno
       if (paymentId) {
@@ -403,19 +406,36 @@ export async function POST(request: NextRequest) {
     if (reservationWithDetails) {
       try {
         // Formatear los datos para el email
-        const bookingDetails = {
+        const classDate = new Date(reservationWithDetails.scheduledClass.date);
+        const classTime = new Date(reservationWithDetails.scheduledClass.time);
+
+        // Combinar fecha y hora UTC de la base de datos
+        const scheduledDateTimeUTC = new Date(
+          classDate.getUTCFullYear(),
+          classDate.getUTCMonth(),
+          classDate.getUTCDate(),
+          classTime.getUTCHours(),
+          classTime.getUTCMinutes(),
+          0,
+          0
+        );
+
+        const mexicoCityTimeZone = 'America/Mexico_City';
+
+        const emailDetails = {
           className: reservationWithDetails.scheduledClass.classType.name,
-          date: format(reservationWithDetails.scheduledClass.date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
-          time: format(reservationWithDetails.scheduledClass.time, "HH:mm"),
+          date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
+          time: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "HH:mm", { locale: es }),
           instructor: `${reservationWithDetails.scheduledClass.instructor.user.firstName} ${reservationWithDetails.scheduledClass.instructor.user.lastName}`,
-          confirmationCode: `RES-${result.id.toString().padStart(6, '0')}`
-        }
-    
+          confirmationCode: reservationWithDetails.id.toString().padStart(6, '0'),
+          bikeNumber: reservationWithDetails.bikeNumber || undefined
+        };
+
         // Enviar email de confirmación
         await sendBookingConfirmationEmail(
           reservationWithDetails.user.email,
           reservationWithDetails.user.firstName,
-          bookingDetails
+          emailDetails
         )
         
         console.log('Email de confirmación enviado exitosamente para reserva:', result.id)
