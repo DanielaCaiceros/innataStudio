@@ -86,7 +86,8 @@ export async function GET(request: NextRequest) {
         category: res.scheduledClass.classType.category || "",
         intensity: res.scheduledClass.classType.intensity || "",
         capacity: res.scheduledClass.maxCapacity || 0,
-        description: res.scheduledClass.classType.description || ""
+        description: res.scheduledClass.classType.description || "",
+        bikeNumber: res.bikeNumber ?? null
       }
     })
 

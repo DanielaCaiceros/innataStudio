@@ -67,10 +67,30 @@ export async function POST(request: NextRequest) {
     const userId = Number.parseInt(payload.userId)
 
     const body = await request.json()
-    const { scheduledClassId, userPackageId, paymentId } = body
+    const { scheduledClassId, userPackageId, paymentId, bikeNumber } = body
 
     if (!scheduledClassId) {
       return NextResponse.json({ error: "ID de clase requerido" }, { status: 400 })
+    }
+
+    // Validar número de bicicleta
+    if (bikeNumber) {
+      if (bikeNumber < 1 || bikeNumber > 10) {
+        return NextResponse.json({ error: "El número de bicicleta debe estar entre 1 y 10" }, { status: 400 })
+      }
+
+      // Verificar si la bicicleta ya está reservada para esta clase
+      const existingBikeReservation = await prisma.reservation.findFirst({
+        where: {
+          scheduledClassId: Number.parseInt(scheduledClassId),
+          bikeNumber,
+          status: "confirmed"
+        }
+      })
+
+      if (existingBikeReservation) {
+        return NextResponse.json({ error: "Esta bicicleta ya está reservada para esta clase" }, { status: 400 })
+      }
     }
 
     // Verificar que la clase existe y está disponible
@@ -192,6 +212,7 @@ export async function POST(request: NextRequest) {
           userId,
           scheduledClassId: Number.parseInt(scheduledClassId),
           userPackageId: userPackage?.id,
+          bikeNumber: bikeNumber ? Number.parseInt(bikeNumber) : null,
           status: "confirmed",
           paymentMethod: userPackage ? "package" : "pending",
         },

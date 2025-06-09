@@ -47,6 +47,7 @@ interface UserReservation {
   intensity?: string
   capacity?: number
   description?: string
+  bikeNumber?: number
 }
 
 interface UserProfile {
@@ -436,6 +437,15 @@ export default function ProfilePage() {
                               </div>
                               <span className="text-xs font-medium text-black">{classItem.time}</span>
                             </div>
+                            {typeof classItem.bikeNumber === 'number' && (
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600">
+                                  <Flame className="h-4 w-4 text-brand-sage" />
+                                  <span>Bicicleta:</span>
+                                </div>
+                                <span className="text-xs font-medium text-black">#{classItem.bikeNumber}</span>
+                              </div>
+                            )}
                             {classItem.intensity && (
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600">
@@ -577,6 +587,12 @@ export default function ProfilePage() {
                               {classItem.time} • {classItem.duration}
                             </span>
                           </div>
+                          {typeof classItem.bikeNumber === 'number' && (
+                            <div className="flex items-center text-zinc-700 text-xs sm:text-sm">
+                              <Flame className="h-4 w-4 mr-2 text-brand-gray" />
+                              <span>Bicicleta #{classItem.bikeNumber}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="p-3 sm:p-4 flex items-center">
