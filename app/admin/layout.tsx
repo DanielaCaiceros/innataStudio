@@ -45,11 +45,11 @@ export default function AdminLayout({
 
       {/* Sidebar */}
       <div
-        className={`fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r border-gray-100 transition-transform duration-300 md:relative md:translate-x-0 flex flex-col ${
+        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-gray-100 p-4 transition-transform duration-300 md:relative md:translate-x-0 ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex justify-between items-center mb-8 p-4">
+        <div className="flex justify-between items-center mb-8">
           <div className="flex items-center gap-6 md:gap-10">
             <Link href="/" className="flex items-center" aria-label="Inicio">
               <img src="/innataAdmin.svg" alt="Logo Innata" className="h-20 w-auto max-w-[150px]" />
@@ -65,7 +65,7 @@ export default function AdminLayout({
           </Button>
         </div>
 
-        <nav className="flex-1 space-y-2 px-4">
+        <nav className="space-y-2">
           <Link
             href="/admin/reservations"
             className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-[#FCF259]/10 rounded-md"
@@ -102,8 +102,7 @@ export default function AdminLayout({
             <span>Configuración</span>
           </Link>
         </nav>
-        
-        <div className="p-4 border-t border-gray-100">
+        <div className="mt-auto pt-4 border-t border-gray-100">
           <Button
             onClick={handleLogout}
             variant="ghost"
@@ -116,8 +115,8 @@ export default function AdminLayout({
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 w-full overflow-auto">
-        <header className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-4">
+      <div className="flex-1 overflow-auto">
+        <header className="sticky top-0 z-10 bg-white border-b border-gray-100 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button
@@ -132,7 +131,7 @@ export default function AdminLayout({
           </div>
         </header>
 
-        <main className="w-full">{children}</main>
+        <main className="p-6">{children}</main>
       </div>
     </div>
   )

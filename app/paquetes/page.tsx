@@ -49,9 +49,10 @@ const packages = [
     name: "SEMANA ILIMITADA",
     price: "$299.00",
     description: "Tiempo limitado",
-    features: ["Hasta 17 clases de indoor cycling",],
+    features: ["Hasta 25 clases de indoor cycling","Sí no te presentas a la clase, se descontará de tu paquete"],
+
     popular: true,
-    expiracion: "Válido por 7 días",
+    expiracion: "Válido por 5 días de Lunes a Viernes",
     buttonText: "COMPRAR PAQUETE",
     type: "paquete",
     gradient: "from-[#D0DDD0] to-[#F0F0D7]",

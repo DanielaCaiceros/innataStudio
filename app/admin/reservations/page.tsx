@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { formatAdminDate, formatAdminTime } from "@/lib/utils/admin-date"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 import {
   Dialog,
@@ -339,6 +340,71 @@ export default function ReservationsPage() {
     }
   }
 
+  // Función para exportar a CSV
+  const exportToCSV = () => {
+    const dataToExport = filteredReservations.length > 0 ? filteredReservations : reservations
+    
+    if (dataToExport.length === 0) {
+      alert("No hay datos para exportar")
+      return
+    }
+
+    // Crear encabezados del CSV
+    const headers = [
+      "ID",
+      "Cliente", 
+      "Email",
+      "Teléfono",
+      "Clase",
+      "Fecha", 
+      "Hora",
+      "Estado",
+      "Paquete",
+      "Clases Restantes",
+      "Estado de Pago",
+      "Método de Pago"
+    ]
+
+    // Convertir datos a formato CSV
+    const csvContent = [
+      headers.join(","),
+      ...dataToExport.map(reservation => [
+        reservation.id,
+        `"${reservation.user}"`,
+        `"${reservation.email}"`,
+        `"${reservation.phone || ''}"`,
+        `"${reservation.class}"`,
+        reservation.date,
+        reservation.time,
+        reservation.status === "confirmed" ? "Confirmada" : 
+        reservation.status === "pending" ? "Pendiente" : "Cancelada",
+        `"${reservation.package}"`,
+        reservation.remainingClasses,
+        reservation.paymentStatus === "paid" ? "Pagado" : 
+        reservation.paymentStatus === "pending" ? "Pendiente" : "Reembolsado",
+        reservation.paymentMethod === "online" ? "Stripe" : "Efectivo"
+      ].join(","))
+    ].join("\n")
+
+    // Crear y descargar archivo
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob)
+      link.setAttribute("href", url)
+      
+      const today = format(new Date(), "yyyy-MM-dd")
+      const dateFilter = date ? format(date, "yyyy-MM-dd") : "todas-fechas"
+      link.setAttribute("download", `reservaciones-${dateFilter}-${today}.csv`)
+      
+      link.style.visibility = "hidden"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+  }
+
   // Cargar usuarios para el selector
   useEffect(() => {
     const fetchUsers = async () => {
@@ -582,8 +648,8 @@ export default function ReservationsPage() {
             </DialogContent>
           </Dialog>
 
-          <Button variant="outline" className="border-gray-200 text-zinc-900 hover:bg-gray-100">
-            <Download className="h-4 w-4 mr-2" /> Exportar
+          <Button variant="outline" className="border-gray-200 text-zinc-900 hover:bg-gray-100" onClick={exportToCSV}>
+            <Download className="h-4 w-4 mr-2" /> Exportar CSV
           </Button>
         </div>
       </div>
