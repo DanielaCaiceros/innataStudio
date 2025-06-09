@@ -50,8 +50,8 @@ export default function Home() {
               </div>
 
               <div className="flex items-center gap-6 mt-8">
-                <Link 
-                  href="https://www.instagram.com/studio.innata/" 
+                <Link
+                  href="https://www.instagram.com/studio.innata/"
                   className="text-white hover:text-brand-cream"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -125,6 +125,48 @@ export default function Home() {
             <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-sage via-brand-mint to-brand-cream bg-clip-text text-transparent px-2">
               ÚNETE A NUESTRA COMUNIDAD
             </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Team Section */}
+ <section className="w-full py-16 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row gap-8">
+            {/* Left side - Image */}
+            <div className="w-full md:w-1/2">
+              <div className="relative w-full h-[700px] rounded-[16px] overflow-hidden">
+                <Image
+                  src="/coaches.png"
+                  alt="Equipo de instructores de Innata Studio"
+                  fill
+                  className="object-cover object-center rounded-[10px]"
+                />
+                {/* Translucent gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-br from-[#68988d]/10 via-brand-mint/10 to-[#83962d]/20 rounded-[10px]"></div>
+              </div>
+            </div>
+
+            {/* Right side - Gradient container with text */}
+            <div className="w-full md:w-1/2">
+              <div className="h-full bg-gradient-to-br from-[#68988d] via-brand-sage to-[#e5a18b] rounded-[16px] p-8 md:p-12 flex flex-col justify-center">
+                {" "}
+                <h2 className="text-3xl md:text-4xl font-bold mb-6 text-white">Meet the team</h2>
+                <p className="text-xl text-white/90 mb-6">
+Amamos pensar que todos somos atletas.
+              </p>
+                <p className="text-xl text-white/90 mb-8">
+Encuentra en nosotros un alto estándar de autenticidad y energía.
+Somos coaches que te motivan y guían a tu mejor versión posible.                  </p>
+                <Link
+                  href="/nosotros"
+                  className="bg-white hover:bg-gray-100 text-zinc-800 rounded-full px-8 py-4 text-lg inline-flex items-center gap-2 w-fit"
+                >
+                  <span>Conoce a los instructores</span>
+                  <ArrowRight className="h-5 w-5" />
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </section>

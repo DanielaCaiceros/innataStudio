@@ -112,6 +112,39 @@ export async function GET(request: NextRequest) {
       
       // Calcular clases restantes en el paquete
       const remainingClasses = res.userPackage?.classesRemaining || 0;
+
+      let determinedPaymentMethod = "pending";
+      if (res.userPackage && res.userPackage.paymentMethod) {
+          determinedPaymentMethod = res.userPackage.paymentMethod;
+      } else if (res.paymentMethod) {
+          // res.paymentMethod is from the Reservation table itself
+          determinedPaymentMethod = res.paymentMethod;
+      }
+
+      let determinedPaymentStatus = "pending";
+      if (res.userPackage && res.userPackage.paymentStatus) {
+          determinedPaymentStatus = res.userPackage.paymentStatus;
+      } else if (res.paymentMethod === "stripe") {
+          // If Reservation.paymentMethod is 'stripe', it implies a successful direct payment.
+          determinedPaymentStatus = "paid";
+      } else if (res.paymentMethod === "cash") { 
+          // Assuming 'cash' on Reservation.paymentMethod also implies it's paid.
+          determinedPaymentStatus = "paid";
+      }
+      // Note: Reservation.status refers to booking status (confirmed, cancelled), 
+      // not payment status directly for non-package items.
+
+      // The admin frontend page's badge text logic expects 'online' for Stripe payments.
+      // And 'cash' for cash payments to render "Efectivo".
+      // The `determinedPaymentMethod` from UserPackage might already be 'online'.
+      // If `res.paymentMethod` was 'stripe', convert it to 'online' for frontend display consistency.
+      let finalDisplayPaymentMethod = determinedPaymentMethod;
+      if (determinedPaymentMethod === "stripe") {
+          finalDisplayPaymentMethod = "online";
+      }
+      // If UserPackage.paymentMethod was already 'online', it remains 'online'.
+      // If UserPackage.paymentMethod was 'cash', it remains 'cash'.
+      // If res.paymentMethod was 'cash', it remains 'cash'.
       
       return {
         id: res.id,
@@ -122,10 +155,10 @@ export async function GET(request: NextRequest) {
         date: formattedDate,
         time: formattedTime,
         status: res.status,
-        package: res.userPackage?.package.name || "PASE INDIVIDUAL",
+        package: res.userPackage?.package.name || ((finalDisplayPaymentMethod === "online" || finalDisplayPaymentMethod === "cash") && !res.userPackage ? "PASE INDIVIDUAL" : "N/A"),
         remainingClasses: remainingClasses,
-        paymentStatus: res.userPackage?.paymentStatus || "pending",
-        paymentMethod: res.userPackage?.paymentMethod || "pending"
+        paymentStatus: determinedPaymentStatus,
+        paymentMethod: finalDisplayPaymentMethod
       };
     });
 
