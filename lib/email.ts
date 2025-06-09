@@ -207,6 +207,7 @@ export async function sendBookingConfirmationEmail(
     time: string;
     instructor: string;
     confirmationCode: string;
+    bikeNumber?: number;
   }
 ): Promise<void> {
   try {
@@ -252,9 +253,15 @@ export async function sendBookingConfirmationEmail(
                   <span style="color: #6c757d; font-weight: 500;">👨‍🏫 Instructor:</span>
                   <span style="color: #495057; font-weight: 600;">${bookingDetails.instructor}</span>
                 </div>
+                ${bookingDetails.bikeNumber ? `
+                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+                  <span style="color: #6c757d; font-weight: 500;">🚲 Bicicleta:</span>
+                  <span style="color: #495057; font-weight: 600;">#${bookingDetails.bikeNumber}</span>
+                </div>
+                ` : ''}
                 <div style="display: flex; justify-content: space-between; padding: 10px 0;">
-                  <span style="color: #6c757d; font-weight: 500;">🎫 Código:</span>
-                  <span style="color: #28a745; font-weight: 700; font-family: monospace;">${bookingDetails.confirmationCode}</span>
+                  <span style="color: #6c757d; font-weight: 500;">🔑 Código de confirmación:</span>
+                  <span style="color: #495057; font-weight: 600;">${bookingDetails.confirmationCode}</span>
                 </div>
               </div>
             </div>

@@ -147,7 +147,7 @@ export default function BookingPage() {
         body: JSON.stringify({ 
           scheduledClassId,
           paymentId,
-          bikeId: selectedBikeId
+          bikeNumber: selectedBikeId
         }),
         credentials: "include",
       });
@@ -236,7 +236,7 @@ export default function BookingPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             scheduledClassId: selectedScheduledClass.id,
-            bikeId: selectedBikeId
+            bikeNumber: selectedBikeId
           }),
           credentials: "include",
         });
@@ -821,10 +821,8 @@ function isClassReservable(cls: ScheduledClass) {
         onOpenChange={setIsBikeDialogOpen}
         selectedBikeId={selectedBikeId}
         onBikeSelected={setSelectedBikeId}
-        onConfirm={() => {
-          setIsBikeDialogOpen(false);
-          handleBikeSelected();
-        }}
+        onConfirm={handleBikeSelected}
+        scheduledClassId={scheduledClassId || 0}
       />
     </div>
   )

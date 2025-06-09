@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { toast } from "@/components/ui/use-toast"
 
 interface BikeSelectionDialogProps {
   open: boolean
@@ -10,6 +11,7 @@ interface BikeSelectionDialogProps {
   selectedBikeId: number | null
   onBikeSelected: (bikeId: number) => void
   onConfirm: () => void
+  scheduledClassId: number
 }
 
 interface Bike {
@@ -19,36 +21,72 @@ interface Bike {
   available: boolean
 }
 
-// Datos de ejemplo para las bicicletas (en el futuro vendrá del backend)
-const sampleBikes: Bike[] = [
+// Posiciones de las bicicletas en el grid (versión de main)
+const bikePositions: { [key: number]: { x: number; y: number } } = {
   // Fila superior (2 bicis en las columnas 1 y 3)
-  { id: 6, x: 26, y: 23, available: true },
-  { id: 1, x: 73, y: 28, available: true },
+  6: { x: 26, y: 23 },
+  1: { x: 73, y: 28 },
 
   // Fila media (4 bicis en las columnas 1, 2, 3, 4)
-  { id: 5, x: 26, y: 49, available: true },
-  { id: 4, x: 43, y: 52, available: false }, // No disponible como ejemplo
-  { id: 3, x: 58, y: 52, available: true },
-  { id: 2, x: 73, y: 55, available: true },
+  5: { x: 26, y: 49 },
+  4: { x: 43, y: 52 },
+  3: { x: 58, y: 52 },
+  2: { x: 73, y: 55 },
 
   // Fila inferior (4 bicis en las columnas 1, 2, 3, 4)
-  { id: 7, x: 26, y: 74, available: true },
-  { id: 8, x: 37, y: 80, available: true },
-  { id: 9, x: 50, y: 80, available: false }, // No disponible como ejemplo
-  { id: 10, x: 63, y: 80, available: true },
-]
+  7: { x: 26, y: 74 },
+  8: { x: 37, y: 80 },
+  9: { x: 50, y: 80 },
+  10: { x: 63, y: 80 },
+}
 
 export function BikeSelectionDialog({
   open,
   onOpenChange,
   selectedBikeId,
   onBikeSelected,
-  onConfirm
+  onConfirm,
+  scheduledClassId
 }: BikeSelectionDialogProps) {
-  // Estado local para la selección de la bicicleta
   const [localSelectedBikeId, setLocalSelectedBikeId] = useState<number | null>(selectedBikeId)
+  const [bikes, setBikes] = useState<Bike[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Actualizar el estado local cuando cambia la prop
+  useEffect(() => {
+    const fetchAvailableBikes = async () => {
+      if (!scheduledClassId) return
+
+      setIsLoading(true)
+      try {
+        const response = await fetch(`/api/reservations/available-bikes?scheduledClassId=${scheduledClassId}`)
+        if (!response.ok) {
+          throw new Error("Error al obtener bicicletas disponibles")
+        }
+
+        const availableBikes = await response.json()
+        const bikesWithPositions = availableBikes.map((bike: { id: number; available: boolean }) => ({
+          ...bike,
+          ...bikePositions[bike.id]
+        }))
+
+        setBikes(bikesWithPositions)
+      } catch (error) {
+        console.error("Error:", error)
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las bicicletas disponibles",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (open) {
+      fetchAvailableBikes()
+    }
+  }, [scheduledClassId, open])
+
   const handleBikeSelected = (bikeId: number) => {
     setLocalSelectedBikeId(bikeId)
     onBikeSelected(bikeId)
@@ -70,7 +108,7 @@ export function BikeSelectionDialog({
             <div
               className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10"
               style={{
-                left: "50%", // Centrado entre las columnas 2 y 3 (35% + 50%) / 2
+                left: "50%",
                 top: "24%",
               }}
             >
@@ -82,33 +120,39 @@ export function BikeSelectionDialog({
             </div>
 
             {/* Bicicletas con posiciones exactas según el grid ajustado */}
-            {sampleBikes.map((bike) => {
-              const isSelected = localSelectedBikeId === bike.id
+            {isLoading ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-white">Cargando bicicletas...</div>
+              </div>
+            ) : (
+              bikes.map((bike) => {
+                const isSelected = localSelectedBikeId === bike.id
 
-              return (
-                <button
-                  key={bike.id}
-                  className={`
-                    absolute w-8 h-8 rounded-full text-sm font-bold transition-all duration-300 border-2 shadow-lg transform -translate-x-1/2 -translate-y-1/2
-                    ${
-                      !bike.available
-                        ? "bg-gray-500 border-gray-600 opacity-60 cursor-not-allowed text-gray-300"
-                        : isSelected
-                          ? "bg-brand-mint border-brand-burgundy text-white ring-4 ring-brand-burgundy/40 scale-110 shadow-xl z-20"
-                          : "bg-white border-brand-sage text-black hover:bg-brand-sage hover:border-brand-sage hover:text-white hover:scale-105"
-                    }
-                  `}
-                  style={{
-                    left: `${bike.x}%`,
-                    top: `${bike.y}%`,
-                  }}
-                  onClick={() => bike.available && handleBikeSelected(bike.id)}
-                  disabled={!bike.available}
-                >
-                  {bike.id}
-                </button>
-              )
-            })}
+                return (
+                  <button
+                    key={bike.id}
+                    className={`
+                      absolute w-8 h-8 rounded-full text-sm font-bold transition-all duration-300 border-2 shadow-lg transform -translate-x-1/2 -translate-y-1/2
+                      ${
+                        !bike.available
+                          ? "bg-gray-500 border-gray-600 opacity-60 cursor-not-allowed text-gray-300"
+                          : isSelected
+                            ? "bg-brand-mint border-brand-burgundy text-white ring-4 ring-brand-burgundy/40 scale-110 shadow-xl z-20"
+                            : "bg-white border-brand-sage text-black hover:bg-brand-sage hover:border-brand-sage hover:text-white hover:scale-105"
+                      }
+                    `}
+                    style={{
+                      left: `${bike.x}%`,
+                      top: `${bike.y}%`,
+                    }}
+                    onClick={() => bike.available && handleBikeSelected(bike.id)}
+                    disabled={!bike.available}
+                  >
+                    {bike.id}
+                  </button>
+                )
+              })
+            )}
 
             {/* Indicador de entrada - centrado en el grid */}
             <div
