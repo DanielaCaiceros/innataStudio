@@ -27,6 +27,7 @@ import {
   ArrowUpRight,
   Eye,
   FileText,
+  Loader2,
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 
@@ -67,6 +68,7 @@ export default function PaymentsPage() {
   const [users, setUsers] = useState<User[]>([])
   const [packages, setPackages] = useState<Package[]>([])
   const [loading, setLoading] = useState(true)
+  const [isMarkingAsPaid, setIsMarkingAsPaid] = useState(false)
 
   // Estados del formulario de nuevo pago
   const [selectedUserId, setSelectedUserId] = useState("")
@@ -339,6 +341,38 @@ export default function PaymentsPage() {
         description: "Error al exportar los pagos",
         variant: "destructive",
       })
+    }
+  }
+
+  const handleMarkAsPaid = async (paymentId: number) => {
+    setIsMarkingAsPaid(true)
+    try {
+      const response = await fetch(`/api/admin/payments/${paymentId}/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response.ok) {
+        toast({
+          title: "Pago completado",
+          description: "El pago ha sido marcado como completado",
+        })
+        // Recargar los pagos
+        loadPayments()
+      } else {
+        throw new Error("Error al marcar el pago como completado")
+      }
+    } catch (error) {
+      console.error("Error:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo marcar el pago como completado",
+        variant: "destructive",
+      })
+    } finally {
+      setIsMarkingAsPaid(false)
     }
   }
 
@@ -680,8 +714,6 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-
-
       {/* Tabla de pagos */}
       <Card className="bg-white border-gray-200 shadow-sm">
         <CardHeader>
@@ -788,6 +820,23 @@ export default function PaymentsPage() {
                           >
                             <FileText className="h-3 w-3" />
                           </Button>
+                          {payment.status === "pending" && payment.method === "cash" && (
+                            <Button
+                              size="sm"
+                              className="h-8 border-gray-200 text-zinc-900 hover:bg-gray-100"
+                              onClick={() => handleMarkAsPaid(payment.id)}
+                              disabled={isMarkingAsPaid}
+                            >
+                              {isMarkingAsPaid ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Procesando...
+                                </>
+                              ) : (
+                                "Marcar como pagado"
+                              )}
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

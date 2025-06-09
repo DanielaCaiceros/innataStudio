@@ -67,7 +67,12 @@ export async function POST(request: NextRequest) {
     const userId = Number.parseInt(payload.userId)
 
     const body = await request.json()
-    const { scheduledClassId, userPackageId, paymentId, bikeNumber } = body
+    const { scheduledClassId, userPackageId, paymentId, bikeNumber, paymentMethod } = body
+
+    console.log("Reservation API - Request Body:", body);
+    console.log("Reservation API - paymentMethod:", paymentMethod);
+    console.log("Reservation API - userPackageId:", userPackageId);
+    console.log("Reservation API - paymentId:", paymentId);
 
     if (!scheduledClassId) {
       return NextResponse.json({ error: "ID de clase requerido" }, { status: 400 })
@@ -139,44 +144,78 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingReservation) {
-      return NextResponse.json({ error: "Ya tienes una reserva para esta clase" }, { status: 400 })
+      if (existingReservation.status === "cancelled") {
+        // Si la reserva existe y está cancelada, la actualizamos a confirmada
+        // Continuaremos con el flujo de pago/paquete después de esta verificación.
+        // No necesitamos retornar aquí, ya que el flujo de transacción abajo manejará la actualización.
+      } else if (existingReservation.status === "pending" && existingReservation.paymentMethod === "cash") {
+        // Si es una reserva en efectivo pendiente, también la permitimos actualizar a confirmada.
+        // Similar al caso de cancelado, continuaremos con el flujo de transacción.
+      } else if (existingReservation.status === "confirmed") {
+        return NextResponse.json({ error: "Ya tienes una reserva activa para esta clase" }, { status: 400 })
+      } else {
+        // Otros estados (ej. 'failed' si se implementa, pero no debería causar un unique constraint)
+        return NextResponse.json({ error: "Ya tienes una reserva para esta clase con un estado inusual." }, { status: 400 });
+      }
     }
 
     // Si se proporciona un ID de paquete, verificar que sea válido
     // Si no se proporciona pero tampoco hay paymentId, buscar automáticamente un paquete disponible
     let userPackage = null
-    if (userPackageId) {
-      userPackage = await prisma.userPackage.findFirst({
-        where: {
-          id: userPackageId,
-          userId,
-          isActive: true,
-          classesRemaining: { gt: 0 },
-          expiryDate: { gte: new Date() },
-        },
-      })
+    let isSingleClassCashPayment = (paymentMethod === "cash" && !userPackageId && !paymentId);
 
-      if (!userPackage) {
-        return NextResponse.json({ error: "Paquete no válido o sin clases disponibles" }, { status: 400 })
-      }
-    } else if (!paymentId) {
-      // No se proporcionó paquete específico ni paymentId, buscar automáticamente un paquete disponible
-      userPackage = await prisma.userPackage.findFirst({
-        where: {
-          userId,
-          isActive: true,
-          classesRemaining: { gt: 0 },
-          expiryDate: { gte: new Date() },
-        },
-        orderBy: {
-          expiryDate: 'asc' // Usar primero el que expire antes
+    if (!isSingleClassCashPayment) { // Only try to find a package if it's not a single cash payment
+      if (userPackageId) {
+        userPackage = await prisma.userPackage.findFirst({
+          where: {
+            id: userPackageId,
+            userId,
+            isActive: true,
+            classesRemaining: { gt: 0 },
+            expiryDate: { gte: new Date() },
+            paymentStatus: "paid" // Solo permitir paquetes con pago completado
+          },
+        })
+
+        if (!userPackage) {
+          return NextResponse.json({ error: "Paquete no válido, sin clases disponibles o pago pendiente" }, { status: 400 })
         }
-      })
+      } else if (!paymentId) { // This branch is for package usage when no specific packageId is provided (automatic selection)
+        userPackage = await prisma.userPackage.findFirst({
+          where: {
+            userId,
+            isActive: true,
+            classesRemaining: { gt: 0 },
+            expiryDate: { gte: new Date() },
+            paymentStatus: "paid" // Solo permitir paquetes con pago completado
+          },
+          orderBy: {
+            expiryDate: 'asc' // Usar primero el que expire antes
+          }
+        })
 
-      if (!userPackage) {
-        return NextResponse.json({ 
-          error: "No tienes clases disponibles en tus paquetes. Necesitas comprar un paquete o pagar por esta clase individual." 
-        }, { status: 400 })
+        if (!userPackage) {
+          // Verificar si hay paquetes pendientes de pago
+          const pendingPackage = await prisma.userPackage.findFirst({
+            where: {
+              userId,
+              paymentStatus: "pending"
+            },
+            include: {
+              package: true
+            }
+          })
+
+          if (pendingPackage) {
+            return NextResponse.json({ 
+              error: "Tienes un paquete pendiente de pago. Por favor, espera a que el pago sea confirmado antes de hacer una reserva." 
+            }, { status: 400 })
+          }
+
+          return NextResponse.json({ 
+            error: "No tienes clases disponibles en tus paquetes. Necesitas comprar un paquete o pagar por esta clase individual." 
+          }, { status: 400 })
+        }
       }
     }
 
@@ -206,25 +245,48 @@ export async function POST(request: NextRequest) {
 
     // Crear la reserva en una transacción
     const result = await prisma.$transaction(async (tx) => {
-      // Crear la reserva
-      const reservation = await tx.reservation.create({
-        data: {
-          userId,
-          scheduledClassId: Number.parseInt(scheduledClassId),
-          userPackageId: userPackage?.id,
-          bikeNumber: bikeNumber ? Number.parseInt(bikeNumber) : null,
-          status: "confirmed",
-          // Ajustar paymentMethod basado en paymentId o userPackage
-          paymentMethod: paymentId ? "stripe" : (userPackage ? "package" : "pending"),
-        },
-        include: {
-          scheduledClass: {
-            include: {
-              classType: true
+      let reservation;
+
+      // If an existing reservation is found (and it's not 'confirmed' due to the check above), update it.
+      // Otherwise, create a new one.
+      if (existingReservation) {
+        // Update the existing reservation
+        reservation = await tx.reservation.update({
+          where: { id: existingReservation.id },
+          data: {
+            status: "confirmed",
+            userPackageId: userPackage?.id, // Asegurar que el paquete se asocie si se usa
+            bikeNumber: bikeNumber ? Number.parseInt(bikeNumber) : null, // Actualizar bicicleta si se cambió
+            paymentMethod: paymentId ? "stripe" : (userPackage ? "package" : (paymentMethod || "pending")),
+          },
+          include: {
+            scheduledClass: {
+              include: {
+                classType: true
+              }
             }
           }
-        }
-      })
+        });
+      } else {
+        // Create a new reservation
+        reservation = await tx.reservation.create({
+          data: {
+            userId,
+            scheduledClassId: Number.parseInt(scheduledClassId),
+            userPackageId: userPackage?.id,
+            bikeNumber: bikeNumber ? Number.parseInt(bikeNumber) : null,
+            status: "confirmed",
+            paymentMethod: paymentId ? "stripe" : (userPackage ? "package" : (paymentMethod || "pending")),
+          },
+          include: {
+            scheduledClass: {
+              include: {
+                classType: true
+              }
+            }
+          }
+        })
+      }
 
       let newPayment = null; // Para almacenar el pago si se crea uno
       if (paymentId) {
@@ -242,10 +304,20 @@ export async function POST(request: NextRequest) {
             metadata: { "reservationId": reservation.id, "notes": "Single class purchase" },
           }
         });
-
-        // No se descuenta de userAccountBalance ya que es un pago directo, no de paquete.
-        // Opcionalmente, se podría registrar una "compra" de clase individual en userAccountBalance si se quisiera rastrear.
-
+      } else if (paymentMethod === "cash") {
+        // Crear registro de Payment para pago en efectivo
+        newPayment = await tx.payment.create({
+          data: {
+            userId,
+            userPackageId: null,
+            amount: new Prisma.Decimal(69.00), // Precio de clase individual
+            currency: "mxn",
+            paymentMethod: "cash",
+            status: "pending",
+            paymentDate: new Date(),
+            metadata: { "reservationId": reservation.id, "notes": "Cash payment pending" },
+          }
+        });
       } else if (userPackage) {
         // Si se usa un paquete, actualizar sus clases disponibles
         await tx.userPackage.update({

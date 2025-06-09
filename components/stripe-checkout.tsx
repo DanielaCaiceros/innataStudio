@@ -17,11 +17,13 @@ interface CheckoutFormProps {
   onCancel: () => void
   name?: string
   email?: string
+  scheduledClassId?: number | null
 }
 
-function CheckoutForm({ amount, description, onSuccess, onCancel, name: initialName = "", email: initialEmail = "", firstName = "", lastName = "" }: CheckoutFormProps & { firstName?: string, lastName?: string }) {
+function CheckoutForm({ amount, description, onSuccess, onCancel, name: initialName = "", email: initialEmail = "", firstName = "", lastName = "", scheduledClassId }: CheckoutFormProps & { firstName?: string, lastName?: string }) {
   const stripe = useStripe()
   const elements = useElements()
+  console.log("StripeCheckout - Received amount:", amount);
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
   // Si name no viene, usar firstName + lastName
@@ -63,6 +65,7 @@ function CheckoutForm({ amount, description, onSuccess, onCancel, name: initialN
           description,
           email,
           name,
+          scheduledClassId,
         }),
       })
 
@@ -173,10 +176,10 @@ function CheckoutForm({ amount, description, onSuccess, onCancel, name: initialN
   )
 }
 
-export function StripeCheckout({ amount, description, onSuccess, onCancel, name, email, firstName, lastName, ...rest }: CheckoutFormProps & { firstName?: string, lastName?: string }) {
+export function StripeCheckout({ amount, description, onSuccess, onCancel, name, email, firstName, lastName, scheduledClassId, ...rest }: CheckoutFormProps & { firstName?: string, lastName?: string }) {
   return (
     <Elements stripe={stripePromise}>
-      <CheckoutForm amount={amount} description={description} onSuccess={onSuccess} onCancel={onCancel} name={name} email={email} firstName={firstName} lastName={lastName} {...rest} />
+      <CheckoutForm amount={amount} description={description} onSuccess={onSuccess} onCancel={onCancel} name={name} email={email} firstName={firstName} lastName={lastName} scheduledClassId={scheduledClassId} {...rest} />
     </Elements>
   )
 }

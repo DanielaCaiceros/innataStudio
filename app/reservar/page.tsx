@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { CalendarIcon, Clock, ChevronRight } from "lucide-react"
+import { CalendarIcon, Clock, ChevronRight, DollarSign } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { StripeCheckout } from "@/components/stripe-checkout"
 import { useToast } from "@/hooks/use-toast"
@@ -62,6 +62,7 @@ export default function BookingPage() {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [isCashPaymentOpen, setIsCashPaymentOpen] = useState(false)
   
   // Estado para datos de la API
   const [availableClasses, setAvailableClasses] = useState<ScheduledClass[]>([])
@@ -190,6 +191,52 @@ export default function BookingPage() {
     })
   }
 
+  const handleCashPayment = async () => {
+    try {
+      if (!scheduledClassId) {
+        throw new Error("No se ha seleccionado una clase para reservar");
+      }
+      
+      if (!selectedBikeId) {
+        throw new Error("No se ha seleccionado una bicicleta");
+      }
+      
+      const response = await fetch("/api/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          scheduledClassId,
+          paymentMethod: "cash",
+          bikeId: selectedBikeId
+        }),
+        credentials: "include",
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Error al crear la reserva");
+      }
+      
+      setIsCashPaymentOpen(false);
+      setIsConfirmationOpen(true);
+      
+      toast({
+        title: "Reserva confirmada",
+        description: "Tu reserva ha sido registrada. Por favor, realiza el pago en efectivo al llegar al estudio.",
+      });
+    } catch (error) {
+      console.error("Error:", error);
+      toast({
+        title: "Error al confirmar la reserva",
+        description: error instanceof Error ? error.message : "No se pudo procesar la reserva",
+        variant: "destructive",
+      });
+      
+      setIsCashPaymentOpen(false);
+    }
+  }
+
   const handleConfirmBooking = async () => {
     if (isAuthLoading) {
       return;
@@ -259,7 +306,7 @@ export default function BookingPage() {
         
         toast({
           title: "Reserva confirmada",
-          description: "Tu clase ha sido reservada usando tu paquete activo. Se ha enviado un correo de confirmación.",
+          description: "Se ha enviado un correo de confirmación a tu email.",
         });
       } catch (error) {
         console.error("Error:", error);
@@ -715,22 +762,50 @@ function isClassReservable(cls: ScheduledClass) {
 
       {/* Payment Dialog */}
       <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
-        <DialogContent className="bg-white border-gray-200 text-zinc-900">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#4A102A]">Procesar Pago</DialogTitle>
-            <DialogDescription className="text-gray-600">
-              Completa el pago para confirmar tu reserva
+            <DialogTitle>Selecciona el método de pago</DialogTitle>
+            <DialogDescription>
+              Elige cómo deseas realizar el pago de tu reserva
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="grid gap-4 py-4">
+            <Button
+              onClick={() => {
+                setIsPaymentOpen(false);
+                setIsCashPaymentOpen(true);
+              }}
+              className="w-full"
+            >
+              <DollarSign className="mr-2 h-4 w-4" />
+              Pago en efectivo
+            </Button>
             <StripeCheckout
-              amount={selectedClass && availableClasses.find(c => c.id === selectedClass)?.classType ? 69 : 0}
-              description={`Reserva: ${selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""} - ${
-                date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : ""
-              } ${selectedTime || ""}`}
               onSuccess={handlePaymentSuccess}
               onCancel={handlePaymentCancel}
+              scheduledClassId={scheduledClassId}
+              amount={69.00}
+              description={"Pago de clase individual"}
             />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCashPaymentOpen} onOpenChange={setIsCashPaymentOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Confirmar pago en efectivo</DialogTitle>
+            <DialogDescription>
+              Al seleccionar esta opción, deberás realizar el pago en efectivo al llegar al estudio.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Button
+              onClick={handleCashPayment}
+              className="w-full"
+            >
+              Confirmar reserva con pago en efectivo
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -62,11 +62,17 @@ export async function POST(request: NextRequest) {
 
     // Obtener los datos del body
     const body = await request.json()
-    const { packageId, paymentId } = body
+    const { packageId, paymentId, paymentMethod } = body
 
-    if (!packageId || !paymentId) {
+    if (!packageId) {
       return NextResponse.json({ 
-        error: "Faltan datos requeridos: packageId y/o paymentId" 
+        error: "Faltan datos requeridos: packageId" 
+      }, { status: 400 })
+    }
+
+    if (!paymentId && paymentMethod !== "cash") {
+      return NextResponse.json({ 
+        error: "Faltan datos requeridos: paymentId" 
       }, { status: 400 })
     }
 
@@ -115,9 +121,9 @@ export async function POST(request: NextRequest) {
           expiryDate,
           classesRemaining: packageInfo.classCount || 0,
           classesUsed: 0,
-          isActive: true,
-          paymentMethod: "online", // Esto podría ser actualizado por el nuevo registro de Payment
-          paymentStatus: "paid"    // Esto podría ser actualizado por el nuevo registro de Payment
+          isActive: paymentMethod === "cash" ? false : true, // No activar si es pago en efectivo
+          paymentMethod: paymentMethod || "online",
+          paymentStatus: paymentMethod === "cash" ? "pending" : "paid"
         },
         include: {
           package: true
@@ -129,90 +135,94 @@ export async function POST(request: NextRequest) {
         data: {
           userId,
           userPackageId: createdUserPackage.id,
-          amount: Number(packageInfo.price), // Asegurarse que sea un número
-          paymentMethod: "stripe",
-          stripePaymentIntentId: paymentId, // paymentId del request body
-          status: "completed",
+          amount: Number(packageInfo.price),
+          paymentMethod: paymentMethod || "stripe",
+          stripePaymentIntentId: paymentId,
+          status: paymentMethod === "cash" ? "pending" : "completed",
           paymentDate: new Date(),
           currency: "mxn",
         }
       })
 
-      // Actualizar el balance del usuario si existe
-      await tx.userAccountBalance.upsert({
-        where: { userId },
-        update: {
-          totalClassesPurchased: {
-            increment: packageInfo.classCount || 0
+      // Solo actualizar el balance si el pago no es en efectivo
+      if (paymentMethod !== "cash") {
+        // Actualizar el balance del usuario si existe
+        await tx.userAccountBalance.upsert({
+          where: { userId },
+          update: {
+            totalClassesPurchased: {
+              increment: packageInfo.classCount || 0
+            },
+            classesAvailable: {
+              increment: packageInfo.classCount || 0
+            },
+            lastUpdated: new Date()
           },
-          classesAvailable: {
-            increment: packageInfo.classCount || 0
-          },
-          lastUpdated: new Date()
-        },
-        create: {
-          userId,
-          totalClassesPurchased: packageInfo.classCount || 0,
-          classesUsed: 0,
-          classesAvailable: packageInfo.classCount || 0,
-          lastUpdated: new Date()
-        }
-      })
+          create: {
+            userId,
+            totalClassesPurchased: packageInfo.classCount || 0,
+            classesUsed: 0,
+            classesAvailable: packageInfo.classCount || 0,
+            lastUpdated: new Date()
+          }
+        })
 
-      // Crear una transacción de balance para el registro
-      await tx.balanceTransaction.create({
-        data: {
-          userId,
-          type: "purchase",
-          amount: packageInfo.classCount || 0,
-          description: `Compra de paquete: ${packageInfo.name}`,
-          createdAt: new Date(),
-          relatedPaymentId: createdPayment.id // Enlazar con el payment creado
-        }
-      })
+        // Crear una transacción de balance para el registro
+        await tx.balanceTransaction.create({
+          data: {
+            userId,
+            type: "purchase",
+            amount: packageInfo.classCount || 0,
+            description: `Compra de paquete: ${packageInfo.name}`,
+            createdAt: new Date(),
+            relatedPaymentId: createdPayment.id
+          }
+        })
+      }
 
       return { userPackage: createdUserPackage, payment: createdPayment };
     });
 
-    // Enviar correo de confirmación de compra de paquete
-    try {
-      // Utilizar el 'userPackage' retornado por la transacción
-      const user = await prisma.user.findUnique({ 
-        where: { user_id: userId },
-        select: { email: true, firstName: true }
-      })
+    // Enviar correo de confirmación de compra de paquete solo si no es pago en efectivo
+    if (paymentMethod !== "cash") {
+      try {
+        const user = await prisma.user.findUnique({ 
+          where: { user_id: userId },
+          select: { email: true, firstName: true }
+        })
 
-      if (user && user.email && user.firstName && userPackage) {
-        const packageDetails = {
-          packageName: userPackage.package.name,
-          classCount: userPackage.package.classCount || 0,
-          expiryDate: userPackage.expiryDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
-          purchaseDate: userPackage.purchaseDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
-          price: Number(userPackage.package.price), // Asegurarse que el precio sea un número
+        if (user && user.email && user.firstName && userPackage) {
+          const packageDetails = {
+            packageName: userPackage.package.name,
+            classCount: userPackage.package.classCount || 0,
+            expiryDate: userPackage.expiryDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
+            purchaseDate: userPackage.purchaseDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
+            price: Number(userPackage.package.price),
+          }
+
+          await sendPackagePurchaseConfirmationEmail(user.email, user.firstName, packageDetails)
+          console.log(`Package confirmation email sent to user ${userId}`)
         }
-
-        await sendPackagePurchaseConfirmationEmail(user.email, user.firstName, packageDetails)
-        console.log(`Package confirmation email sent to user ${userId}`)
-      } else {
-        console.error(`User details not found for user ${userId}, cannot send package confirmation email.`)
+      } catch (emailError) {
+        console.error(`Failed to send package confirmation email to user ${userId}:`, emailError)
       }
-    } catch (emailError) {
-      console.error(`Failed to send package confirmation email to user ${userId}:`, emailError)
-      // No relanzar el error, ya que la compra fue exitosa.
     }
 
     return NextResponse.json({
       success: true,
       userPackage: {
-        id: userPackage.id, // userPackage retornado por la transacción
+        id: userPackage.id,
         packageName: userPackage.package.name,
         classesRemaining: userPackage.classesRemaining,
-        expiryDate: userPackage.expiryDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+        expiryDate: userPackage.expiryDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
+        isActive: userPackage.isActive,
+        paymentStatus: userPackage.paymentStatus
       },
-      payment: { // Opcional: retornar información del pago
+      payment: {
         id: payment.id,
         status: payment.status,
-        amount: payment.amount
+        amount: payment.amount,
+        method: payment.paymentMethod
       }
     })
 
