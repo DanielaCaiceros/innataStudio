@@ -2,8 +2,9 @@ import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
 import { sendCancellationConfirmationEmail } from '@/lib/email'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale/es'
+import { format, addHours, parseISO } from 'date-fns'
+import { es } from 'date-fns/locale'
+import { formatInTimeZone } from 'date-fns-tz'
 
 const prisma = new PrismaClient()
 
@@ -120,26 +121,37 @@ export async function POST(
     if (reservation.user && reservation.scheduledClass.classType) {
       try {
         const classDate = new Date(reservation.scheduledClass.date);
-        // Prisma Date fields are already Date objects. For time fields, they are often set to 1970-01-01 with the correct time in UTC.
-        const classTime = new Date(reservation.scheduledClass.time); 
+        const classTime = new Date(reservation.scheduledClass.time);
+
+        // Combinar fecha y hora UTC de la base de datos
+        const scheduledDateTimeUTC = new Date(
+          classDate.getUTCFullYear(),
+          classDate.getUTCMonth(),
+          classDate.getUTCDate(),
+          classTime.getUTCHours(),
+          classTime.getUTCMinutes(),
+          0,
+          0
+        );
+
+        const mexicoCityTimeZone = 'America/Mexico_City';
 
         const emailDetails = {
           className: reservation.scheduledClass.classType.name,
-          date: format(classDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
-          time: format(classTime, "HH:mm", { locale: es }),
+          date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
+          time: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "HH:mm", { locale: es }),
           isRefundable: canRefund,
-          packageName: reservation.userPackage?.package?.name,
+          packageName: reservation.userPackage?.package?.name
         };
 
         await sendCancellationConfirmationEmail(
           reservation.user.email,
-          reservation.user.firstName ?? "Usuario", // Fallback for name if it can be null
+          reservation.user.firstName ?? "Usuario",
           emailDetails
         );
         console.log(`Cancellation email sent for reservation ${reservationId}`);
       } catch (emailError) {
         console.error(`Failed to send cancellation email for reservation ${reservationId}:`, emailError);
-        // Do not re-throw; a failed email should not fail the cancellation process.
       }
     } else {
       console.error(`Missing user, scheduledClass, or classType details for reservation ${reservationId}, cannot send email.`);

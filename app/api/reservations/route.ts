@@ -2,8 +2,9 @@ import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient, Prisma } from "@prisma/client" // Import Prisma
 import { verifyToken } from "@/lib/jwt"
 import { sendBookingConfirmationEmail } from '@/lib/email'
-import { format } from 'date-fns'
+import { format, addHours, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { formatInTimeZone } from 'date-fns-tz'
 
 const prisma = new PrismaClient()
 
@@ -331,19 +332,36 @@ export async function POST(request: NextRequest) {
     if (reservationWithDetails) {
       try {
         // Formatear los datos para el email
-        const bookingDetails = {
+        const classDate = new Date(reservationWithDetails.scheduledClass.date);
+        const classTime = new Date(reservationWithDetails.scheduledClass.time);
+
+        // Combinar fecha y hora UTC de la base de datos
+        const scheduledDateTimeUTC = new Date(
+          classDate.getUTCFullYear(),
+          classDate.getUTCMonth(),
+          classDate.getUTCDate(),
+          classTime.getUTCHours(),
+          classTime.getUTCMinutes(),
+          0,
+          0
+        );
+
+        const mexicoCityTimeZone = 'America/Mexico_City';
+
+        const emailDetails = {
           className: reservationWithDetails.scheduledClass.classType.name,
-          date: format(reservationWithDetails.scheduledClass.date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
-          time: format(reservationWithDetails.scheduledClass.time, "HH:mm"),
+          date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
+          time: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "HH:mm", { locale: es }),
           instructor: `${reservationWithDetails.scheduledClass.instructor.user.firstName} ${reservationWithDetails.scheduledClass.instructor.user.lastName}`,
-          confirmationCode: `RES-${result.id.toString().padStart(6, '0')}`
-        }
-    
+          confirmationCode: reservationWithDetails.id.toString().padStart(6, '0'),
+          bikeNumber: reservationWithDetails.bikeNumber || undefined
+        };
+
         // Enviar email de confirmación
         await sendBookingConfirmationEmail(
           reservationWithDetails.user.email,
           reservationWithDetails.user.firstName,
-          bookingDetails
+          emailDetails
         )
         
         console.log('Email de confirmación enviado exitosamente para reserva:', result.id)
