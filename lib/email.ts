@@ -308,6 +308,7 @@ export async function sendBookingConfirmationEmail(
         Fecha: ${bookingDetails.date}
         Hora: ${bookingDetails.time}
         Instructor: ${bookingDetails.instructor}
+        ${bookingDetails.bikeNumber ? `Bicicleta: #${bookingDetails.bikeNumber}` : ''}
         Código de confirmación: ${bookingDetails.confirmationCode}
 
         Recuerda llegar 15 minutos antes de tu clase.
