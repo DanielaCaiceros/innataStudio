@@ -21,23 +21,23 @@ interface Bike {
   available: boolean
 }
 
-// Posiciones de las bicicletas en el grid
+// Posiciones de las bicicletas en el grid (versión de main)
 const bikePositions: { [key: number]: { x: number; y: number } } = {
   // Fila superior (2 bicis en las columnas 1 y 3)
-  6: { x: 28, y: 30 },
-  7: { x: 73, y: 30 },
+  6: { x: 26, y: 23 },
+  1: { x: 73, y: 28 },
 
   // Fila media (4 bicis en las columnas 1, 2, 3, 4)
-  5: { x: 28, y: 52 },
-  3: { x: 43, y: 52 },
-  4: { x: 58, y: 52 },
-  10: { x: 73, y: 52 },
+  5: { x: 26, y: 49 },
+  4: { x: 43, y: 52 },
+  3: { x: 58, y: 52 },
+  2: { x: 73, y: 55 },
 
   // Fila inferior (4 bicis en las columnas 1, 2, 3, 4)
-  1: { x: 28, y: 74 },
-  2: { x: 43, y: 74 },
-  9: { x: 58, y: 74 },
-  8: { x: 73, y: 74 },
+  7: { x: 26, y: 74 },
+  8: { x: 37, y: 80 },
+  9: { x: 50, y: 80 },
+  10: { x: 63, y: 80 },
 }
 
 export function BikeSelectionDialog({
@@ -109,10 +109,10 @@ export function BikeSelectionDialog({
               className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10"
               style={{
                 left: "50%",
-                top: "25%",
+                top: "24%",
               }}
             >
-              <div className="w-12 h-12 bg-gradient-to-br from-white to-gray-100 rounded-full flex items-center justify-center text-black font-bold text-sm border-2 border-brand-cream shadow-lg">
+              <div className="w-11 h-11 bg-gradient-to-br from-white to-gray-100 rounded-full flex items-center justify-center text-black font-bold text-sm border-2 border-brand-cream shadow-lg">
                 <div className="text-center">
                   <div className="text-xs font-medium">COACH</div>
                 </div>
@@ -132,7 +132,7 @@ export function BikeSelectionDialog({
                   <button
                     key={bike.id}
                     className={`
-                      absolute w-10 h-10 rounded-full text-sm font-bold transition-all duration-300 border-2 shadow-lg transform -translate-x-1/2 -translate-y-1/2
+                      absolute w-8 h-8 rounded-full text-sm font-bold transition-all duration-300 border-2 shadow-lg transform -translate-x-1/2 -translate-y-1/2
                       ${
                         !bike.available
                           ? "bg-gray-500 border-gray-600 opacity-60 cursor-not-allowed text-gray-300"
@@ -153,6 +153,16 @@ export function BikeSelectionDialog({
                 )
               })
             )}
+
+            {/* Indicador de entrada - centrado en el grid */}
+            <div
+              className="absolute transform -translate-x-1/2 z-10"
+              style={{
+                left: "42.5%", // Centrado entre las columnas 2 y 3
+                bottom: "8%",
+              }}
+            >
+            </div>
 
             {/* Efectos de ambiente */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>

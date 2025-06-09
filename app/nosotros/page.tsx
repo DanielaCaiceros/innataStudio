@@ -10,7 +10,7 @@ import InstagramEmbed from "@/components/InstagramEmbed"
 const instructors = [
   {
     id: 1,
-    name: "Ghana Inés Miroslava Chávez García",
+    name: "Inés Miroslava",
     role: "Coach de Indoor",
     bio: "He hecho deporte toda mi vida. Me encanta el crossfit, los triatlones y amo con locura el indoor. También soy fotógrafa y mamá.",
     image: "/coach3.jpeg",
@@ -18,7 +18,7 @@ const instructors = [
   },
   {
     id: 2,
-    name: "Óscar Fernández Vargas",
+    name: "Óscar Fernández",
     role:"Coach de Indoor",
     bio: "Entrenador profesional certificado por IFBB PRO LIGUE y certificado en MASTER COACH en seminario. Cuento con más de 2 años de experiencia en entrenamiento físico de hipertrofia para crecimiento muscular y reducción de masa corporal.",
     image: "/Coach1.jpeg",
@@ -26,14 +26,14 @@ const instructors = [
   },
   {
     id: 3,
-    name: "César Estanislao González Vargas",
+    name: "Tanis González",
     role: "Coach de Indoor",
     bio: "Apasionado de los deportes, el basquetbol mi deporte favorito, me gusta correr, ir al gimnasio y el indoor! Adoro estar con mi familia, soy papá de Julián",
     image: "/coach2.jpeg",
     socials: ["@tanisgonzalezv"],
   },{
     id: 4,
-    name: "Angélica Sarai Martínez Roja",
+    name: "Sary Rojas",
     role: "Coach de Indoor",
     bio: "Fisioterapeuta y entrenadora personal por WABBA INTERNACIONAL. Apasionada por el ejercicio y la mejora de calidad de vida de las personas. “El que no vive para servir, no sirve para vivir”.",
     image: "/coach4.JPG",

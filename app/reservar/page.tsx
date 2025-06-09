@@ -635,9 +635,18 @@ function isClassReservable(cls: ScheduledClass) {
                           ✓ Puedes reservar esta clase usando tu paquete
                         </p>
                       ) : (
-                        <p className="text-sm text-orange-700 mt-1">
-                          ⚠ Necesitarás pagar para reservar esta clase
-                        </p>
+                        <>
+                          <p className="text-sm text-orange-700 mt-1">
+                            ⚠ Necesitarás pagar para reservar esta clase
+                          </p>
+                          <Button
+                            variant="outline"
+                            className="mt-3 w-full border-brand-sage text-brand-sage hover:bg-brand-sage/10"
+                            onClick={() => router.push('/paquetes')}
+                          >
+                            Comprar Paquetes
+                          </Button>
+                        </>
                       )}
                     </div>
                   )}
