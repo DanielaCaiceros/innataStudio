@@ -1,188 +1,138 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { verifyToken } from "@/lib/jwt";
-import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
+// app/api/admin/users/route.ts
+import { NextRequest, NextResponse } from "next/server"
+import { verifyToken } from "@/lib/jwt"
+import { db } from "@/lib/db"
+import bcrypt from "bcryptjs"
 
-const prisma = new PrismaClient();
-
-// GET - Obtener todos los usuarios (admin)
+// GET - Obtener todos los usuarios
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autenticación (admin)
-    const token = request.cookies.get("auth_token")?.value;
+    // Verificar autenticación del admin
+    const token = request.cookies.get("auth_token")?.value
+
     if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }
 
-    const payload = await verifyToken(token);
-    if (payload.role !== "admin") {
-      return NextResponse.json({ error: "No tiene permisos de administrador" }, { status: 403 });
+    const decoded = await verifyToken(token)
+    if (!decoded || decoded.role !== "admin") {
+      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 })
     }
 
-    // Parámetros de búsqueda opcionales
-    const { searchParams } = new URL(request.url);
-    const search = searchParams.get("search");
-    const status = searchParams.get("status");
-    
-    // Construir filtro
-    let whereClause: any = {};
-    
-    if (search) {
-      whereClause.OR = [
-        { firstName: { contains: search, mode: "insensitive" } },
-        { lastName: { contains: search, mode: "insensitive" } },
-        { email: { contains: search, mode: "insensitive" } }
-      ];
-    }
-    
-    if (status && status !== "all") {
-      whereClause.status = status;
-    }
-
-    // Obtener usuarios con información de balance
-    const users = await prisma.user.findMany({
-      where: whereClause,
+    // Obtener todos los usuarios
+    const users = await db.user.findMany({
       select: {
         user_id: true,
         firstName: true,
         lastName: true,
         email: true,
         phone: true,
-        joinDate: true,
-        lastVisitDate: true,
-        status: true,
         role: true,
-        accountBalance: {
-          select: {
-            classesAvailable: true,
-            totalClassesPurchased: true,
-            classesUsed: true
-          }
-        },
-        userPackages: {
-          where: {
-            isActive: true,
-            expiryDate: { gte: new Date() }
-          },
-          include: {
-            package: {
-              select: {
-                name: true
-              }
-            }
-          },
-          orderBy: { expiryDate: 'desc' },
-          take: 1
-        }
+        createdAt: true,
+        status: true
       },
-      orderBy: [
-        { firstName: "asc" },
-        { lastName: "asc" }
-      ]
-    });
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
 
-    // Formatear datos para el frontend
-    const formattedUsers = users.map(user => {
-      const activePackage = user.userPackages[0];
-      
-      return {
-        id: user.user_id,
-        name: `${user.firstName} ${user.lastName}`,
-        email: user.email,
-        phone: user.phone || "",
-        package: activePackage ? activePackage.package.name : "Sin paquete activo",
-        remainingClasses: user.accountBalance?.classesAvailable || 0,
-        joinDate: user.joinDate.toISOString().split('T')[0],
-        lastVisit: user.lastVisitDate ? user.lastVisitDate.toISOString().split('T')[0] : "Nunca",
-        status: user.status
-      };
-    });
+    return NextResponse.json(users)
 
-    return NextResponse.json(formattedUsers);
   } catch (error) {
-    console.error("Error al obtener usuarios:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    console.error("Error fetching users:", error)
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }
 
-// POST - Crear nuevo usuario (admin)
+// POST - Crear un nuevo usuario
 export async function POST(request: NextRequest) {
   try {
-    // Verificar autenticación (admin)
-    const token = request.cookies.get("auth_token")?.value;
+    // Verificar autenticación del admin
+    const token = request.cookies.get("auth_token")?.value
+
     if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }
 
-    const payload = await verifyToken(token);
-    if (payload.role !== "admin") {
-      return NextResponse.json({ error: "No tiene permisos de administrador" }, { status: 403 });
+    const decoded = await verifyToken(token)
+    if (!decoded || decoded.role !== "admin") {
+      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 })
     }
 
-    const body = await request.json();
-    const { firstName, lastName, email, phone, password } = body;
+    const body = await request.json()
+    const { firstName, lastName, email, phone } = body
 
-    // Validar datos requeridos
+    // Validaciones
     if (!firstName || !lastName || !email) {
-      return NextResponse.json({ error: "Nombre, apellido y email son requeridos" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Faltan campos requeridos: firstName, lastName, email" },
+        { status: 400 }
+      )
     }
 
-    // Generar contraseña temporal si no se proporciona
-    const tempPassword = password || Math.random().toString(36).slice(-8);
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: "Formato de email inválido" },
+        { status: 400 }
+      )
+    }
 
-    // Verificar si el email ya existe
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    });
+    // Verificar que el email no esté en uso
+    const existingUser = await db.user.findUnique({
+      where: { email: email.toLowerCase() }
+    })
 
     if (existingUser) {
-      return NextResponse.json({ error: "Ya existe un usuario con este email" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Ya existe un usuario con este email" },
+        { status: 409 }
+      )
     }
 
-    // Hash de la contraseña
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    // Generar una contraseña temporal
+    const temporaryPassword = Math.random().toString(36).slice(-8)
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 12)
 
-    // Crear usuario en una transacción
-    const result = await prisma.$transaction(async (tx) => {
-      // Crear usuario
-      const newUser = await tx.user.create({
-        data: {
-          firstName,
-          lastName,
-          email,
-          phone: phone || null,
-          passwordHash: hashedPassword,
-          status: "active",
-          role: "client",
-          emailVerified: true
-        }
-      });
+    // Crear el usuario
+    const user = await db.user.create({
+      data: {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.toLowerCase().trim(),
+        phone: phone?.trim() || null,
+        passwordHash: hashedPassword,
+        role: 'client',
+        status: 'active',
+        emailVerified: false, // Se puede verificar manualmente después
+      },
+      select: {
+        user_id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        role: true,
+        createdAt: true
+      }
+    })
 
-      // Crear balance inicial
-      await tx.userAccountBalance.create({
-        data: {
-          userId: newUser.user_id,
-          totalClassesPurchased: 0,
-          classesUsed: 0,
-          classesAvailable: 0
-        }
-      });
-
-      return newUser;
-    });
+    // TODO: Enviar email con contraseña temporal (opcional)
+    // Aquí podrías integrar con Resend para enviar un email de bienvenida
+    // con la contraseña temporal
 
     return NextResponse.json({
-      user_id: result.user_id,
-      firstName: result.firstName,
-      lastName: result.lastName,
-      email: result.email,
-      phone: result.phone || "",
-      status: result.status,
-      tempPassword: tempPassword // Solo para desarrollo, remover en producción
-    }, { status: 201 });
+      message: "Usuario creado exitosamente",
+      user: user,
+      temporaryPassword: temporaryPassword // En producción, enviar por email en lugar de retornar
+    }, { status: 201 })
 
   } catch (error) {
-    console.error("Error al crear usuario:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    console.error("Error creating user:", error)
+    return NextResponse.json({ 
+      error: "Error interno del servidor",
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 })
   }
 }

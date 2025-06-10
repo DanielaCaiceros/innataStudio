@@ -1,3 +1,4 @@
+// app/api/admin/payments/route.ts
 import { NextRequest, NextResponse } from "next/server"
 import { verifyToken } from "@/lib/jwt"
 import { db } from "@/lib/db"
@@ -32,8 +33,10 @@ export async function GET(request: NextRequest) {
           include: {
             package: {
               select: {
+                id: true,
                 name: true,
-                price: true
+                price: true,
+                classCount: true
               }
             }
           }
@@ -54,13 +57,16 @@ export async function GET(request: NextRequest) {
       created_at: payment.createdAt,
       payment_date: payment.paymentDate,
       stripe_payment_intent_id: payment.stripePaymentIntentId,
+      userPackageId: payment.userPackageId,
+      metadata: payment.metadata,
       user: {
         firstName: payment.user.firstName,
         lastName: payment.user.lastName,
         email: payment.user.email
       },
       package: payment.userPackage?.package?.name || null,
-      package_price: payment.userPackage?.package?.price ? Number(payment.userPackage.package.price) : null
+      package_price: payment.userPackage?.package?.price ? 
+        Number(payment.userPackage.package.price) : null
     }))
 
     return NextResponse.json(formattedPayments)
@@ -71,7 +77,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Crear un nuevo pago (efectivo)
+// POST - Crear un nuevo pago en efectivo
 export async function POST(request: NextRequest) {
   try {
     // Verificar autenticación del admin
@@ -116,6 +122,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Si se especifica un paquete, verificar que existe
+    if (userPackageId) {
+      const userPackageExists = await db.userPackage.findUnique({
+        where: { id: userPackageId }
+      })
+
+      if (!userPackageExists) {
+        return NextResponse.json(
+          { error: "Paquete de usuario no encontrado" },
+          { status: 404 }
+        )
+      }
+    }
+
     // Crear el pago manual/efectivo usando Prisma
     const payment = await db.payment.create({
       data: {
@@ -124,8 +144,8 @@ export async function POST(request: NextRequest) {
         paymentMethod: 'cash', // Siempre efectivo desde admin
         status: 'completed', // Los pagos manuales se marcan como completados
         userPackageId: userPackageId || null,
-        metadata: notes ? { notes } : undefined,
-        paymentDate: new Date()
+        paymentDate: new Date(),
+        metadata: notes ? { notes: notes, created_by: "admin" } : { created_by: "admin" }
       },
       include: {
         user: {
@@ -148,29 +168,35 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Si hay un userPackageId, actualizar el estado del paquete si es necesario
+    if (userPackageId) {
+      await db.userPackage.update({
+        where: { id: userPackageId },
+        data: {
+          isActive: true,
+          paymentStatus: 'completed'
+        }
+      })
+    }
+
     return NextResponse.json({
-      success: true,
+      message: "Pago registrado exitosamente",
       payment: {
-        payment_id: payment.id,
-        user_id: payment.userId,
+        id: payment.id,
         amount: Number(payment.amount),
-        payment_method: payment.paymentMethod,
-        payment_status: payment.status,
-        created_at: payment.createdAt,
-        user: {
-          firstName: payment.user.firstName,
-          lastName: payment.user.lastName,
-          email: payment.user.email
-        },
-        package: payment.userPackage?.package?.name || null
+        method: payment.paymentMethod,
+        status: payment.status,
+        user: `${payment.user.firstName} ${payment.user.lastName}`,
+        package: payment.userPackage?.package?.name || null,
+        created_at: payment.createdAt
       }
-    })
+    }, { status: 201 })
 
   } catch (error) {
     console.error("Error creating payment:", error)
-    return NextResponse.json(
-      { error: "Error interno del servidor" },
-      { status: 500 }
-    )
+    return NextResponse.json({ 
+      error: "Error interno del servidor",
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 })
   }
 }
