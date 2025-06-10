@@ -665,13 +665,7 @@ export default function ReservationsPage() {
           </Select>
         </div>
 
-        <div className="space-y-2">
-          <Label>&nbsp;</Label>
-          <Button variant="outline" className="w-full" onClick={exportToCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            Exportar
-          </Button>
-        </div>
+
       </div>
 
       {/* Error Display */}
