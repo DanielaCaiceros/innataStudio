@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { formatAdminDate, formatAdminTime } from "@/lib/utils/admin-date"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 import {
   Dialog,
@@ -305,6 +306,109 @@ export default function ReservationsPage() {
     }
   }
 
+  // Función para exportar a CSV
+  const exportToCSV = () => {
+    const dataToExport = filteredReservations.length > 0 ? filteredReservations : reservations
+    
+    if (dataToExport.length === 0) {
+      alert("No hay datos para exportar")
+      return
+    }
+
+    // Crear encabezados del CSV
+    const headers = [
+      "ID",
+      "Cliente", 
+      "Email",
+      "Teléfono",
+      "Clase",
+      "Fecha", 
+      "Hora",
+      "Estado",
+      "Paquete",
+      "Clases Restantes",
+      "Estado de Pago",
+      "Método de Pago"
+    ]
+
+    // Convertir datos a formato CSV
+    const csvContent = [
+      headers.join(","),
+      ...dataToExport.map(reservation => [
+        reservation.id,
+        `"${reservation.user}"`,
+        `"${reservation.email}"`,
+        `"${reservation.phone || ''}"`,
+        `"${reservation.class}"`,
+        reservation.date,
+        reservation.time,
+        reservation.status === "confirmed" ? "Confirmada" : 
+        reservation.status === "pending" ? "Pendiente" : "Cancelada",
+        `"${reservation.package}"`,
+        reservation.remainingClasses,
+        reservation.paymentStatus === "paid" ? "Pagado" : 
+        reservation.paymentStatus === "pending" ? "Pendiente" : "Reembolsado",
+        reservation.paymentMethod === "online" ? "Stripe" : "Efectivo"
+      ].join(","))
+    ].join("\n")
+
+    // Crear y descargar archivo
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob)
+      link.setAttribute("href", url)
+      
+      const today = format(new Date(), "yyyy-MM-dd")
+      const dateFilter = date ? format(date, "yyyy-MM-dd") : "todas-fechas"
+      link.setAttribute("download", `reservaciones-${dateFilter}-${today}.csv`)
+      
+      link.style.visibility = "hidden"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+  }
+
+  // Cargar usuarios para el selector
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch("/api/admin/reservations/clients")
+        if (response.ok) {
+          const data = await response.json()
+          setUsers(data)
+        }
+      } catch (error) {
+        console.error("Error al cargar usuarios:", error)
+      }
+    }
+
+    if (isNewReservationOpen) {
+      fetchUsers()
+    }
+  }, [isNewReservationOpen])
+
+  // Cargar tipos de clases para el selector
+  useEffect(() => {
+    const fetchClassTypes = async () => {
+      try {
+        const response = await fetch("/api/admin/reservations/class-types")
+        if (response.ok) {
+          const data = await response.json()
+          setClassTypes(data)
+        }
+      } catch (error) {
+        console.error("Error al cargar tipos de clases:", error)
+      }
+    }
+
+    if (isNewReservationOpen) {
+      fetchClassTypes()
+    }
+  }, [isNewReservationOpen])
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -315,11 +419,203 @@ export default function ReservationsPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
-          <Button 
-            onClick={() => setIsNewReservationOpen(true)}
-            className="bg-[#4A102A] hover:bg-[#85193C] text-white"
-          >
-            <PlusCircle className="h-4 w-4 mr-2" /> Nueva Reserva
+          <Dialog open={isNewReservationOpen} onOpenChange={setIsNewReservationOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-[#4A102A] hover:bg-[#85193C] text-white">
+                <PlusCircle className="h-4 w-4 mr-2" /> Nueva Reserva
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-[#4A102A]">Crear Nueva Reservación</DialogTitle>
+                <DialogDescription className="text-gray-600">
+                  Complete los detalles para crear una nueva reservación
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="user">Cliente</Label>
+                    <Select value={selectedUser} onValueChange={setSelectedUser}>
+                      <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                        <SelectValue placeholder="Seleccionar cliente" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                        {users.length > 0 ? (
+                          users.map((user) => (
+                            <SelectItem key={user.id} value={user.id.toString()}>
+                              {user.name} - {user.email}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="loading" disabled>
+                            Cargando clientes...
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="class">Clase</Label>
+                    <Select value={selectedClass} onValueChange={setSelectedClass}>
+                      <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                        <SelectValue placeholder="Seleccionar clase" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                        {classTypes.length > 0 ? (
+                          classTypes.map((classItem) => (
+                            <SelectItem key={classItem.id} value={classItem.id.toString()}>
+                              {classItem.name} - {classItem.duration} min
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="loading" disabled>
+                            Cargando clases...
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="date">Fecha</Label>
+                    <Input
+                      type="date"
+                      id="date"
+                      className="bg-white border-gray-200 text-zinc-900"
+                      value={date ? format(date, "yyyy-MM-dd") : ""}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          // Crear fecha local sin conversión de zona horaria
+                          const [year, month, day] = e.target.value.split("-").map(Number)
+                          const localDate = new Date(year, month - 1, day)
+                          setDate(localDate)
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="time">Hora</Label>
+                    <Select value={selectedTime} onValueChange={setSelectedTime}>
+                      <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                        <SelectValue placeholder="Seleccionar hora" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                        {timeSlots.map((time) => (
+                          <SelectItem key={time} value={time}>
+                            {time}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="package">Paquete</Label>
+                    <Select value={selectedPackage} onValueChange={setSelectedPackage}>
+                      <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                        <SelectValue placeholder="Seleccionar paquete" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                        <SelectItem value="individual">PASE INDIVIDUAL</SelectItem>
+                        <SelectItem value="5classes">PAQUETE 5 CLASES</SelectItem>
+                        <SelectItem value="10classes">PAQUETE 10 CLASES</SelectItem>
+                        <SelectItem value="monthly">MEMBRESÍA MENSUAL</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="payment">Método de Pago</Label>
+                    <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
+                      <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                        <SelectValue placeholder="Seleccionar método" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                        <SelectItem value="cash">Efectivo</SelectItem>
+                        <SelectItem value="online">Pago en línea (Stripe)</SelectItem>
+                        <SelectItem value="pending">Pendiente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsNewReservationOpen(false)}
+                  className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  className="bg-[#4A102A] hover:bg-[#85193C] text-white"
+                  onClick={async () => {
+                    try {
+                      if (!selectedUser || !selectedClass || !date || !selectedTime || !selectedPackage) {
+                        const camposFaltantes = []
+                        if (!selectedUser) camposFaltantes.push("Cliente")
+                        if (!selectedClass) camposFaltantes.push("Clase")
+                        if (!date) camposFaltantes.push("Fecha")
+                        if (!selectedTime) camposFaltantes.push("Hora")
+                        if (!selectedPackage) camposFaltantes.push("Paquete")
+
+                        alert(
+                          `Por favor complete todos los campos requeridos. Campos faltantes: ${camposFaltantes.join(", ")}`,
+                        )
+                        return
+                      }
+
+                      const newReservationData = {
+                        userId: Number.parseInt(selectedUser),
+                        classId: Number.parseInt(selectedClass),
+                        date: date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+                        time: selectedTime,
+                        package: selectedPackage,
+                        paymentMethod: selectedPaymentMethod,
+                      }
+
+                      const response = await fetch("/api/admin/reservations", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify(newReservationData),
+                      })
+
+                      if (!response.ok) {
+                        const errorData = await response.json()
+                        throw new Error(errorData.error || "Error al crear la reservación")
+                      }
+
+                      const createdReservation = await response.json()
+                      setReservations([...reservations, createdReservation])
+                      alert("Nueva reservación creada con éxito")
+
+                      setSelectedUser("")
+                      setSelectedClass("")
+                      setSelectedTime("")
+                      setSelectedPackage("")
+                      setSelectedPaymentMethod("pending")
+                      setIsNewReservationOpen(false)
+                    } catch (error) {
+                      console.error("Error al crear la reservación:", error)
+                      alert(`Error al crear la reservación: ${error instanceof Error ? error.message : String(error)}`)
+                    }
+                  }}
+                >
+                  Crear Reservación
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Button variant="outline" className="border-gray-200 text-zinc-900 hover:bg-gray-100" onClick={exportToCSV}>
+            <Download className="h-4 w-4 mr-2" /> Exportar CSV
           </Button>
         </div>
       </div>
@@ -371,7 +667,7 @@ export default function ReservationsPage() {
 
         <div className="space-y-2">
           <Label>&nbsp;</Label>
-          <Button variant="outline" className="w-full">
+          <Button variant="outline" className="w-full" onClick={exportToCSV}>
             <Download className="h-4 w-4 mr-2" />
             Exportar
           </Button>
@@ -444,54 +740,6 @@ export default function ReservationsPage() {
                   {filteredReservations.map((reservation) => (
                     <tr key={reservation.id} className="border-b hover:bg-gray-50">
                       <td className="py-3 px-2">
-                        <div>
-                          <div className="font-medium">{reservation.user}</div>
-                          <div className="text-sm text-gray-500">{reservation.email}</div>
-                          {reservation.phone && (
-                            <div className="text-sm text-gray-500">{reservation.phone}</div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-2 font-medium">{reservation.class}</td>
-                      <td className="py-3 px-2">{reservation.date}</td>
-                      <td className="py-3 px-2">{reservation.time}</td>
-                      <td className="py-3 px-2">
-                        <span
-                          className={cn(
-                            "px-2 py-1 rounded-full text-xs font-medium",
-                            reservation.status === "confirmed" && "bg-green-100 text-green-800",
-                            reservation.status === "pending" && "bg-yellow-100 text-yellow-800",
-                            reservation.status === "cancelled" && "bg-red-100 text-red-800",
-                          )}
-                        >
-                          {reservation.status === "confirmed" && "Confirmada"}
-                          {reservation.status === "pending" && "Pendiente"}
-                          {reservation.status === "cancelled" && "Cancelada"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2">
-                        <div>
-                          <div className="text-sm">{reservation.package}</div>
-                          {typeof reservation.remainingClasses === 'number' && (
-                            <div className="text-xs text-gray-500">
-                              {reservation.remainingClasses} clases restantes
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-2">
-                        <span
-                          className={cn(
-                            "px-2 py-1 rounded-full text-xs font-medium",
-                            reservation.paymentStatus === "paid" && "bg-green-100 text-green-800",
-                            reservation.paymentStatus === "pending" && "bg-yellow-100 text-yellow-800",
-                          )}
-                        >
-                          {reservation.paymentStatus === "paid" && "Pagado"}
-                          {reservation.paymentStatus === "pending" && "Pendiente"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2">
                         <div className="flex gap-2">
                           {reservation.paymentStatus === "pending" && (
                             <Button
@@ -531,44 +779,76 @@ export default function ReservationsPage() {
 
       {/* Payment Dialog */}
       <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white border-gray-200 text-zinc-900">
           <DialogHeader>
-            <DialogTitle>Procesar Pago</DialogTitle>
-            <DialogDescription>
-              Selecciona el método de pago para esta reservación
+            <DialogTitle className="text-[#4A102A]">Registrar Pago</DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Seleccione el método de pago y complete la transacción
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="payment-method">Método de Pago</Label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                  <SelectValue placeholder="Seleccionar método" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white border-gray-200 text-zinc-900">
                   <SelectItem value="cash">Efectivo</SelectItem>
-                  <SelectItem value="online">Pago en línea</SelectItem>
+                  <SelectItem value="online">Pago en línea (Stripe)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {paymentMethod === "cash" && (
+              <div className="space-y-2">
+                <Label htmlFor="amount">Monto Recibido</Label>
+                <div className="relative">
+                  <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="text"
+                    id="amount"
+                    placeholder="0.00"
+                    className="pl-8 bg-white border-gray-200 text-zinc-900"
+                  />
+                </div>
+              </div>
+            )}
+
+            {paymentMethod === "online" && (
+              <div className="p-4 bg-gray-50 rounded-md">
+                <p className="text-sm text-gray-600 mb-4">
+                  Al procesar el pago en línea, se enviará un enlace de pago al cliente a través de Stripe.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsPaymentDialogOpen(false)}
+              className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+            >
               Cancelar
             </Button>
-            <Button onClick={processPayment}>Confirmar Pago</Button>
+            <Button
+              onClick={processPayment}
+              className="bg-[#4A102A] hover:bg-[#85193C] text-white"
+            >
+              {paymentMethod === "cash" ? "Registrar Pago en Efectivo" : "Enviar Enlace de Pago"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white border-gray-200 text-zinc-900">
           <DialogHeader>
-            <DialogTitle>Editar Reservación</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-[#4A102A]">Editar Reservación</DialogTitle>
+            <DialogDescription className="text-gray-600">
               Modifica los detalles de la reservación
             </DialogDescription>
           </DialogHeader>
@@ -580,6 +860,7 @@ export default function ReservationsPage() {
                 id="edit-class"
                 value={editFormData.class}
                 onChange={(e) => setEditFormData({ ...editFormData, class: e.target.value })}
+                className="bg-white border-gray-200 text-zinc-900"
               />
             </div>
 
@@ -590,6 +871,7 @@ export default function ReservationsPage() {
                 type="date"
                 value={editFormData.date}
                 onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
+                className="bg-white border-gray-200 text-zinc-900"
               />
             </div>
 
@@ -599,10 +881,10 @@ export default function ReservationsPage() {
                 value={editFormData.time}
                 onValueChange={(value) => setEditFormData({ ...editFormData, time: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white border-gray-200 text-zinc-900">
                   {timeSlots.map((time) => (
                     <SelectItem key={time} value={time}>
                       {time}
@@ -618,10 +900,10 @@ export default function ReservationsPage() {
                 value={editFormData.status}
                 onValueChange={(value) => setEditFormData({ ...editFormData, status: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-white border-gray-200 text-zinc-900">
                   <SelectItem value="confirmed">Confirmada</SelectItem>
                   <SelectItem value="pending">Pendiente</SelectItem>
                   <SelectItem value="cancelled">Cancelada</SelectItem>
@@ -631,13 +913,74 @@ export default function ReservationsPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+              className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+            >
               Cancelar
             </Button>
-            <Button onClick={saveEditedReservation}>Guardar Cambios</Button>
+            <Button
+              onClick={saveEditedReservation}
+              className="bg-[#4A102A] hover:bg-[#85193C] text-white"
+            >
+              Guardar Cambios
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   )
 }
+                        <div>
+                          <div className="font-medium">{reservation.user}</div>
+                          <div className="text-sm text-gray-500">{reservation.email}</div>
+                          {reservation.phone && (
+                            <div className="text-sm text-gray-500">{reservation.phone}                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-2">
+                        <div className="space-y-1">
+                          <span
+                            className={cn(
+                              "inline-block px-2 py-1 rounded-full text-xs font-medium",
+                              reservation.paymentStatus === "paid" && "bg-green-500/20 text-green-700",
+                              reservation.paymentStatus === "pending" && "bg-yellow-500/20 text-yellow-700",
+                              reservation.paymentStatus === "refunded" && "bg-red-500/20 text-red-700"
+                            )}
+                          >
+                            {reservation.paymentStatus === "paid" && "Pagado"}
+                            {reservation.paymentStatus === "pending" && "Pendiente"}
+                            {reservation.paymentStatus === "refunded" && "Reembolsado"}
+                          </span>
+                          {reservation.paymentStatus === "paid" && (
+                            <div className="text-xs text-gray-600">
+                              {reservation.paymentMethod === "online" ? "Stripe" : "Efectivo"}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 font-medium">{reservation.class}</td>
+                      <td className="py-3 px-2">{reservation.date}</td>
+                      <td className="py-3 px-2">{reservation.time}</td>
+                      <td className="py-3 px-2">
+                        <span
+                          className={cn(
+                            "px-2 py-1 rounded-full text-xs font-medium",
+                            reservation.status === "confirmed" && "bg-green-100 text-green-800",
+                            reservation.status === "pending" && "bg-yellow-100 text-yellow-800",
+                            reservation.status === "cancelled" && "bg-red-100 text-red-800",
+                          )}
+                        >
+                          {reservation.status === "confirmed" && "Confirmada"}
+                          {reservation.status === "pending" && "Pendiente"}
+                          {reservation.status === "cancelled" && "Cancelada"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2">
+                        <div>
+                          <div className="text-sm">{reservation.package}</div>
+                          {typeof reservation.remainingClasses === 'number' && (
+                            <div className="text-xs text-gray-500">
+                              {reservation.remainingClasses} clases restantes

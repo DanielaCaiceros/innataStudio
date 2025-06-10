@@ -739,9 +739,7 @@ export default function PaymentsPage() {
             </AlertDialogContent>
           </AlertDialog>
 
-          <Button variant="outline" className="border-gray-200 text-zinc-900 hover:bg-gray-100" onClick={handleExport}>
-            <Download className="h-4 w-4 mr-2" /> Exportar
-          </Button>
+
         </div>
       </div>
 
