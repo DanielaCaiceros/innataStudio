@@ -740,6 +740,54 @@ export default function ReservationsPage() {
                   {filteredReservations.map((reservation) => (
                     <tr key={reservation.id} className="border-b hover:bg-gray-50">
                       <td className="py-3 px-2">
+                        <div>
+                          <div className="font-medium">{reservation.user}</div>
+                          <div className="text-sm text-gray-500">{reservation.email}</div>
+                          {reservation.phone && (
+                            <div className="text-sm text-gray-500">{reservation.phone}</div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-2 font-medium">{reservation.class}</td>
+                      <td className="py-3 px-2">{reservation.date}</td>
+                      <td className="py-3 px-2">{reservation.time}</td>
+                      <td className="py-3 px-2">
+                        <span
+                          className={cn(
+                            "px-2 py-1 rounded-full text-xs font-medium",
+                            reservation.status === "confirmed" && "bg-green-100 text-green-800",
+                            reservation.status === "pending" && "bg-yellow-100 text-yellow-800",
+                            reservation.status === "cancelled" && "bg-red-100 text-red-800",
+                          )}
+                        >
+                          {reservation.status === "confirmed" && "Confirmada"}
+                          {reservation.status === "pending" && "Pendiente"}
+                          {reservation.status === "cancelled" && "Cancelada"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2">
+                        <div>
+                          <div className="text-sm">{reservation.package}</div>
+                          {typeof reservation.remainingClasses === 'number' && (
+                            <div className="text-xs text-gray-500">
+                              {reservation.remainingClasses} clases restantes
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-2">
+                        <span
+                          className={cn(
+                            "px-2 py-1 rounded-full text-xs font-medium",
+                            reservation.paymentStatus === "paid" && "bg-green-100 text-green-800",
+                            reservation.paymentStatus === "pending" && "bg-yellow-100 text-yellow-800",
+                          )}
+                        >
+                          {reservation.paymentStatus === "paid" && "Pagado"}
+                          {reservation.paymentStatus === "pending" && "Pendiente"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2">
                         <div className="flex gap-2">
                           {reservation.paymentStatus === "pending" && (
                             <Button
@@ -932,55 +980,3 @@ export default function ReservationsPage() {
     </div>
   )
 }
-                        <div>
-                          <div className="font-medium">{reservation.user}</div>
-                          <div className="text-sm text-gray-500">{reservation.email}</div>
-                          {reservation.phone && (
-                            <div className="text-sm text-gray-500">{reservation.phone}                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-2">
-                        <div className="space-y-1">
-                          <span
-                            className={cn(
-                              "inline-block px-2 py-1 rounded-full text-xs font-medium",
-                              reservation.paymentStatus === "paid" && "bg-green-500/20 text-green-700",
-                              reservation.paymentStatus === "pending" && "bg-yellow-500/20 text-yellow-700",
-                              reservation.paymentStatus === "refunded" && "bg-red-500/20 text-red-700"
-                            )}
-                          >
-                            {reservation.paymentStatus === "paid" && "Pagado"}
-                            {reservation.paymentStatus === "pending" && "Pendiente"}
-                            {reservation.paymentStatus === "refunded" && "Reembolsado"}
-                          </span>
-                          {reservation.paymentStatus === "paid" && (
-                            <div className="text-xs text-gray-600">
-                              {reservation.paymentMethod === "online" ? "Stripe" : "Efectivo"}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-2 font-medium">{reservation.class}</td>
-                      <td className="py-3 px-2">{reservation.date}</td>
-                      <td className="py-3 px-2">{reservation.time}</td>
-                      <td className="py-3 px-2">
-                        <span
-                          className={cn(
-                            "px-2 py-1 rounded-full text-xs font-medium",
-                            reservation.status === "confirmed" && "bg-green-100 text-green-800",
-                            reservation.status === "pending" && "bg-yellow-100 text-yellow-800",
-                            reservation.status === "cancelled" && "bg-red-100 text-red-800",
-                          )}
-                        >
-                          {reservation.status === "confirmed" && "Confirmada"}
-                          {reservation.status === "pending" && "Pendiente"}
-                          {reservation.status === "cancelled" && "Cancelada"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2">
-                        <div>
-                          <div className="text-sm">{reservation.package}</div>
-                          {typeof reservation.remainingClasses === 'number' && (
-                            <div className="text-xs text-gray-500">
-                              {reservation.remainingClasses} clases restantes
