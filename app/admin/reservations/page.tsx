@@ -716,7 +716,8 @@ export default function ReservationsPage() {
             <CardTitle>Reservaciones ({filteredReservations.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto ">
+              <div  className="max-h-[500px] overflow-y-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
@@ -730,9 +731,10 @@ export default function ReservationsPage() {
                     <th className="text-left py-3 px-2">Acciones</th>
                   </tr>
                 </thead>
-                <tbody>
+                
+                <tbody >
                   {filteredReservations.map((reservation) => (
-                    <tr key={reservation.id} className="border-b hover:bg-gray-50">
+                    <tr key={reservation.id} className="border-b hover:bg-gray-50 text-sm">
                       <td className="py-3 px-2">
                         <div>
                           <div className="font-medium">{reservation.user}</div>
@@ -814,6 +816,7 @@ export default function ReservationsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           </CardContent>
         </Card>

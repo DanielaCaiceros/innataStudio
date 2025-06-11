@@ -480,7 +480,7 @@ export default function PaymentsPage() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-6 bg-white-50 min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#4A102A]">Gestión de Pagos</h1>
@@ -750,7 +750,7 @@ export default function PaymentsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
+            <div className="relative flex-1 ">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
               <Input
                 type="search"
@@ -774,7 +774,7 @@ export default function PaymentsPage() {
             </Select>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200">
