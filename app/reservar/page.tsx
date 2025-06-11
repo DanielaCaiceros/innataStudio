@@ -409,10 +409,10 @@ export default function BookingPage() {
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
       {/* Hero Section */}
-      <section className="py-16 pt-32 bg-white">
+      <section className="py-12 pt-14 bg-white">
         <div className="container px-4 md:px-6 text-center">
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">
-            RESERVA TU <span className="text-brand-burgundy">CLASE</span>
+          <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-4 anim-slide-in-up">
+            RESERVA TU <span className="text-brand-sage">CLASE</span>
           </h1>
           <p className="text-xl max-w-3xl mx-auto text-zinc-700">
             Selecciona fecha, clase y horario para asegurar tu lugar
@@ -450,11 +450,11 @@ export default function BookingPage() {
                         selected={date}
                         onSelect={setDate}
                         locale={es}
-                        className="bg-white text-zinc-900 w-full"
+                        className="bg-white text-zinc-900 w-full rounded-lg"
                         classNames={{
-                          day_selected: "bg-brand-sage text-white",
-                          day_today: "bg-gray-100 text-zinc-900",
-                          day: "text-zinc-900 hover:bg-gray-100",
+                          day_selected: "bg-brand-mint text-white rounded-lg",
+                          day_today: "bg-gray-100 text-zinc-900 rounded-lg",
+                          day: "text-zinc-900 hover:bg-gray-100 rounded-lg",
                         }}
                       />
                     </div>
@@ -544,7 +544,7 @@ export default function BookingPage() {
                                       id="unlimited-week-toggle"
                                       checked={isUsingUnlimitedWeek}
                                       onChange={(e) => handleUnlimitedWeekToggle(e.target.checked)}
-                                      className="w-4 h-4 text-[#4A102A] bg-gray-100 border-gray-300 rounded focus:ring-[#4A102A] focus:ring-2"
+                                      className="w-4 h-4 text-brand-sage bg-gray-100 border-gray-300 rounded focus:ring-[#4A102A] focus:ring-2"
                                       disabled={isValidatingUnlimitedWeek}
                                     />
                                     <label htmlFor="unlimited-week-toggle" className="font-medium">
@@ -576,7 +576,7 @@ export default function BookingPage() {
 
                               {/* Botón de reserva */}
                               <Button
-                                className="w-full bg-[#4A102A] hover:bg-[#85193C] text-white font-semibold py-3"
+                                className="w-full bg-brand-sage hover:bg-brand-sage text-white font-semibold py-3"
                                 disabled={
                                   isLoading || 
                                   !selectedClass || 
