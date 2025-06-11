@@ -14,8 +14,9 @@ export async function GET(request: NextRequest) {
     let dateFilter = {}
     
     if (dateParam) {
-      // Si se proporciona una fecha específica, buscar clases para ese día exacto
-      const targetDate = new Date(dateParam + "T00:00:00.000Z")
+      // Clean the dateParam to ensure it's in a valid format before creating a Date object
+      const cleanDateParam = dateParam.split(':')[0];
+      const targetDate = new Date(cleanDateParam + "T00:00:00.000Z")
       const nextDay = new Date(targetDate)
       nextDay.setUTCDate(nextDay.getUTCDate() + 1)
       

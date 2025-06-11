@@ -22,7 +22,13 @@ import {
   createClassDateTime
 } from "@/lib/utils/date"
 
-// Interfaces para datos de API
+import { useUnlimitedWeek } from '@/lib/hooks/useUnlimitedWeek'
+import { 
+  UnlimitedWeekAlert, 
+  WeeklyUsageDisplay, 
+  UnlimitedWeekConfirmation 
+} from '@/components/ui/unlimited-week-alerts'
+
 interface ClassType {
   id: number
   name: string
@@ -49,6 +55,21 @@ export default function BookingPage() {
   const router = useRouter()
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const [isLoading, setIsLoading] = useState(true)
+
+  // Estados para Semana Ilimitada
+  const [isUsingUnlimitedWeek, setIsUsingUnlimitedWeek] = useState(false)
+  const [unlimitedWeekValidation, setUnlimitedWeekValidation] = useState<any>(null)
+  const [showUnlimitedWeekConfirmation, setShowUnlimitedWeekConfirmation] = useState(false)
+  const [isValidatingUnlimitedWeek, setIsValidatingUnlimitedWeek] = useState(false)
+  
+  const {
+    weeklyUsage,
+    validateUnlimitedWeek,
+    canUseUnlimitedWeek,
+    hasActiveUnlimitedWeek,
+    getWeeklyUsageMessage,
+    isLoading: isLoadingWeekly
+  } = useUnlimitedWeek()
   
   // Estados para la reserva
   const [date, setDate] = useState<Date | undefined>(new Date())
@@ -67,7 +88,9 @@ export default function BookingPage() {
   const [availableClasses, setAvailableClasses] = useState<ScheduledClass[]>([])
   const [userAvailableClasses, setUserAvailableClasses] = useState<number>(0)
   const [isLoadingUserClasses, setIsLoadingUserClasses] = useState(false)
-  
+  const [showBikeSelection, setShowBikeSelection] = useState(false)
+  const [selectedScheduledClassForBooking, setSelectedScheduledClassForBooking] = useState<ScheduledClass | null>(null)
+
   // Obtener clases disponibles del usuario
   useEffect(() => {
     const loadUserAvailableClasses = async () => {
@@ -96,51 +119,44 @@ export default function BookingPage() {
   }, [isAuthenticated, user]);
   
   // Obtener clases disponibles al cargar o cambiar la fecha
-  useEffect(() => {
-    const loadAvailableClasses = async () => {
-      setIsLoading(true)
-      try {
-        const dateParam = date ? `date=${format(date, 'yyyy-MM-dd')}` : '';
-        
-        const response = await fetch(`/api/scheduled-clases/available?${dateParam}`);
-        if (response.ok) {
-          const data: ScheduledClass[] = await response.json();
-          setAvailableClasses(data);
-        } else {
-          console.error("Error al cargar clases disponibles");
-          toast({
-            title: "Error",
-            description: "No se pudieron cargar las clases disponibles. Por favor, intenta de nuevo.",
-            variant: "destructive",
-          });
-        }
-      } catch (error) {
-        console.error("Error:", error);
+  const loadAvailableClasses = async () => {
+    setIsLoading(true)
+    try {
+      const dateParam = date ? `date=${format(date, 'yyyy-MM-dd')}` : '';
+      
+      const response = await fetch(`/api/scheduled-clases/available?${dateParam}`);
+      if (response.ok) {
+        const data: ScheduledClass[] = await response.json();
+        setAvailableClasses(data);
+      } else {
+        console.error("Error al cargar clases disponibles");
         toast({
-          title: "Error de conexión",
-          description: "Hubo un problema al conectar con el servidor.",
+          title: "Error",
+          description: "No se pudieron cargar las clases disponibles. Por favor, intenta de nuevo.",
           variant: "destructive",
         });
-      } finally {
-        setIsLoading(false);
       }
-    };
+    } catch (error) {
+      console.error("Error:", error);
+      toast({
+        title: "Error de conexión",
+        description: "Hubo un problema al conectar con el servidor.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
+  useEffect(() => {
     loadAvailableClasses();
   }, [date]);
 
   const handlePaymentSuccess = async (paymentId: string) => {
     try {
-      if (!scheduledClassId) {
-        throw new Error("No se ha seleccionado una clase para reservar");
+      if (!scheduledClassId || !selectedBikeId) {
+        throw new Error("Falta información para completar la reserva");
       }
-      
-      if (!selectedBikeId) {
-        throw new Error("No se ha seleccionado una bicicleta");
-      }
-      
-      console.log("Creando reserva para la clase:", scheduledClassId);
-      console.log("Bicicleta seleccionada:", selectedBikeId);
       
       const response = await fetch("/api/reservations", {
         method: "POST",
@@ -156,7 +172,6 @@ export default function BookingPage() {
       const data = await response.json();
       
       if (!response.ok) {
-        // Cerrar el diálogo de pago antes de mostrar el error
         setIsPaymentOpen(false);
         throw new Error(data.error || "Error al crear la reserva");
       }
@@ -175,8 +190,6 @@ export default function BookingPage() {
         description: error instanceof Error ? error.message : "No se pudo procesar la reserva",
         variant: "destructive",
       });
-      
-      // Asegurar que el diálogo de pago se cierre en caso de error
       setIsPaymentOpen(false);
     }
   }
@@ -190,250 +203,208 @@ export default function BookingPage() {
     })
   }
 
-  const handleConfirmBooking = async () => {
-    if (isAuthLoading) {
-      return;
+  const handleClassSelection = async (classId: number) => {
+    setSelectedClass(classId)
+    setScheduledClassId(classId)
+    setUnlimitedWeekValidation(null)
+    
+    if (hasActiveUnlimitedWeek === true) {
+      setIsValidatingUnlimitedWeek(true)
+      const validation = await validateUnlimitedWeek(classId)
+      setUnlimitedWeekValidation(validation)
+      setIsValidatingUnlimitedWeek(false)
     }
-
-    if (!isAuthenticated) {
-      setIsAuthModalOpen(true);
-      return;
-    }
-
-    if (!date || !selectedClass || !selectedTime) return
-    
-    const selectedScheduledClass = availableClasses.find(
-      cls => cls.id === selectedClass
-    );
-    
-    if (!selectedScheduledClass) {
-      toast({
-        title: "Error",
-        description: "La clase seleccionada ya no está disponible.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setScheduledClassId(selectedScheduledClass.id);
-    
-    // Abrir el diálogo de selección de bicicleta antes de continuar con la reserva
-    setIsBikeDialogOpen(true);
   }
-  
-  const handleBikeSelected = async () => {
-    if (!scheduledClassId || !selectedBikeId) return;
+
+  const handleUnlimitedWeekToggle = async (enabled: boolean) => {
+    setIsUsingUnlimitedWeek(enabled)
     
-    const selectedScheduledClass = availableClasses.find(
-      cls => cls.id === selectedClass
-    );
-    
-    if (!selectedScheduledClass) return;
-    
+    if (enabled && selectedClass && !unlimitedWeekValidation) {
+      setIsValidatingUnlimitedWeek(true)
+      const validation = await validateUnlimitedWeek(selectedClass)
+      setUnlimitedWeekValidation(validation)
+      setIsValidatingUnlimitedWeek(false)
+    }
+  }
+
+  const handleConfirmBooking = async () => {
+    console.log("handleConfirmBooking called")
+    console.log("isUsingUnlimitedWeek:", isUsingUnlimitedWeek)
+    console.log("selectedBikeId:", selectedBikeId)
+    if (!selectedClass) {
+      console.log("No class selected, returning")
+      return
+    }
+
+    const classToBook = availableClasses.find(c => c.id === selectedClass)
+    if (!classToBook) {
+      console.log("Class not found in availableClasses, returning")
+      return
+    }
+
+    setSelectedScheduledClassForBooking(classToBook)
+
+    // 1. Handle Unlimited Week reservation first
+    if (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
+      console.log("Using Unlimited Week, showing confirmation")
+      setShowUnlimitedWeekConfirmation(true)
+      return
+    }
+
+    // 2. For regular bookings (package or payment), check if bike selection is needed
+    if (!selectedBikeId) {
+      console.log("No bike selected, showing bike selection dialog")
+      setShowBikeSelection(true)
+      return
+    }
+
+    // 3. If a bike is already selected, proceed with booking/payment decision
+    console.log("Bike already selected. User available classes:", userAvailableClasses)
     if (userAvailableClasses > 0) {
-      try {
-        console.log("Creando reserva usando paquete disponible:", selectedScheduledClass.id);
-        console.log("Bicicleta seleccionada:", selectedBikeId);
-        
-        const response = await fetch("/api/reservations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            scheduledClassId: selectedScheduledClass.id,
-            bikeNumber: selectedBikeId
-          }),
-          credentials: "include",
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-          // Cerrar el diálogo de selección de bicicleta antes de mostrar el error
-          setIsBikeDialogOpen(false);
-          throw new Error(data.error || "Error al crear la reserva");
-        }
-        
-        setUserAvailableClasses(prev => prev - 1);
-        setIsBikeDialogOpen(false);
-        setIsConfirmationOpen(true);
+      console.log("User has available classes, proceeding with booking")
+      await proceedWithBooking()
+    } else {
+      console.log("User has no available classes, opening payment dialog")
+      setIsPaymentOpen(true)
+    }
+  }
+
+  const proceedWithBooking = async () => {
+    if (!selectedClass) return
+
+    try {
+      setIsLoading(true)
+      
+      const requestBody: any = {
+        scheduledClassId: selectedClass,
+        bikeNumber: selectedBikeId,
+      }
+
+      if (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
+        requestBody.useUnlimitedWeek = true
+      }
+
+      const response = await fetch("/api/reservations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(requestBody),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
         
         toast({
-          title: "Reserva confirmada",
-          description: "Tu clase ha sido reservada usando tu paquete activo. Se ha enviado un correo de confirmación.",
-        });
-      } catch (error) {
-        console.error("Error:", error);
+          title: "¡Reserva confirmada!",
+          description: isUsingUnlimitedWeek 
+            ? "Reserva creada con Semana Ilimitada. Recuerda confirmar por WhatsApp."
+            : "Se ha enviado un correo de confirmación.",
+        })
+
+        setSelectedClass(null)
+        setSelectedTime(null)
+        setSelectedBikeId(null)
+        setIsUsingUnlimitedWeek(false)
+        setUnlimitedWeekValidation(null)
+        setShowUnlimitedWeekConfirmation(false)
+        setIsBikeDialogOpen(false)
+        
+        loadAvailableClasses()
+        
+      } else {
+        const errorData = await response.json()
         toast({
           title: "Error al confirmar la reserva",
-          description: error instanceof Error ? error.message : "No se pudo procesar la reserva",
+          description: errorData.error || "No se pudo procesar la reserva",
           variant: "destructive",
-        });
+        })
       }
+    } catch (error) {
+      console.error("Error:", error)
+      toast({
+        title: "Error al confirmar la reserva",
+        description: "Error de conexión",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleBikeSelected = async (bikeId: number) => {
+    console.log("handleBikeSelected called with bikeId:", bikeId)
+    setSelectedBikeId(bikeId)
+    
+    if (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
+      console.log("Using Unlimited Week, showing confirmation from handleBikeSelected")
+      setShowUnlimitedWeekConfirmation(true)
+      return
+    }
+
+    console.log("Bike selected. User available classes:", userAvailableClasses)
+    if (userAvailableClasses > 0) {
+      console.log("User has available classes, proceeding with booking from handleBikeSelected")
+      await proceedWithBooking()
     } else {
-      setIsBikeDialogOpen(false);
-      setIsPaymentOpen(true);
+      console.log("User has no available classes, opening payment dialog from handleBikeSelected")
+      setShowBikeSelection(false)
+      setIsPaymentOpen(true)
     }
   }
 
-  // Obtener las clases disponibles para la fecha seleccionada usando las utilidades
+  // Obtener clases para fecha seleccionada
   const getClassesForSelectedDate = () => {
-    if (!date) return [];
-    
-    return availableClasses.filter((cls) => {
-      return isClassOnSelectedDate(cls.date, date);
-    });
+    return date 
+      ? availableClasses.filter(cls => isClassOnSelectedDate(cls.date, date))
+      : []
   }
   
-  // Obtener horarios disponibles para la fecha seleccionada usando las utilidades
+  // Obtener horarios disponibles
   const getTimeSlotsForSelectedDate = () => {
-    const classesForDate = getClassesForSelectedDate();
-    // Mapear a objetos con solo date y time para las utilidades
-    const classesWithDateTime = classesForDate.map(cls => ({
-      date: cls.date,
-      time: cls.time
-    }));
-    return getUniqueTimeSlotsFromClasses(classesWithDateTime);
+    const classesForDate = getClassesForSelectedDate()
+    return getUniqueTimeSlotsFromClasses(
+      classesForDate.map(cls => ({ date: cls.date, time: cls.time }))
+    )
   }
   
-  // Obtener clases disponibles para un horario específico usando las utilidades
+  // Obtener clases para horario específico
   const getClassesForSelectedTime = (time: string) => {
-    if (!date) return [];
+    if (!date) return []
     
-    // Mapear a objetos con solo date y time para las utilidades
-    const classesWithDateTime = availableClasses.map(cls => ({
-      date: cls.date,
-      time: cls.time,
-      originalClass: cls // Mantener referencia al objeto original
-    }));
-    
-    const filteredDateTime = filterClassesByDateAndTime(classesWithDateTime, date, time);
-    
-    // Devolver las clases originales completas
-    return filteredDateTime.map(filtered => 
-      (filtered as any).originalClass as ScheduledClass
-    ).filter(Boolean);
+    return filterClassesByDateAndTime(
+      availableClasses.map(cls => ({ 
+        date: cls.date, 
+        time: cls.time,
+        originalClass: cls
+      })),
+      date,
+      time
+    ).map(item => (item as any).originalClass)
   }
 
-  // Utilidad para saber si la clase ya pasó o está por iniciar en menos de 30 minutos
-  // Función corregida para determinar si una clase es reservable
-// Función actualizada para determinar si una clase es reservable
-// Agrega esta función de debug temporalmente en tu archivo /app/reservar/page.tsx
-
-// Función de debug para verificar las fechas
-function debugClassDateTime(cls: ScheduledClass) {
-  console.log("=== DEBUG CLASE ===");
-  console.log("Clase:", cls.classType?.name);
-  console.log("Fecha original:", cls.date);
-  console.log("Hora original:", cls.time);
-  
-  // Intentar parsear la fecha
-  const classDate = new Date(cls.date);
-  console.log("Fecha parseada:", classDate);
-  console.log("Es válida la fecha?", !isNaN(classDate.getTime()));
-  
-  // Intentar parsear la hora
-  let classTime: Date;
-  if (typeof cls.time === 'string' && cls.time.includes('T')) {
-    classTime = new Date(cls.time);
-    console.log("Hora parseada (ISO):", classTime);
-  } else if (typeof cls.time === 'string' && cls.time.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-    classTime = new Date(`1970-01-01T${cls.time}`);
-    console.log("Hora parseada (HH:mm):", classTime);
-  } else {
-    console.log("Formato de hora no reconocido:", typeof cls.time, cls.time);
-    return false;
-  }
-  
-  console.log("Es válida la hora?", !isNaN(classTime.getTime()));
-  console.log("UTC Hours:", classTime.getUTCHours());
-  console.log("UTC Minutes:", classTime.getUTCMinutes());
-  
-  // Crear fecha completa
-  const classDateTime = new Date(
-    classDate.getUTCFullYear(),
-    classDate.getUTCMonth(), 
-    classDate.getUTCDate(),
-    classTime.getUTCHours(),
-    classTime.getUTCMinutes(),
-    0,
-    0
-  );
-  
-  console.log("Fecha y hora combinada:", classDateTime);
-  
-  const now = new Date();
-  console.log("Fecha actual:", now);
-  console.log("Diferencia en ms:", classDateTime.getTime() - now.getTime());
-  console.log("Diferencia en horas:", (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60));
-  
-  // Verificar si ya pasó
-  const hasPassed = classDateTime < now;
-  console.log("Ya pasó?", hasPassed);
-  
-  // Verificar 30 minutos
-  const THIRTY_MIN = 30 * 60 * 1000;
-  const timeDifference = classDateTime.getTime() - now.getTime();
-  const isWithin30Min = timeDifference < THIRTY_MIN && timeDifference > 0;
-  console.log("Está dentro de 30 min?", isWithin30Min);
-  
-  console.log("=== FIN DEBUG ===");
-  
-  return !hasPassed && !isWithin30Min;
-}
-
-// Reemplaza temporalmente tu función isClassReservable con esta:
-// VERSIÓN SIMPLIFICADA Y MÁS DIRECTA
-
-function isClassReservable(cls: ScheduledClass) {
-  try {
-    const now = new Date();
-    
-    // Parsear la hora de la clase (formato: "1970-01-01T21:00:00.000Z")
-    const timeDate = new Date(cls.time);
-    const classHour = timeDate.getUTCHours();
-    const classMinutes = timeDate.getUTCMinutes();
-    
-    // Parsear la fecha de la clase
-    const classDate = new Date(cls.date);
-    
-    // Crear la fecha y hora completa de la clase
-    const classDateTime = new Date(
-      classDate.getUTCFullYear(),
-      classDate.getUTCMonth(),
-      classDate.getUTCDate(),
-      classHour,
-      classMinutes,
-      0,
-      0
-    );
-    
-    // Debug
-    console.log(`Clase: ${cls.classType?.name} - ${classDateTime.toLocaleString()}`);
-    console.log(`Ahora: ${now.toLocaleString()}`);
-    
-    // Verificar si ya pasó
-    if (classDateTime <= now) {
-      console.log("❌ Ya pasó");
-      return false;
+  // Verificar si una clase es reservable
+  const isClassReservable = (cls: ScheduledClass) => {
+    try {
+      const now = new Date()
+      const classDateTime = createClassDateTime(cls.date, cls.time)
+      const timeDiff = classDateTime.getTime() - now.getTime()
+      const THIRTY_MIN = 30 * 60 * 1000
+      
+      return timeDiff > THIRTY_MIN
+    } catch (error) {
+      console.error("Error verificando disponibilidad:", error)
+      return false
     }
-    
-    // Verificar 30 minutos
-    const diffMinutes = (classDateTime.getTime() - now.getTime()) / (1000 * 60);
-    console.log(`Faltan ${Math.round(diffMinutes)} minutos`);
-    
-    if (diffMinutes < 30) {
-      console.log("❌ Menos de 30 minutos");
-      return false;
-    }
-    
-    console.log("✅ Reservable");
-    return true;
-  } catch (error) {
-    console.error("Error:", error);
-    return false;
   }
-}
 
+  // Reset isUsingUnlimitedWeek if hasActiveUnlimitedWeek becomes false
+  useEffect(() => {
+    if (!hasActiveUnlimitedWeek) {
+      setIsUsingUnlimitedWeek(false)
+    }
+  }, [hasActiveUnlimitedWeek])
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
@@ -448,6 +419,18 @@ function isClassReservable(cls: ScheduledClass) {
           </p>
         </div>
       </section>
+
+      {/* Sección de Información de Semana Ilimitada */}
+      {hasActiveUnlimitedWeek && weeklyUsage && (
+        <section className="py-4 bg-blue-50">
+          <div className="container px-4 md:px-6">
+            <WeeklyUsageDisplay 
+              usage={weeklyUsage} 
+              className="max-w-md mx-auto"
+            />
+          </div>
+        </section>
+      )}
 
       {/* Booking Section */}
       <section className="py-16 bg-white">
@@ -518,38 +501,111 @@ function isClassReservable(cls: ScheduledClass) {
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
-                    <Clock className="mr-2 h-5 w-5 text-brand-sage" />
+                    <Clock className="mr-2 h-5 w-5 text-brand-burgundy-dark" />
                     <h3 className="text-xl font-bold text-brand-burgundy-dark">Selecciona Clase</h3>
                   </div>
                   <div className="p-4 space-y-2">
                     {isLoading ? (
                       <div className="text-center py-8 text-gray-500">Cargando clases...</div>
                     ) : selectedTime ? (
-                      getClassesForSelectedTime(selectedTime).map((classItem) => {
-                        const reservable = isClassReservable(classItem)
-                        return (
-                          <div key={classItem.id} className="relative">
-                            <Button
-                              variant={selectedClass === classItem.id ? "default" : "outline"}
-                              className={`w-full justify-between rounded-full ${
-                                selectedClass === classItem.id
-                                  ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
-                                  : "border-brand-burgundy text-brand-sage hover:bg-gray-50"
-                              }`}
-                              onClick={() => reservable && setSelectedClass(classItem.id)}
-                              disabled={!reservable}
-                            >
-                              <span>{classItem.classType.name}</span>
-                              <span className="text-sm opacity-70">{classItem.classType.duration} min</span>
-                            </Button>
-                            {!reservable && (
-                              <div className="absolute left-0 right-0 top-full text-xs text-red-600 mt-1 text-center">
-                                No disponible para reservar (ya pasó o inicia en &lt;30 min)
+                      <div className="space-y-4">
+                        {getClassesForSelectedTime(selectedTime).map((cls) => (
+                          <Card 
+                            key={cls.id} 
+                            className={`cursor-pointer transition-all ${
+                              selectedClass === cls.id ? 'ring-2 ring-[#4A102A] bg-gray-50' : 'hover:shadow-md'
+                            }`}
+                            onClick={() => handleClassSelection(cls.id)}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <h4 className="font-medium">{cls.classType.name}</h4>
+                                  <p className="text-sm text-gray-500">{cls.instructor.name}</p>
+                                </div>
+                                <span className="text-sm text-gray-500">{cls.classType.duration} min</span>
                               </div>
-                            )}
-                          </div>
-                        )
-                      })
+                            </CardContent>
+                          </Card>
+                        ))}
+
+                        {/* Opciones de reserva */}
+                        {selectedClass && (
+                          <Card className="bg-gray-50 border-2 border-dashed border-gray-300">
+                            <CardContent className="p-6">
+                              <h3 className="font-semibold mb-4">Opciones de Reserva</h3>
+                              
+                              {/* Toggle para Semana Ilimitada */}
+                              {hasActiveUnlimitedWeek && (
+                                <div className="space-y-3 mb-4">
+                                  <div className="flex items-center space-x-3">
+                                    <input
+                                      type="checkbox"
+                                      id="unlimited-week-toggle"
+                                      checked={isUsingUnlimitedWeek}
+                                      onChange={(e) => handleUnlimitedWeekToggle(e.target.checked)}
+                                      className="w-4 h-4 text-[#4A102A] bg-gray-100 border-gray-300 rounded focus:ring-[#4A102A] focus:ring-2"
+                                      disabled={isValidatingUnlimitedWeek}
+                                    />
+                                    <label htmlFor="unlimited-week-toggle" className="font-medium">
+                                      Usar Semana Ilimitada
+                                    </label>
+                                    {isValidatingUnlimitedWeek && (
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#4A102A]"></div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Mostrar validación de Semana Ilimitada */}
+                                  {isUsingUnlimitedWeek && unlimitedWeekValidation && (
+                                    <UnlimitedWeekAlert 
+                                      validation={unlimitedWeekValidation}
+                                      className="mt-3"
+                                    />
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Información de paquetes normales */}
+                              {!isUsingUnlimitedWeek && isAuthenticated && userAvailableClasses > 0 && (
+                                <div className="bg-green-50 p-3 rounded-md border border-green-200 mb-4">
+                                  <p className="text-sm text-green-800">
+                                    ✅ Tienes {userAvailableClasses} clase(s) disponible(s) en tus paquetes
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Botón de reserva */}
+                              <Button
+                                className="w-full bg-[#4A102A] hover:bg-[#85193C] text-white font-semibold py-3"
+                                disabled={
+                                  isLoading || 
+                                  !selectedClass || 
+                                  (isUsingUnlimitedWeek && !unlimitedWeekValidation?.canUseUnlimitedWeek) ||
+                                  !isClassReservable(availableClasses.find(c => c.id === selectedClass)!)
+                                }
+                                onClick={handleConfirmBooking}
+                              >
+                                <span className="flex items-center gap-1">
+                                  {isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek
+                                    ? "RESERVAR CON SEMANA ILIMITADA"
+                                    : isAuthenticated && userAvailableClasses > 0 
+                                    ? "USAR PAQUETE - RESERVAR" 
+                                    : "CONFIRMAR RESERVA"
+                                  } 
+                                  <ChevronRight className="h-4 w-4" />
+                                </span>
+                              </Button>
+
+                              {/* Mensaje de información adicional */}
+                              {isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek && (
+                                <p className="text-xs text-gray-600 mt-2 text-center">
+                                  Deberás confirmar por WhatsApp para garantizar tu lugar
+                                </p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
                     ) : (
                       <div className="text-center py-8 text-gray-500">
                         Selecciona un horario para ver las clases disponibles
@@ -720,7 +776,7 @@ function isClassReservable(cls: ScheduledClass) {
           </DialogHeader>
           <div className="py-4">
             <StripeCheckout
-              amount={selectedClass && availableClasses.find(c => c.id === selectedClass)?.classType ? 69 : 0}
+              amount={selectedClass?.classType ? 69 : 0}
               description={`Reserva: ${selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""} - ${
                 date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : ""
               } ${selectedTime || ""}`}
@@ -824,15 +880,40 @@ function isClassReservable(cls: ScheduledClass) {
         </DialogContent>
       </Dialog>
 
-  {/* Bike Selection Dialog */}
-      <BikeSelectionDialog 
-        open={isBikeDialogOpen}
-        onOpenChange={setIsBikeDialogOpen}
+      {/* Bike Selection Dialog */}
+      <BikeSelectionDialog
+        open={showBikeSelection}
+        onOpenChange={setShowBikeSelection}
         selectedBikeId={selectedBikeId}
         onBikeSelected={setSelectedBikeId}
-        onConfirm={handleBikeSelected}
+        onConfirm={() => handleBikeSelected(selectedBikeId || 0)}
         scheduledClassId={scheduledClassId || 0}
       />
+
+      {/* Dialog de confirmación de Semana Ilimitada */}
+      <Dialog open={showUnlimitedWeekConfirmation} onOpenChange={setShowUnlimitedWeekConfirmation}>
+        <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#4A102A]">Confirmar Reserva con Semana Ilimitada</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <UnlimitedWeekConfirmation
+              graceTimeHours={12}
+              onConfirm={() => {
+                setShowUnlimitedWeekConfirmation(false)
+                if (!selectedBikeId) {
+                  setShowBikeSelection(true)
+                } else {
+                  proceedWithBooking()
+                }
+              }}
+              onCancel={() => {
+                setShowUnlimitedWeekConfirmation(false)
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

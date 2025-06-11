@@ -220,6 +220,17 @@ model Reservation {
   @@map("reservations")
 }
 
+model SystemConfiguration {
+  id          Int       @id @default(autoincrement())
+  key         String    @unique @db.VarChar(255)
+  value       String
+  description String?
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("system_configuration")
+}
+
 model Payment {
   id                    Int                  @id @default(autoincrement()) @map("payment_id")
   userId                Int                  @map("user_id")

@@ -4,6 +4,8 @@ import { PrismaClient } from "@prisma/client";
 import { verifyToken } from "@/lib/jwt";
 import { addHours, format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
+import { getUnlimitedWeekExpiryDate } from '@/lib/utils/business-days'
+
 
 const prisma = new PrismaClient();
 
@@ -274,44 +276,50 @@ export async function POST(request: NextRequest) {
 
     // Si es un paquete (no un pase individual)
     if (packageType !== "individual") {
-      // Obtener el paquete correspondiente
       const packageMap = {
-        "5classes": 1, // ID del paquete de 5 clases
-        "10classes": 2, // ID del paquete de 10 clases
-        "monthly": 3,   // ID del paquete mensual
+        "5classes": 1,
+        "10classes": 2, 
+        "monthly": 3, // Este debería ser el ID del paquete Semana Ilimitada
       };
       
       const packageId = packageMap[packageType as keyof typeof packageMap];
-      
-      if (!packageId) {
-        return NextResponse.json({ error: "Tipo de paquete no válido" }, { status: 400 });
-      }
+  
+  if (!packageId) {
+    return NextResponse.json({ error: "Tipo de paquete no válido" }, { status: 400 });
+  }
 
-      const packageInfo = await prisma.package.findUnique({
-        where: { id: packageId }
-      });
+  const packageInfo = await prisma.package.findUnique({
+    where: { id: packageId }
+  });
 
-      if (!packageInfo) {
-        return NextResponse.json({ error: "Paquete no encontrado" }, { status: 404 });
-      }
+  if (!packageInfo) {
+    return NextResponse.json({ error: "Paquete no encontrado" }, { status: 404 });
+  }
 
-      // Calcular fecha de expiración
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + packageInfo.validityDays);
-      
-      // Crear el paquete de usuario
-      userPackage = await prisma.userPackage.create({
-        data: {
-          userId: userId,
-          packageId: packageId,
-          expiryDate: expiryDate,
-          classesRemaining: packageInfo.classCount,
-          classesUsed: 1, // Ya estamos usando una clase
-          paymentMethod: paymentMethod === "pending" ? "pending" : paymentMethod,
-          paymentStatus: paymentMethod === "pending" ? "pending" : "paid",
-        }
-      });
+  // **NUEVA LÓGICA**: Calcular fecha de expiración según el tipo de paquete
+  let expiryDate: Date;
+  
+  if (packageId === 3) { // Semana Ilimitada
+    expiryDate = getUnlimitedWeekExpiryDate(new Date());
+  } else {
+    // Para otros paquetes, usar días calendario normales
+    expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + packageInfo.validityDays);
+  }
+  
+  // Crear el paquete de usuario
+  userPackage = await prisma.userPackage.create({
+    data: {
+      userId: userId,
+      packageId: packageId,
+      expiryDate: expiryDate,
+      classesRemaining: packageInfo.classCount,
+      classesUsed: 1, // Ya estamos usando una clase
+      paymentMethod: paymentMethod === "pending" ? "pending" : paymentMethod,
+      paymentStatus: paymentMethod === "pending" ? "pending" : "paid",
     }
+  });
+}
 
     // Crear la reserva
     const reservation = await prisma.reservation.create({

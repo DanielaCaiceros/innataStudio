@@ -4,12 +4,197 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Agregar esta interface para los detalles del email
+interface BookingEmailDetails {
+  className: string
+  date: string
+  time: string
+  instructor: string
+  confirmationCode: string
+  bikeNumber?: number
+  isUnlimitedWeek?: boolean
+  graceTimeHours?: number
+}
+
+export async function sendBookingConfirmationEmail(
+  email: string,
+  name: string,
+  details: BookingEmailDetails
+) {
+  try {
+    // Generar el contenido específico para Semana Ilimitada
+    const unlimitedWeekContent = details.isUnlimitedWeek ? `
+      <div style="background: linear-gradient(135deg, #fef3c7 0%, #fbbf24 100%); padding: 20px; border-radius: 12px; margin: 20px 0; border: 1px solid #f59e0b;">
+        <h3 style="color: #92400e; font-size: 18px; margin: 0 0 15px 0; font-weight: 600;">
+          ⚠️ RESERVA CON SEMANA ILIMITADA - CONFIRMACIÓN REQUERIDA
+        </h3>
+        
+        <div style="background: rgba(255, 255, 255, 0.8); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+          <p style="color: #92400e; font-size: 16px; margin: 0 0 10px 0; font-weight: 600;">
+            📱 DEBES CONFIRMAR POR WHATSAPP
+          </p>
+          <p style="color: #92400e; font-size: 14px; margin: 0 0 15px 0; line-height: 1.5;">
+            Para garantizar tu lugar en esta clase, es <strong>OBLIGATORIO</strong> que envíes 
+            un mensaje de confirmación por WhatsApp con al menos <strong>${details.graceTimeHours || 12} horas de anticipación</strong>.
+          </p>
+          
+          <div style="background: #f9fafb; border: 2px solid #d1d5db; border-radius: 8px; padding: 12px; margin: 10px 0;">
+            <p style="color: #374151; font-size: 13px; margin: 0 0 8px 0; font-weight: 600;">
+              📋 PASOS A SEGUIR:
+            </p>
+            <ol style="color: #374151; font-size: 13px; margin: 0; padding-left: 20px; line-height: 1.4;">
+              <li>Envía un WhatsApp confirmando tu asistencia</li>
+              <li>Incluye tu código de confirmación: <strong>${details.confirmationCode}</strong></li>
+              <li>Hazlo antes de las <strong>${details.graceTimeHours || 12} horas</strong> previas a la clase</li>
+            </ol>
+          </div>
+        </div>
+        
+        <div style="background: rgba(220, 38, 38, 0.1); border: 1px solid #dc2626; border-radius: 8px; padding: 12px;">
+          <p style="color: #dc2626; font-size: 13px; margin: 0; font-weight: 600;">
+            ⚠️ IMPORTANTE: Si no envías la confirmación a tiempo, tu reserva será cancelada automáticamente 
+            y se liberará el espacio para otros usuarios.
+          </p>
+        </div>
+      </div>
+    ` : '';
+
+    const bikeInfo = details.bikeNumber ? `
+      <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+        <span style="color: #6c757d; font-weight: 500;">🚴‍♀️ Bicicleta:</span>
+        <span style="color: #495057; font-weight: 600;">#${details.bikeNumber}</span>
+      </div>
+    ` : '';
+
+    const { data, error } = await resend.emails.send({
+      from: `${process.env.SMTP_FROM_NAME} <${process.env.SMTP_FROM_EMAIL}>`,
+      to: [email],
+      subject: '🎉 Confirmación de reserva - Innata Studio',
+      html: `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Confirmación de Reserva - Innata Studio</title>
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #4A102A 0%, #85193C 100%); color: white; padding: 30px; text-align: center;">
+              <h1 style="margin: 0; font-size: 28px; font-weight: 700;">
+                ✅ Reserva Confirmada
+              </h1>
+              <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">
+                Innata Studio
+              </p>
+            </div>
+            
+            <!-- Contenido principal -->
+            <div style="padding: 40px 30px; background-color: #ffffff;">
+              <p style="color: #2c3e50; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">
+                Hola ${name},
+              </p>
+              
+              <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                ${details.isUnlimitedWeek 
+                  ? '¡Tu reserva con <strong>Semana Ilimitada</strong> ha sido procesada! Por favor lee atentamente la información sobre confirmación requerida.'
+                  : '¡Tu reserva ha sido confirmada exitosamente! Te esperamos en el estudio.'
+                }
+              </p>
+
+              ${unlimitedWeekContent}
+              
+              <!-- Detalles de la Clase -->
+              <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 12px; margin: 30px 0; border: 1px solid #dee2e6;">
+                <h3 style="color: #495057; font-size: 18px; margin: 0 0 20px 0; font-weight: 600; border-bottom: 2px solid #AAB99A; padding-bottom: 10px;">
+                  📅 Detalles de tu Clase:
+                </h3>
+                
+                <div style="display: grid; gap: 15px;">
+                  <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+                    <span style="color: #6c757d; font-weight: 500;">🏷️ Clase:</span>
+                    <span style="color: #495057; font-weight: 600;">${details.className}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+                    <span style="color: #6c757d; font-weight: 500;">📅 Fecha:</span>
+                    <span style="color: #495057; font-weight: 600;">${details.date}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+                    <span style="color: #6c757d; font-weight: 500;">⏰ Hora:</span>
+                    <span style="color: #495057; font-weight: 600;">${details.time}</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+                    <span style="color: #6c757d; font-weight: 500;">👨‍🏫 Instructor:</span>
+                    <span style="color: #495057; font-weight: 600;">${details.instructor}</span>
+                  </div>
+                  ${bikeInfo}
+                  <div style="display: flex; justify-content: space-between; padding: 10px 0;">
+                    <span style="color: #6c757d; font-weight: 500;">🔑 Código de confirmación:</span>
+                    <span style="color: #495057; font-weight: 600;">${details.confirmationCode}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div style="text-align: center; margin: 40px 0;">
+                <a href="${process.env.NEXT_PUBLIC_APP_URL}/mi-cuenta" 
+                   style="display: inline-block; background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 15px rgba(114, 125, 115, 0.3);">
+                  📱 Ver mis reservas
+                </a>
+              </div>
+              
+              <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0; text-align: center;">
+                ¡Te esperamos en el estudio! 🚴‍♀️💪
+              </p>
+            </div>
+            
+            <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e9ecef;">
+              <p style="color: #6c757d; font-size: 12px; margin: 0;">
+                © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+        ¡Reserva Confirmada! - Innata Studio
+
+        Hola ${name},
+
+        Tu reserva ha sido confirmada exitosamente:
+
+        Clase: ${details.className}
+        Fecha: ${details.date}
+        Hora: ${details.time}
+        Instructor: ${details.instructor}
+        ${details.bikeNumber ? `Bicicleta: #${details.bikeNumber}` : ''}
+        Código de confirmación: ${details.confirmationCode}
+
+        Recuerda llegar 15 minutos antes de tu clase.
+
+        ¡Te esperamos en el estudio!
+
+        © ${new Date().getFullYear()} Innata Studio.
+      `
+    });
+
+    if (error) {
+      console.error('Resend API error:', error);
+      throw new Error(`Error de Resend: ${error.message}`);
+    }
+
+    console.log('Booking confirmation email sent successfully:', data);
+  } catch (error) {
+    console.error('Error sending booking confirmation email:', error);
+    throw new Error('No se pudo enviar el correo de confirmación. Por favor verifica tu reserva en tu perfil.');
+  }
+}
+
 // Función para enviar correo de verificación
 export async function sendVerificationEmail(email: string, name: string, token: string): Promise<void> {
   const verificationLink = `https://innatastudio.com/api/auth/verify?token=${token}`;
-  
-  console.log('Sending verification email to:', email);
-  console.log('Verification link:', verificationLink);
   
   try {
     const { data, error } = await resend.emails.send({
@@ -77,7 +262,6 @@ export async function sendVerificationEmail(email: string, name: string, token: 
           </div>
         </div>
       `,
-      // Versión de texto plano como fallback
       text: `
         ¡Bienvenido(a) a Innata Studio!
 
@@ -197,137 +381,146 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
   }
 }
 
-// Función para enviar correo de confirmación de reserva
-export async function sendBookingConfirmationEmail(
-  email: string, 
-  name: string, 
-  bookingDetails: {
-    className: string;
-    date: string;
-    time: string;
-    instructor: string;
-    confirmationCode: string;
-    bikeNumber?: number;
+// Función para enviar correo de confirmación de compra de paquete
+export async function sendPackagePurchaseConfirmationEmail(
+  email: string,
+  name: string,
+  packageDetails: {
+    packageName: string;
+    classCount: number;
+    expiryDate: string; // Formato: "dd/MM/yyyy"
+    purchaseDate: string; // Formato: "dd/MM/yyyy"
+    price: number;
   }
 ): Promise<void> {
+  const subject = "¡Confirmación de Compra de Paquete - Innata Studio!";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+
+  const htmlBody = `
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">
+      <!-- Header con gradiente -->
+      <div style="background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+        <img src="${appUrl}/innataBlack.png" alt="Innata Studio" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
+        <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          ¡Gracias por tu Compra! 🛍️
+        </h1>
+      </div>
+      
+      <!-- Contenido principal -->
+      <div style="padding: 40px 30px; background-color: #ffffff;">
+        <p style="color: #2c3e50; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">
+          Hola ${name},
+        </p>
+        
+        <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+          ¡Felicidades por adquirir tu nuevo paquete de clases en Innata Studio! Estamos emocionados de tenerte con nosotros. Aquí están los detalles de tu compra:
+        </p>
+        
+        <!-- Detalles del Paquete -->
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 12px; margin: 30px 0; border: 1px solid #dee2e6;">
+          <h3 style="color: #495057; font-size: 18px; margin: 0 0 20px 0; font-weight: 600; border-bottom: 2px solid #AAB99A; padding-bottom: 10px;">📦 Detalles de tu Paquete:</h3>
+          
+          <div style="display: grid; gap: 15px;">
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+              <span style="color: #6c757d; font-weight: 500;">🏷️ Nombre del Paquete:</span>
+              <span style="color: #495057; font-weight: 600;">${packageDetails.packageName}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+              <span style="color: #6c757d; font-weight: 500;">🚲 Número de Clases:</span>
+              <span style="color: #495057; font-weight: 600;">${packageDetails.classCount}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+              <span style="color: #6c757d; font-weight: 500;">💰 Precio:</span>
+              <span style="color: #495057; font-weight: 600;">$${packageDetails.price.toFixed(2)} MXN</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+              <span style="color: #6c757d; font-weight: 500;">🛍️ Fecha de Compra:</span>
+              <span style="color: #495057; font-weight: 600;">${packageDetails.purchaseDate}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 10px 0;">
+              <span style="color: #6c757d; font-weight: 500;">⏳ Fecha de Expiración:</span>
+              <span style="color: #dd7777; font-weight: 600;">${packageDetails.expiryDate}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Call to Action Buttons -->
+        <div style="text-align: center; margin: 40px 0;">
+          <a href="${appUrl}/reservar" 
+             style="display: inline-block; background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); color: #ffffff; padding: 16px 28px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 15px rgba(114, 125, 115, 0.3); margin: 0 10px;">
+            Reserva tu próxima clase
+          </a>
+          <a href="${appUrl}/mi-cuenta" 
+             style="display: inline-block; background: linear-gradient(135deg, #AAB99A 0%, #727D73 100%); color: #ffffff; padding: 16px 28px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 15px rgba(114, 125, 115, 0.3); margin: 0 10px;">
+            Ir a Mi Cuenta
+          </a>
+        </div>
+        
+        <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0; text-align: center;">
+          ¡Prepárate para sudar, sonreír y superar tus límites! Si tienes alguna pregunta, no dudes en contactarnos.
+        </p>
+      </div>
+      
+      <!-- Footer -->
+      <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e9ecef;">
+        <p style="color: #6c757d; font-size: 12px; margin: 0 0 10px 0;">
+          © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+        </p>
+        <p style="color: #6c757d; font-size: 12px; margin: 0;">
+          📍 Calle Prada 23, Local 103, Colonia Residencial El Refugio, Querétaro, Qro. CP 76146
+        </p>
+      </div>
+    </div>
+  `;
+
+  const textBody = `
+¡Gracias por tu Compra - Innata Studio!
+
+Hola ${name},
+
+¡Felicidades por adquirir tu nuevo paquete de clases en Innata Studio!
+
+Detalles de tu Paquete:
+- Nombre del Paquete: ${packageDetails.packageName}
+- Número de Clases: ${packageDetails.classCount}
+- Precio: $${packageDetails.price.toFixed(2)} MXN
+- Fecha de Compra: ${packageDetails.purchaseDate}
+- Fecha de Expiración: ${packageDetails.expiryDate}
+
+Reserva tu próxima clase: ${appUrl}/reservar
+Ir a Mi Cuenta: ${appUrl}/mi-cuenta
+
+¡Prepárate para sudar, sonreír y superar tus límites!
+
+© ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
+Calle Prada 23, Local 103, Colonia Residencial El Refugio, Querétaro, Qro. CP 76146
+  `;
+
   try {
     const { data, error } = await resend.emails.send({
       from: `${process.env.SMTP_FROM_NAME} <${process.env.SMTP_FROM_EMAIL}>`,
       to: [email],
-      subject: '🎉 Confirmación de reserva - Innata Studio',
-      html: `
-        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">
-          <div style="background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
-            <img src="${process.env.NEXT_PUBLIC_APP_URL}/innataBlack.png" alt="Innata Studio" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
-            <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0;">
-              🎉 ¡Reserva Confirmada!
-            </h1>
-          </div>
-          
-          <div style="padding: 40px 30px; background-color: #ffffff;">
-            <p style="color: #2c3e50; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">
-              Hola ${name},
-            </p>
-            
-            <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
-              ¡Tu reserva ha sido confirmada exitosamente! Aquí tienes todos los detalles:
-            </p>
-            
-            <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 12px; margin: 30px 0; border: 1px solid #dee2e6;">
-              <h3 style="color: #495057; font-size: 18px; margin: 0 0 20px 0; font-weight: 600;">📋 Detalles de tu clase:</h3>
-              
-              <div style="display: grid; gap: 15px;">
-                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
-                  <span style="color: #6c757d; font-weight: 500;">🚴‍♀️ Clase:</span>
-                  <span style="color: #495057; font-weight: 600;">${bookingDetails.className}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
-                  <span style="color: #6c757d; font-weight: 500;">📅 Fecha:</span>
-                  <span style="color: #495057; font-weight: 600;">${bookingDetails.date}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
-                  <span style="color: #6c757d; font-weight: 500;">⏰ Hora:</span>
-                  <span style="color: #495057; font-weight: 600;">${bookingDetails.time}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
-                  <span style="color: #6c757d; font-weight: 500;">👨‍🏫 Instructor:</span>
-                  <span style="color: #495057; font-weight: 600;">${bookingDetails.instructor}</span>
-                </div>
-                ${bookingDetails.bikeNumber ? `
-                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
-                  <span style="color: #6c757d; font-weight: 500;">🚲 Bicicleta:</span>
-                  <span style="color: #495057; font-weight: 600;">#${bookingDetails.bikeNumber}</span>
-                </div>
-                ` : ''}
-                <div style="display: flex; justify-content: space-between; padding: 10px 0;">
-                  <span style="color: #6c757d; font-weight: 500;">🔑 Código de confirmación:</span>
-                  <span style="color: #495057; font-weight: 600;">${bookingDetails.confirmationCode}</span>
-                </div>
-              </div>
-            </div>
-            
-            <div style="background: linear-gradient(135deg, rgba(40, 167, 69, 0.1) 0%, rgba(25, 135, 84, 0.1) 100%); padding: 25px; border-radius: 12px; margin: 30px 0; border: 1px solid rgba(40, 167, 69, 0.2);">
-              <p style="color: #155724; font-size: 14px; margin: 0 0 10px 0; font-weight: 600;">
-                📝 Instrucciones importantes:
-              </p>
-              <ul style="color: #155724; font-size: 14px; margin: 0; padding-left: 20px;">
-                <li>Llega 15 minutos antes de tu clase</li>
-                <li>Trae agua y toalla</li>
-                <li>Usa ropa cómoda para ejercicio</li>
-                <li>Las cancelaciones deben hacerse 4 horas antes</li>
-              </ul>
-            </div>
-            
-            <div style="text-align: center; margin: 40px 0;">
-              <a href="${process.env.NEXT_PUBLIC_APP_URL}/mi-cuenta" 
-                 style="display: inline-block; background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); color: #ffffff; padding: 16px 32px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 15px rgba(114, 125, 115, 0.3);">
-                📱 Ver mis reservas
-              </a>
-            </div>
-            
-            <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0; text-align: center;">
-              ¡Te esperamos en el estudio! 🚴‍♀️💪
-            </p>
-          </div>
-          
-          <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e9ecef;">
-            <p style="color: #6c757d; font-size: 12px; margin: 0;">
-              © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
-            </p>
-          </div>
-        </div>
-      `,
-      text: `
-        ¡Reserva Confirmada! - Innata Studio
-
-        Hola ${name},
-
-        Tu reserva ha sido confirmada exitosamente:
-
-        Clase: ${bookingDetails.className}
-        Fecha: ${bookingDetails.date}
-        Hora: ${bookingDetails.time}
-        Instructor: ${bookingDetails.instructor}
-        ${bookingDetails.bikeNumber ? `Bicicleta: #${bookingDetails.bikeNumber}` : ''}
-        Código de confirmación: ${bookingDetails.confirmationCode}
-
-        Recuerda llegar 15 minutos antes de tu clase.
-
-        ¡Te esperamos en el estudio!
-
-        © ${new Date().getFullYear()} Innata Studio.
-      `
+      subject: subject,
+      html: htmlBody,
+      text: textBody,
     });
 
     if (error) {
-      console.error('Resend API error:', error);
-      throw new Error(`Error de Resend: ${error.message}`);
+      console.error('Error sending package purchase confirmation email via Resend:', error);
+      throw new Error('No se pudo enviar el correo de confirmación de paquete.');
     }
 
-    console.log('Booking confirmation email sent successfully:', data);
+    console.log('Package purchase confirmation email sent successfully:', data);
   } catch (error) {
-    console.error('Error sending booking confirmation email:', error);
-    throw new Error('No se pudo enviar el correo de confirmación. Por favor verifica tu reserva en tu perfil.');
+    console.error('Failed to send package purchase confirmation email:', error);
+    // Re-throw la excepción para que el llamador sepa que la operación falló.
+    // Asegúrate de que el error sea una instancia de Error.
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      // Si no es una instancia de Error, envuélvelo en una.
+      throw new Error('Ocurrió un error desconocido al enviar el correo de confirmación de paquete.');
+    }
   }
 }
 
@@ -481,148 +674,5 @@ Entendemos que pueden surgir imprevistos. Si tienes alguna pregunta o situación
   } catch (error) {
     console.error('Error sending cancellation confirmation email:', error);
     // Do not throw error up to the caller
-  }
-}
-
-// Función para enviar correo de confirmación de compra de paquete
-export async function sendPackagePurchaseConfirmationEmail(
-  email: string,
-  name: string,
-  packageDetails: {
-    packageName: string;
-    classCount: number;
-    expiryDate: string; // Formato: "dd/MM/yyyy"
-    purchaseDate: string; // Formato: "dd/MM/yyyy"
-    price: number;
-  }
-): Promise<void> {
-  const subject = "¡Confirmación de Compra de Paquete - Innata Studio!";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-
-  const htmlBody = `
-    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #ffffff;">
-      <!-- Header con gradiente -->
-      <div style="background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
-        <img src="${appUrl}/innataBlack.png" alt="Innata Studio" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
-        <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          ¡Gracias por tu Compra! 🛍️
-        </h1>
-      </div>
-      
-      <!-- Contenido principal -->
-      <div style="padding: 40px 30px; background-color: #ffffff;">
-        <p style="color: #2c3e50; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">
-          Hola ${name},
-        </p>
-        
-        <p style="color: #5a6c7d; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
-          ¡Felicidades por adquirir tu nuevo paquete de clases en Innata Studio! Estamos emocionados de tenerte con nosotros. Aquí están los detalles de tu compra:
-        </p>
-        
-        <!-- Detalles del Paquete -->
-        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 30px; border-radius: 12px; margin: 30px 0; border: 1px solid #dee2e6;">
-          <h3 style="color: #495057; font-size: 18px; margin: 0 0 20px 0; font-weight: 600; border-bottom: 2px solid #AAB99A; padding-bottom: 10px;">📦 Detalles de tu Paquete:</h3>
-          
-          <div style="display: grid; gap: 15px;">
-            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
-              <span style="color: #6c757d; font-weight: 500;">🏷️ Nombre del Paquete:</span>
-              <span style="color: #495057; font-weight: 600;">${packageDetails.packageName}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
-              <span style="color: #6c757d; font-weight: 500;">🚲 Número de Clases:</span>
-              <span style="color: #495057; font-weight: 600;">${packageDetails.classCount}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
-              <span style="color: #6c757d; font-weight: 500;">💰 Precio:</span>
-              <span style="color: #495057; font-weight: 600;">$${packageDetails.price.toFixed(2)} MXN</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
-              <span style="color: #6c757d; font-weight: 500;">🛍️ Fecha de Compra:</span>
-              <span style="color: #495057; font-weight: 600;">${packageDetails.purchaseDate}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 10px 0;">
-              <span style="color: #6c757d; font-weight: 500;">⏳ Fecha de Expiración:</span>
-              <span style="color: #dd7777; font-weight: 600;">${packageDetails.expiryDate}</span>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Call to Action Buttons -->
-        <div style="text-align: center; margin: 40px 0;">
-          <a href="${appUrl}/reservar" 
-             style="display: inline-block; background: linear-gradient(135deg, #727D73 0%, #AAB99A 100%); color: #ffffff; padding: 16px 28px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 15px rgba(114, 125, 115, 0.3); margin: 0 10px;">
-            Reserva tu próxima clase
-          </a>
-          <a href="${appUrl}/mi-cuenta" 
-             style="display: inline-block; background: linear-gradient(135deg, #AAB99A 0%, #727D73 100%); color: #ffffff; padding: 16px 28px; text-decoration: none; border-radius: 50px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 15px rgba(114, 125, 115, 0.3); margin: 0 10px;">
-            Ir a Mi Cuenta
-          </a>
-        </div>
-        
-        <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0; text-align: center;">
-          ¡Prepárate para sudar, sonreír y superar tus límites! Si tienes alguna pregunta, no dudes en contactarnos.
-        </p>
-      </div>
-      
-      <!-- Footer -->
-      <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e9ecef;">
-        <p style="color: #6c757d; font-size: 12px; margin: 0 0 10px 0;">
-          © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
-        </p>
-        <p style="color: #6c757d; font-size: 12px; margin: 0;">
-          📍 Calle Prada 23, Local 103, Colonia Residencial El Refugio, Querétaro, Qro. CP 76146
-        </p>
-      </div>
-    </div>
-  `;
-
-  const textBody = `
-¡Gracias por tu Compra - Innata Studio!
-
-Hola ${name},
-
-¡Felicidades por adquirir tu nuevo paquete de clases en Innata Studio!
-
-Detalles de tu Paquete:
-- Nombre del Paquete: ${packageDetails.packageName}
-- Número de Clases: ${packageDetails.classCount}
-- Precio: $${packageDetails.price.toFixed(2)} MXN
-- Fecha de Compra: ${packageDetails.purchaseDate}
-- Fecha de Expiración: ${packageDetails.expiryDate}
-
-Reserva tu próxima clase: ${appUrl}/reservar
-Ir a Mi Cuenta: ${appUrl}/mi-cuenta
-
-¡Prepárate para sudar, sonreír y superar tus límites!
-
-© ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
-Calle Prada 23, Local 103, Colonia Residencial El Refugio, Querétaro, Qro. CP 76146
-  `;
-
-  try {
-    const { data, error } = await resend.emails.send({
-      from: `${process.env.SMTP_FROM_NAME} <${process.env.SMTP_FROM_EMAIL}>`,
-      to: [email],
-      subject: subject,
-      html: htmlBody,
-      text: textBody,
-    });
-
-    if (error) {
-      console.error('Error sending package purchase confirmation email via Resend:', error);
-      throw new Error('No se pudo enviar el correo de confirmación de paquete.');
-    }
-
-    console.log('Package purchase confirmation email sent successfully:', data);
-  } catch (error) {
-    console.error('Failed to send package purchase confirmation email:', error);
-    // Re-throw la excepción para que el llamador sepa que la operación falló.
-    // Asegúrate de que el error sea una instancia de Error.
-    if (error instanceof Error) {
-      throw error;
-    } else {
-      // Si no es una instancia de Error, envuélvelo en una.
-      throw new Error('Ocurrió un error desconocido al enviar el correo de confirmación de paquete.');
-    }
   }
 }

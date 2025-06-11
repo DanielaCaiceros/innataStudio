@@ -21,6 +21,9 @@ export default function PackageCheckoutPage() {
   const [packageData, setPackageData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   
+  // Convert packageId to a number, handling cases where it might be null or malformed
+  const numericPackageId = packageId ? parseInt(packageId, 10) : null
+
   // Redireccionar si no hay usuario autenticado
   useEffect(() => {
     if (!isAuthenticated) {
@@ -33,7 +36,7 @@ export default function PackageCheckoutPage() {
     const fetchData = async () => {
       try {
         // Verificar si el usuario ya ha comprado el paquete PRIMERA VEZ
-        if (packageId === "1") {  // ID del paquete "PRIMERA VEZ"
+        if (numericPackageId === 1) {  // ID del paquete "PRIMERA VEZ"
           const response = await fetch("/api/user/has-purchased-first-time-package");
           const data = await response.json();
           
@@ -48,69 +51,15 @@ export default function PackageCheckoutPage() {
           }
         }
 
-        // En una implementación real, aquí cargarías los datos del paquete desde la API
-        // Por ahora, usaremos datos estáticos basados en el ID
-        const packages = [
-          {
-            id: 1,
-            name: "PRIMERA VEZ",
-            price: 49.00,
-            description: "Perfecto para probar nuestras clases",
-            classCount: 1,
-            validityDays: 30,
-            isOnlyForNewCustomers: true,
-          },
-          {
-            id: 2,
-            name: "PASE INDIVIDUAL",
-            price: 69.00,
-            description: "Perfecto para probar nuestras clases",
-            classCount: 1,
-            validityDays: 30,
-            isOnlyForNewCustomers: false,
-          },
-          {
-            id: 3,
-            name: "SEMANA ILIMITADA",
-            price: 299.00,
-            description: "Tiempo limitado",
-            classCount: 17, // hasta 17 clases
-            validityDays: 7,
-            isOnlyForNewCustomers: false,
-          },
-          {
-            id: 4,
-            name: "PAQUETE 10 CLASES",
-            price: 599.00,
-            description: "Ahorra $100 con este paquete",
-            classCount: 10,
-            validityDays: 30,
-            isOnlyForNewCustomers: false,
-          },
-        ]
-        
-        if (packageId) {
-          const foundPackage = packages.find(p => p.id === Number(packageId))
-          if (foundPackage) {
-            setPackageData(foundPackage)
-          } else {
-            toast({
-              title: "Error",
-              description: "Paquete no encontrado",
-              variant: "destructive"
-            })
-            router.push("/paquetes")
-          }
-        } else {
-          toast({
-            title: "Error",
-            description: "No se especificó ningún paquete",
-            variant: "destructive"
-          })
-          router.push("/paquetes")
+        // Cargar los datos del paquete desde la API
+        const response = await fetch(`/api/packages/${numericPackageId}`);
+        if (!response.ok) {
+          throw new Error("Error al cargar los datos del paquete");
         }
         
-        setIsLoading(false)
+        const packageData = await response.json();
+        setPackageData(packageData);
+        setIsLoading(false);
       } catch (error) {
         console.error("Error al cargar los datos del paquete:", error)
         toast({
@@ -123,7 +72,7 @@ export default function PackageCheckoutPage() {
     }
     
     fetchData()
-  }, [packageId, router, toast])
+  }, [numericPackageId, router, toast])
 
   const handlePaymentSuccess = async (paymentId: string) => {
     try {
@@ -134,7 +83,7 @@ export default function PackageCheckoutPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          packageId: Number(packageId),
+          packageId: Number(numericPackageId),
           paymentId,
         }),
       })
@@ -146,7 +95,7 @@ export default function PackageCheckoutPage() {
         })
         
         // Redireccionar a la página de confirmación con los parámetros necesarios
-        router.push(`/paquetes/confirmacion?session_id=${paymentId}&package_id=${packageId}`)
+        router.push(`/paquetes/confirmacion?session_id=${paymentId}&package_id=${numericPackageId}`)
       } else {
         const errorData = await response.json()
         toast({
@@ -206,14 +155,14 @@ export default function PackageCheckoutPage() {
                   <span>{packageData.validityDays} días</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b">
-      <span className="font-medium">Precio base:</span>
-      <span>${packageData.price.toFixed(2)}</span>
-    </div>
-    <div className="flex justify-between items-center pt-2 text-lg font-bold">
-      <span>Total:</span>
-      <span>${packageData.price.toFixed(2)}</span>
-    </div>
-  </div>
+                  <span className="font-medium">Precio base:</span>
+                  <span>${parseFloat(packageData.price).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 text-lg font-bold">
+                  <span>Total:</span>
+                  <span>${parseFloat(packageData.price).toFixed(2)}</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -233,7 +182,7 @@ export default function PackageCheckoutPage() {
                 </TabsList>
                 <TabsContent value="card" className="mt-4">
                   <StripeCheckout
-                    amount={packageData.price}
+                    amount={parseFloat(packageData.price)}
                     description={`Paquete ${packageData.name} - ${packageData.classCount} clases`}
                     onSuccess={handlePaymentSuccess}
                     onCancel={handlePaymentCancel}
