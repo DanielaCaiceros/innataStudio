@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Clock, Users, ChevronRight, Zap, Heart, Target, Flame, Filter, SortAsc } from "lucide-react"
+import { Clock, Users, ChevronRight, Zap, Heart, Target, Flame, Filter } from "lucide-react"
 
 // Interfaces
 interface ClassType {
@@ -19,43 +19,10 @@ interface ClassType {
   capacity: number
 }
 
-// Función para obtener el ícono según la categoría
-const getCategoryIcon = (category: string) => {
-  switch (category.toLowerCase()) {
-    case "hiit":
-      return <Zap className="h-6 w-6" />
-    case "ritmo":
-      return <Heart className="h-6 w-6" />
-    case "resistencia":
-      return <Target className="h-6 w-6" />
-    case "recuperacion":
-      return <Heart className="h-6 w-6" />
-    default:
-      return <Flame className="h-6 w-6" />
-  }
-}
-
-// Función para obtener el color según la intensidad
-const getIntensityColor = (intensity: string) => {
-  switch (intensity.toLowerCase()) {
-    case "baja":
-      return "bg-green-100 text-green-800 border-green-200"
-    case "media":
-      return "bg-yellow-100 text-yellow-800 border-yellow-200"
-    case "media-alta":
-      return "bg-orange-100 text-orange-800 border-orange-200"
-    case "alta":
-      return "bg-red-100 text-red-800 border-red-200"
-    case "muy alta":
-      return "bg-purple-100 text-purple-800 border-purple-200"
-    default:
-      return "bg-gray-100 text-gray-800 border-gray-200"
-  }
-}
 
 // Componente de skeleton para las tarjetas
 const ClassCardSkeleton = () => (
-  <Card className="bg-white border-gray-100 overflow-hidden rounded-3xl shadow-sm">
+  <Card className="bg-white border-gray-50 overflow-hidden rounded-3xl shadow-sm">
     <CardContent className="p-6">
       <div className="flex justify-between items-start mb-4">
         <Skeleton className="h-6 w-32" />
@@ -98,35 +65,21 @@ export default function ClassesPage() {
     }
   }
 
-  // Filtrar y ordenar clases
-  const filteredAndSortedClasses = classTypes
-    .filter((classType) => filter === "all" || classType.category === filter)
-    .sort((a, b) => {
-      switch (sortBy) {
-        case "duration":
-          return a.duration - b.duration
-        case "intensity":
-          return a.intensity.localeCompare(b.intensity)
-        case "capacity":
-          return b.capacity - a.capacity
-        default:
-          return a.name.localeCompare(b.name)
-      }
-    })
+  // Filtrar clases
+  const filteredClasses = classTypes.filter((classType) => filter === "all" || classType.category === filter)
 
   // Obtener categorías únicas
   const categories = ["all", ...Array.from(new Set(classTypes.map((c) => c.category)))]
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 text-zinc-900">
+    <div className="flex flex-col min-h-screen bg-gray-10 text-zinc-900">
       {/* Hero Section */}
-      <section className="py-5 pt-14 bg-gradient-to-br from-white via-gray-50 to-brand-sage/5">
+      <section className="py-4 pt-14 bg-white">
         <div className="container px-4 md:px-6 text-center">
-
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 anim-slide-in-up">
+          <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-4 anim-slide-in-up">
             NUESTRAS <span className="text-brand-sage">CLASES</span>
           </h1>
-          <p className="text-xl max-w-3xl mx-auto text-gray-600 mb-4 leading-relaxed">
+          <p className="text-xl max-w-3xl mx-auto text-gray-600 mb-2 leading-relaxed">
             Descubre nuestra variedad de clases diseñadas para desafiarte y motivarte, sin importar tu nivel de
             experiencia.
           </p>
@@ -134,10 +87,10 @@ export default function ClassesPage() {
       </section>
 
       {/* Classes Section */}
-      <section className="py-10 bg-gray-50">
+      <section className="py-2 bg-white">
         <div className="container px-4 md:px-6">
-          {/* Filtros y ordenamiento */}
-          <div className="flex flex-col md:flex-row gap-4 mb-8 p-6 bg-white rounded-2xl shadow-sm border border-gray-100 anim-fade-in">
+          {/* Filtros */}
+          <div className="flex flex-col md:flex-row gap-4 mb-4 p-5 bg-white rounded-3xl shadow-sm border border-gray-100 anim-fade-in">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-3">
                 <Filter className="h-4 w-4 text-gray-500" />
@@ -165,10 +118,10 @@ export default function ClassesPage() {
 
           {/* Contador de resultados */}
           {!isLoading && (
-            <div className="mb-6">
+            <div className="mb-4">
               <p className="text-gray-600">
-                Mostrando <span className="font-semibold text-brand-sage">{filteredAndSortedClasses.length}</span>
-                {filteredAndSortedClasses.length === 1 ? " clase" : " clases"}
+                Mostrando <span className="font-semibold text-brand-sage">{filteredClasses.length}</span>
+                {filteredClasses.length === 1 ? " clase" : " clases"}
                 {filter !== "all" && (
                   <span>
                     {" "}
@@ -184,70 +137,72 @@ export default function ClassesPage() {
             {isLoading ? (
               // Skeleton loaders
               Array.from({ length: 6 }).map((_, index) => <ClassCardSkeleton key={index} />)
-            ) : filteredAndSortedClasses.length > 0 ? (
-              filteredAndSortedClasses.map((classType) => (
+            ) : filteredClasses.length > 0 ? (
+              filteredClasses.map((classType) => (
                 <Card
                   key={classType.id}
-                  className="bg-white border-gray-100 overflow-hidden rounded-3xl shadow-sm hover:shadow-lg transition-all duration-300 group cursor-pointer"
+                  className="relative overflow-hidden rounded-3xl shadow-md transition-all duration-300 group border-0"
                 >
+                  {/* Fondo con gradiente y blur */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-brand-cream/90 via-white/60 to-brand-mint/70 backdrop-blur-xl"></div>
+
+                  {/* Overlay para mejorar legibilidad */}
+                  <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
+
                   {/* Header visual con ícono */}
-                  <div className="relative h-24 bg-gradient-to-br from-brand-sage/50 via-brand-mint/25 to-brand-sage/20 flex items-center justify-center ">
-                    <div className="p-3 bg-white/90 backdrop-blur-sm rounded-2xl text-brand-sage group-hover:scale-110 transition-transform duration-300 shadow-sm">
-                      {getCategoryIcon(classType.category)}
-                    </div>
+                  <div className="relative h-4 flex items-center justify-center">
                     <div className="absolute top-3 right-3">
-                      <Badge className="bg-white/90 text-brand-sage border-0 shadow-sm">{classType.duration} min</Badge>
+                      <Badge className="bg-brand-sage/60 text-white border border-brand-cream/30 backdrop-blur-sm shadow-sm">
+                        {classType.duration} min
+                      </Badge>
                     </div>
                   </div>
 
-                  <CardContent className="p-6">
+                  <CardContent className="relative p-6">
                     <div className="mb-4">
-                      <h3 className="text-xl font-bold text-brand-sage mb-2 group-hover:text-brand-mbg-brand-mint transition-colors">
-                        {classType.name}
-                      </h3>
-                      <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">{classType.description}</p>
+                      <h3 className="text-xl font-bold text-brand-gray mb-2 drop-shadow-md ">{classType.name}</h3>
+                      <p className="text-brand-gray/90 text-sm leading-relaxed line-clamp-3 drop-shadow-sm">
+                        {classType.description}
+                      </p>
                     </div>
 
                     {/* Información de la clase */}
                     <div className="space-y-3 mb-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Clock className="h-4 w-4 text-brand-sage" />
+                      <div className="flex items-center justify-between bg-brand-cream/10 backdrop-blur-sm rounded-xl p-3 border border-brand-cream/70">
+                        <div className="flex items-center gap-2 text-sm text-brand-gray/90">
                           <span>Intensidad:</span>
                         </div>
-                        <Badge className={`text-xs border ${getIntensityColor(classType.intensity)}`}>
-                          {classType.intensity}
-                        </Badge>
+                        <div className="bg-brand-cream/20 backdrop-blur-sm px-2 py-1 rounded-full border border-brand-cream/70">
+                          <span className="text-xs font-medium text-brand-gray">{classType.intensity}</span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Users className="h-4 w-4 text-brand-sage" />
+                      <div className="flex items-center justify-between bg-brand-cream/10 backdrop-blur-sm rounded-xl p-3 border border-brand-cream/70">
+                        <div className="flex items-center gap-2 text-sm text-brand-gray/90">
                           <span>Capacidad:</span>
                         </div>
-                        <span className="font-semibold text-brand-sage">{classType.capacity} personas</span>
+                        <span className="text-sm font-medium text-brand-gray">{classType.capacity} personas</span>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Target className="h-4 w-4 text-brand-sage" />
+                      <div className="flex items-center justify-between bg-brand-cream/10 backdrop-blur-sm rounded-xl p-3 border border-brand-cream/70">
+                        <div className="flex items-center gap-2 text-sm text-brand-gray/90">
                           <span>Categoría:</span>
                         </div>
-                        <span className="text-sm font-medium text-gray-700 capitalize">{classType.category}</span>
+                        <span className="text-sm font-medium text-brand-gray capitalize">{classType.category}</span>
                       </div>
                     </div>
 
-                    {/* Botón de reserva */}
+                    {/* Botón de reserva directo */}
                     <Button
                       asChild
-                      className="w-full bg-brand-sage hover:bg-brand-mint text-white rounded-full group-hover:shadow-lg transition-all duration-300"
+                      className="w-full bg-brand-sage/20 hover:bg-brand-sage/30 text-brand-gray border border-brand-cream/30 backdrop-blur-sm rounded-2xl transition-all duration-300"
                     >
                       <Link
                         href={`/reservar?classTypeId=${classType.id}`}
-                        className="flex items-center justify-center gap-2"
+                        className="flex items-center justify-center gap-2 font-semibold"
                       >
                         Reservar Clase
-                        <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                        <ChevronRight className="h-4 w-4" />
                       </Link>
                     </Button>
                   </CardContent>

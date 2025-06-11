@@ -45,18 +45,14 @@ export default function AboutPage() {
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
       {/* Hero Section */}
-      <section className="relative h-[30vh] flex items-center justify-center overflow-hidden">
-        <div className="container relative z-10 px-4 md:px-6 space-y-1 text-center">
-          <h1 className="text-3xl md:text-6xl font-bold tracking-tight text-black anim-slide-in-up">NUESTRO EQUIPO</h1>
-      
-          
+      <section className="relative h-[20vh] flex items-center justify-center overflow-hidden">
+        <div className="container  px-4 md:px-6 space-y-1 text-center">
+          <h1 className="text-5xl md:text-5xl font-bold tracking-tight text-black anim-slide-in-up">NUESTRO EQUIPO</h1>
         </div>
       </section>
 
-
-
       {/* Our Team Section */}
-      <section className="py-8 bg-white">
+      <section className="py-4 bg-white">
         <div className="container px-4 md:px-6">
 
 
@@ -64,7 +60,7 @@ export default function AboutPage() {
             {instructors.map((instructor) => (
               <Card
                 key={instructor.id}
-                className="bg-white border-gray-100 rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group anim-slide-in-up"
+                className="bg-white border-gray-100 rounded-3xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group anim-slide-in-up"
               >
                 <div className="relative h-80 overflow-hidden ">
                   <Image
