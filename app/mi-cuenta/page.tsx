@@ -72,6 +72,140 @@ const getIntensityColor = (intensity: string | undefined) => {
   }
 }
 
+// Add new functions for grouping reservations
+const groupReservationsByClass = (reservations: UserReservation[]) => {
+  const grouped = reservations.reduce((acc, reservation) => {
+    const classKey = `${reservation.date}-${reservation.time}-${reservation.className}`
+    
+    if (!acc[classKey]) {
+      acc[classKey] = {
+        classInfo: {
+          className: reservation.className,
+          instructor: reservation.instructor,
+          date: reservation.date,
+          dateFormatted: reservation.dateFormatted,
+          time: reservation.time,
+          duration: reservation.duration,
+          location: reservation.location,
+          category: reservation.category,
+          intensity: reservation.intensity,
+          capacity: reservation.capacity,
+          description: reservation.description,
+        },
+        reservations: []
+      }
+    }
+    
+    acc[classKey].reservations.push(reservation)
+    return acc
+  }, {} as Record<string, any>)
+
+  return Object.values(grouped)
+}
+
+// Componente para mostrar una tarjeta de clase con múltiples reservas
+const ClassReservationCard = ({ 
+  classGroup, 
+  onCancelClass 
+}: { 
+  classGroup: any
+  onCancelClass: (reservation: UserReservation) => void 
+}) => {
+  const { classInfo, reservations } = classGroup
+  const canCancelAny = reservations.some((r: UserReservation) => r.canCancel)
+  const allCancelled = reservations.every((r: UserReservation) => r.status === 'cancelled')
+
+  return (
+    <Card className="mb-4">
+      <CardContent className="p-6">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">{classInfo.className}</h3>
+            <p className="text-sm text-gray-600">Instructor: {classInfo.instructor}</p>
+            <p className="text-sm text-gray-600">
+              {classInfo.dateFormatted} • {classInfo.time} • {classInfo.duration}
+            </p>
+          </div>
+          <Badge variant={allCancelled ? "secondary" : "default"}>
+            {reservations.length} reserva{reservations.length > 1 ? 's' : ''}
+          </Badge>
+        </div>
+
+        {/* Mostrar información de cada reserva */}
+        <div className="space-y-3 mb-4">
+          {reservations.map((reservation: UserReservation) => (
+            <div 
+              key={reservation.id}
+              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  {reservation.bikeNumber && (
+                    <div className="flex items-center gap-1 text-sm text-gray-600">
+                      <Bike className="h-4 w-4" /> <span>Bicicleta #{reservation.bikeNumber}</span>
+                    </div>
+                  )}
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {reservation.package}
+                </Badge>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Badge 
+                  variant={
+                    reservation.status === 'confirmed' ? 'default' :
+                    reservation.status === 'cancelled' ? 'secondary' : 'outline'
+                  }
+                  className="text-xs"
+                >
+                  {reservation.status === 'confirmed' ? 'Confirmada' :
+                   reservation.status === 'cancelled' ? 'Cancelada' : reservation.status}
+                </Badge>
+                
+                {reservation.canCancel && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => onCancelClass(reservation)}
+                  >
+                    Cancelar
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Información adicional de la clase */}
+        {classInfo.description && (
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-800">{classInfo.description}</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// Función principal para renderizar las reservas agrupadas
+const renderGroupedReservations = (reservations: UserReservation[], onCancelClass: (reservation: UserReservation) => void) => {
+  const groupedReservations = groupReservationsByClass(reservations)
+  
+  return (
+    <div className="space-y-4">
+      {groupedReservations.map((classGroup, index) => (
+        <ClassReservationCard 
+          key={index} 
+          classGroup={classGroup} 
+          onCancelClass={onCancelClass}
+        />
+      ))}
+    </div>
+  )
+}
+
 export default function ProfilePage() {
   const router = useRouter()
   const { logout, user, isLoading } = useAuth()
@@ -358,108 +492,7 @@ export default function ProfilePage() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {upcomingClasses.map((classItem) => (
-                      <Card
-                        key={classItem.id}
-                        className="border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 group overflow-hidden"
-                      >
-                        <div className="bg-gradient-to-r from-brand-sage/10 to-brand-mint/10 p-4 border-b border-gray-100">
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <h3 className="text-lg font-bold text-brand-sage group-hover:text-brand-mint transition-colors">
-                                {classItem.className}
-                              </h3>
-                              <p className="text-sm text-zinc-600">Con {classItem.instructor}</p>
-                            </div>
-                            <Badge className="bg-white/80 text-brand-sage border-brand-sage/20 shadow-sm">
-                              {classItem.duration}
-                            </Badge>
-                          </div>
-                        </div>
-
-                        <CardContent className="p-6">
-                          {classItem.description && (
-                            <p className="text-sm text-zinc-600 mb-4 line-clamp-2">{classItem.description}</p>
-                          )}
-
-                          <div className="space-y-3 mb-6">
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2 text-zinc-600">
-                                <Calendar className="h-4 w-4 text-brand-sage" />
-                                <span>Fecha</span>
-                              </div>
-                              <span className="font-medium text-zinc-800">
-                                {classItem.dateFormatted || classItem.date}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2 text-zinc-600">
-                                <Clock className="h-4 w-4 text-brand-sage" />
-                                <span>Hora</span>
-                              </div>
-                              <span className="font-medium text-zinc-800">{classItem.time}</span>
-                            </div>
-
-                            {classItem.bikeNumber && (
-                              <div className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-2 text-zinc-600">
-                                  <Bike className="h-4 w-4 text-brand-sage" />
-                                  <span>Bicicleta</span>
-                                </div>
-                                <span className="font-medium text-zinc-800">#{classItem.bikeNumber}</span>
-                              </div>
-                            )}
-
-                            {classItem.intensity && (
-                              <div className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-2 text-zinc-600">
-                                  <Target className="h-4 w-4 text-brand-sage" />
-                                  <span>Intensidad</span>
-                                </div>
-                                <Badge className={`text-xs font-medium ${getIntensityColor(classItem.intensity)}`}>
-                                  {classItem.intensity}
-                                </Badge>
-                              </div>
-                            )}
-
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2 text-zinc-600">
-                                <Users className="h-4 w-4 text-brand-sage" />
-                                <span>Capacidad</span>
-                              </div>
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="font-medium text-zinc-800">{classItem.capacity} personas</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {classItem.status === "cancelled" ? (
-                            <Button
-                              variant="outline"
-                              className="w-full text-red-400 bg-red-50 border-red-200 cursor-not-allowed"
-                              disabled
-                            >
-                              <X className="mr-2 h-4 w-4" />
-                              Reserva Cancelada
-                            </Button>
-                          ) : (
-                            classItem.canCancel && (
-                              <Button
-                                variant="outline"
-                                className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200 transition-colors"
-                                onClick={() => handleCancelClass(classItem)}
-                              >
-                                <X className="mr-2 h-4 w-4" />
-                                Cancelar Reserva
-                              </Button>
-                            )
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
+                  renderGroupedReservations(upcomingClasses, handleCancelClass)
                 )}
               </TabsContent>
 

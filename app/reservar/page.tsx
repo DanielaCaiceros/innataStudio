@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { CalendarIcon, Clock, ChevronRight } from "lucide-react"
+import { CalendarIcon, Clock, ChevronRight, Bike } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { StripeCheckout } from "@/components/stripe-checkout"
 import { useToast } from "@/hooks/use-toast"
@@ -48,6 +48,7 @@ interface ScheduledClass {
   maxCapacity: number
   availableSpots: number
   enrolledCount: number
+  bikeNumber?: number
 }
 
 export default function BookingPage() {
@@ -776,7 +777,7 @@ export default function BookingPage() {
           </DialogHeader>
           <div className="py-4">
             <StripeCheckout
-              amount={selectedClass?.classType ? 69 : 0}
+              amount={selectedClass && availableClasses.find(c => c.id === selectedClass)?.classType ? 69 : 0}
               description={`Reserva: ${selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""} - ${
                 date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : ""
               } ${selectedTime || ""}`}
@@ -888,6 +889,7 @@ export default function BookingPage() {
         onBikeSelected={setSelectedBikeId}
         onConfirm={() => handleBikeSelected(selectedBikeId || 0)}
         scheduledClassId={scheduledClassId || 0}
+        
       />
 
       {/* Dialog de confirmación de Semana Ilimitada */}

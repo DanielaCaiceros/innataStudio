@@ -211,12 +211,12 @@ model Reservation {
   user                User                 @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   userPackage         UserPackage?         @relation(fields: [userPackageId], references: [id], onUpdate: NoAction)
 
-  @@unique([userId, scheduledClassId])
-  @@unique([scheduledClassId, bikeNumber], name: "unique_bike_per_class")
+  @@unique([scheduledClassId, bikeNumber])
   @@index([scheduledClassId], map: "idx_reservations_scheduled_class_id")
   @@index([status], map: "idx_reservations_status")
   @@index([userId], map: "idx_reservations_user_id")
   @@index([bikeNumber], map: "idx_reservations_bike_number")
+  @@index([userId, scheduledClassId], map: "idx_reservations_user_class")
   @@map("reservations")
 }
 

@@ -24,20 +24,20 @@ interface Bike {
 // Posiciones de las bicicletas en el grid (versión de main)
 const bikePositions: { [key: number]: { x: number; y: number } } = {
   // Fila superior (2 bicis en las columnas 1 y 3)
-  6: { x: 26, y: 23 },
-  1: { x: 73, y: 28 },
+  6: { x: 15, y: 15 },
+  1: { x: 70, y: 15 },
 
   // Fila media (4 bicis en las columnas 1, 2, 3, 4)
-  5: { x: 26, y: 49 },
-  4: { x: 43, y: 52 },
-  3: { x: 58, y: 52 },
-  2: { x: 73, y: 55 },
+  5: { x: 15, y: 45 },
+  4: { x: 35, y: 45 },
+  3: { x: 55, y: 45 },
+  2: { x: 75, y: 45 },
 
   // Fila inferior (4 bicis en las columnas 1, 2, 3, 4)
-  7: { x: 26, y: 74 },
-  8: { x: 37, y: 80 },
-  9: { x: 50, y: 80 },
-  10: { x: 63, y: 80 },
+  7: { x: 15, y: 75 },
+  8: { x: 35, y: 75 },
+  9: { x: 55, y: 75 },
+  10: { x: 75, y: 75 },
 }
 
 export function BikeSelectionDialog({
@@ -51,24 +51,33 @@ export function BikeSelectionDialog({
   const [localSelectedBikeId, setLocalSelectedBikeId] = useState<number | null>(selectedBikeId)
   const [bikes, setBikes] = useState<Bike[]>([])
   const [isLoading, setIsLoading] = useState(true)
-
+  const [bikeData, setBikeData] = useState({
+    bikes: [],
+    userHasReservation: false,
+    userHasUnlimitedPackage: false,
+    canMakeMultipleReservations: false
+  })
+  
   useEffect(() => {
     const fetchAvailableBikes = async () => {
       if (!scheduledClassId) return
 
       setIsLoading(true)
       try {
-        const response = await fetch(`/api/reservations/available-bikes?scheduledClassId=${scheduledClassId}`)
+        const response = await fetch(`/api/reservations/available-bikes?scheduledClassId=${scheduledClassId}`, {
+          credentials: 'include'
+        })
         if (!response.ok) {
           throw new Error("Error al obtener bicicletas disponibles")
         }
 
-        const availableBikes = await response.json()
-        const bikesWithPositions = availableBikes.map((bike: { id: number; available: boolean }) => ({
+        const data = await response.json()
+        setBikeData(data)
+        
+        const bikesWithPositions = data.bikes.map((bike: { id: number; available: boolean; reservedByUser: boolean }) => ({
           ...bike,
           ...bikePositions[bike.id]
         }))
-
         setBikes(bikesWithPositions)
       } catch (error) {
         console.error("Error:", error)
@@ -91,6 +100,99 @@ export function BikeSelectionDialog({
     setLocalSelectedBikeId(bikeId)
     onBikeSelected(bikeId)
   }
+
+  // Función para mostrar información adicional en el diálogo
+  const BikeSelectionInfo = () => {
+    if (!bikeData.userHasReservation) {
+      return null
+    }
+
+    if (bikeData.userHasUnlimitedPackage) {
+      return (
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-sm text-yellow-800">
+            <strong>Nota:</strong> Con el paquete de semana ilimitada no puedes hacer múltiples reservas para la misma clase.
+          </p>
+        </div>
+      )
+    }
+
+    if (bikeData.canMakeMultipleReservations) {
+      return (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-800">
+            <strong>Reserva adicional:</strong> Ya tienes una reserva para esta clase. Puedes hacer otra reserva eligiendo una bicicleta diferente.
+          </p>
+        </div>
+      )
+    }
+
+    return null
+  }
+
+  // Modificar la renderización de cada bicicleta para mostrar información adicional
+  const renderBikeButton = (bike: any) => {
+    const isReservedByUser = bike.reservedByUser
+    const isAvailable = bike.available
+    
+    let buttonClass = "w-12 h-12 rounded-lg border-2 font-semibold transition-all duration-200 "
+    let buttonText = bike.id.toString()
+    let disabled = false
+    
+    if (isReservedByUser) {
+      buttonClass += "bg-green-100 border-green-500 text-green-700 cursor-not-allowed"
+      buttonText = "✓"
+      disabled = true
+    } else if (!isAvailable) {
+      buttonClass += "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed"
+      disabled = true
+    } else if (localSelectedBikeId === bike.id) {
+      buttonClass += "bg-brand-burgundy border-brand-burgundy text-white"
+    } else {
+      buttonClass += "bg-white border-gray-300 text-gray-700 hover:border-brand-burgundy hover:text-brand-burgundy"
+    }
+    
+    return (
+      <button
+        key={bike.id}
+        onClick={() => !disabled && handleBikeSelected(bike.id)}
+        disabled={disabled}
+        className={buttonClass}
+        title={
+          isReservedByUser 
+            ? "Ya tienes esta bicicleta reservada" 
+            : !isAvailable 
+              ? "Bicicleta no disponible" 
+              : `Bicicleta ${bike.id}`
+        }
+      >
+        {buttonText}
+      </button>
+    )
+  }
+
+  // Leyenda para explicar los íconos
+  const BikeLegend = () => (
+    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+      <h4 className="font-medium text-sm text-gray-900 mb-2">Leyenda:</h4>
+      <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-white border-2 border-gray-300 rounded"></div>
+          <span>Disponible</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 bg-gray-100 border-2 border-gray-300 rounded"></div>
+          <span>Ocupada</span>
+        </div>
+        {bikeData.userHasReservation && !bikeData.userHasUnlimitedPackage && (
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-green-100 border-2 border-green-500 rounded flex items-center justify-center text-green-700 font-bold">✓</div>
+            <span>Ya la tienes reservada</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -196,6 +298,8 @@ export function BikeSelectionDialog({
             </div>
           )}
 
+          <BikeSelectionInfo />
+
           <div className="flex justify-between pt-2">
             <Button
               variant="outline"
@@ -213,6 +317,7 @@ export function BikeSelectionDialog({
             </Button>
           </div>
         </div>
+        <BikeLegend />
       </DialogContent>
     </Dialog>
   )
