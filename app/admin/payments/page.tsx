@@ -27,8 +27,6 @@ import {
   DollarSign,
   Receipt,
   ArrowUpRight,
-  Eye,
-  FileText,
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { Textarea } from "@/components/ui/textarea"
@@ -480,7 +478,7 @@ export default function PaymentsPage() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-6 bg-white-50 min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#4A102A]">Gestión de Pagos</h1>
@@ -786,7 +784,6 @@ export default function PaymentsPage() {
                   <th className="text-left p-4 font-medium text-gray-600">Método</th>
                   <th className="text-left p-4 font-medium text-gray-600">Estado</th>
                   <th className="text-left p-4 font-medium text-gray-600">Factura</th>
-                  <th className="text-left p-4 font-medium text-gray-600">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -800,24 +797,6 @@ export default function PaymentsPage() {
                     <td className="text-left p-4 font-medium text-gray-600">{payment.method}</td>
                     <td className="text-left p-4 font-medium text-gray-600">{payment.status}</td>
                     <td className="text-left p-4 font-medium text-gray-600">{payment.invoice}</td>
-                    <td className="text-left p-4 font-medium text-gray-600">
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 border-gray-200 text-zinc-900 hover:bg-gray-100"
-                        >
-                          <Eye className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 border-gray-200 text-zinc-900 hover:bg-gray-100"
-                        >
-                          <FileText className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>
