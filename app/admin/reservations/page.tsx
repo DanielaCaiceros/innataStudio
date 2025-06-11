@@ -23,7 +23,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X, AlertCircle } from "lucide-react"
+import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X, AlertCircle, CheckCircle, XCircle, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // Tipos
@@ -40,6 +40,9 @@ interface Reservation {
   remainingClasses: number | string
   paymentStatus: string
   paymentMethod: string
+  checkedIn: boolean
+  checkedInAt: string | null
+  bikeNumber: number | null
 }
 
 const timeSlots = [
@@ -303,6 +306,115 @@ export default function ReservationsPage() {
         setIsEditDialogOpen(false)
         setSelectedReservation(null)
       }
+    }
+  }
+
+  // Función para validar si se puede hacer check-in
+  const canCheckIn = (reservation: Reservation) => {
+    if (reservation.status !== 'confirmed') return false
+    
+    const now = new Date()
+    const classDateTime = new Date(`${reservation.date}T${reservation.time}:00`)
+    
+    // Permitir check-in desde 20 minutos antes hasta 2 horas después del inicio de la clase
+    const twentyMinutesBefore = new Date(classDateTime.getTime() - 20 * 60 * 1000)
+    const oneHourAfter = new Date(classDateTime.getTime() + 1 * 60 * 60 * 1000)
+    
+    return now >= twentyMinutesBefore && now <= oneHourAfter
+  }
+  
+  // Función para hacer check-in
+  const handleCheckIn = async (reservationId: number) => {
+    const reservation = reservations.find((r) => r.id === reservationId)
+    
+    if (!reservation) {
+      alert("Error: No se encontró la reservación")
+      return
+    }
+    
+    if (!canCheckIn(reservation)) {
+      alert("No se puede hacer check-in fuera del horario permitido (20 minutos antes hasta 2 horas después del inicio de la clase)")
+      return
+    }
+    
+    try {
+      const response = await fetch(`/api/admin/reservations/${reservationId}/checkin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error al hacer check-in")
+      }
+      
+      const data = await response.json()
+      
+      // Actualizar la reservación local
+      setReservations((prevReservations) =>
+        prevReservations.map((r) =>
+          r.id === reservationId 
+            ? { 
+                ...r, 
+                checkedIn: true, 
+                checkedInAt: data.checkedInAt || new Date().toISOString()
+              } 
+            : r
+        )
+      )
+      
+      alert(`Check-in exitoso para ${reservation.user}`)
+    } catch (error) {
+      console.error("Error al hacer check-in:", error)
+      alert(`Error al hacer check-in: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  
+  // Función para deshacer check-in
+  const handleUndoCheckIn = async (reservationId: number) => {
+    const reservation = reservations.find((r) => r.id === reservationId)
+    
+    if (!reservation) {
+      alert("Error: No se encontró la reservación")
+      return
+    }
+    
+    if (!confirm(`¿Estás seguro de que deseas deshacer el check-in de ${reservation.user}?`)) {
+      return
+    }
+    
+    try {
+      const response = await fetch(`/api/admin/reservations/${reservationId}/checkin`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error al deshacer check-in")
+      }
+      
+      // Actualizar la reservación local
+      setReservations((prevReservations) =>
+        prevReservations.map((r) =>
+          r.id === reservationId 
+            ? { 
+                ...r, 
+                checkedIn: false, 
+                checkedInAt: null 
+              } 
+            : r
+        )
+      )
+      
+      alert(`Check-in deshecho para ${reservation.user}`)
+    } catch (error) {
+      console.error("Error al deshacer check-in:", error)
+      alert(`Error al deshacer check-in: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -717,7 +829,7 @@ export default function ReservationsPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto ">
-              <div  className="max-h-[500px] overflow-y-auto">
+              <div className="max-h-[500px] overflow-y-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
@@ -727,14 +839,14 @@ export default function ReservationsPage() {
                     <th className="text-left py-3 px-2">Hora</th>
                     <th className="text-left py-3 px-2">Estado</th>
                     <th className="text-left py-3 px-2">Paquete</th>
+                    <th className="text-left py-3 px-2">Check-in</th>
                     <th className="text-left py-3 px-2">Pago</th>
                     <th className="text-left py-3 px-2">Acciones</th>
                   </tr>
                 </thead>
-                
-                <tbody >
+                <tbody className="text-sm">
                   {filteredReservations.map((reservation) => (
-                    <tr key={reservation.id} className="border-b hover:bg-gray-50 text-sm">
+                    <tr key={reservation.id} className="border-b hover:bg-gray-50">
                       <td className="py-3 px-2">
                         <div>
                           <div className="font-medium">{reservation.user}</div>
@@ -767,6 +879,49 @@ export default function ReservationsPage() {
                           {typeof reservation.remainingClasses === 'number' && (
                             <div className="text-xs text-gray-500">
                               {reservation.remainingClasses} clases restantes
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-2">
+                        <div className="flex items-center gap-2">
+                          {reservation.checkedIn ? (
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-5 w-5 text-green-600" />
+                              <div>
+                                <div className="text-sm font-medium text-green-700">Presente</div>
+                                <div className="text-xs text-gray-500">
+                                  {reservation.checkedInAt ? new Date(reservation.checkedInAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''}
+                                </div>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-2 text-xs border-red-200 text-red-600 hover:bg-red-50"
+                                onClick={() => handleUndoCheckIn(reservation.id)}
+                              >
+                                Deshacer
+                              </Button>
+                            </div>
+                          ) : canCheckIn(reservation) ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 border-green-200 text-green-600 hover:bg-green-50"
+                              onClick={() => handleCheckIn(reservation.id)}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Check-in
+                            </Button>
+                          ) : reservation.status === 'confirmed' ? (
+                            <div className="flex items-center gap-1 text-gray-500">
+                              <Clock className="h-4 w-4" />
+                              <span className="text-xs">Fuera de horario</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-gray-400">
+                              <XCircle className="h-4 w-4" />
+                              <span className="text-xs">No disponible</span>
                             </div>
                           )}
                         </div>
