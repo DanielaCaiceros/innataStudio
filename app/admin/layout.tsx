@@ -116,7 +116,7 @@ export default function AdminLayout({
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        <header className="sticky top-0 z-10 bg-white border-b border-gray-100 p-4">
+        <header className="sticky top-0 z-10 bg-white border-b border-gray-100 ">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button

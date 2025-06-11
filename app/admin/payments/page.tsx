@@ -748,7 +748,7 @@ export default function PaymentsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
+            <div className="relative flex-1 ">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
               <Input
                 type="search"
@@ -772,7 +772,7 @@ export default function PaymentsPage() {
             </Select>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200">

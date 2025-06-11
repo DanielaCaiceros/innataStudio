@@ -444,22 +444,12 @@ export default function UsersPage() {
       </div>
 
       <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 mb-8 bg-gray-100">
-          <TabsTrigger
-            value="all"
-            onClick={() => setStatusFilter("all")}
-            className="data-[state=active]:bg-white data-[state=active]:text-[#4A102A]"
-          >
-            Todos los Usuarios
-          </TabsTrigger>
- 
-        </TabsList>
-
+        
         <TabsContent value="all">
           <Card className="bg-white border-gray-200">
             <CardHeader>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <CardTitle className="text-lg text-gray-900">Usuarios</CardTitle>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-2">
+                <CardTitle className="text-xl text-gray-900">Usuarios</CardTitle>
                 <div className="relative w-full sm:w-64">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
                   <Input

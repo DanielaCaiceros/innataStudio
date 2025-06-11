@@ -50,7 +50,6 @@ const packages = [
     price: "$299.00",
     description: "Tiempo limitado",
     features: ["Hasta 25 clases de indoor cycling","Sí no te presentas o cancelas la clase, se descontará de tu paquete"],
-
     popular: true,
     expiracion: "Válido por 5 días de Lunes a Viernes",
     buttonText: "COMPRAR PAQUETE",
@@ -146,9 +145,9 @@ export default function PackagesPage() {
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
       {/* Hero Section */}
 
-      <section className="py-10 pt-20 bg-white">
+      <section className="py-12 pt-14 bg-white">
         <div className="container px-4 md:px-6 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-2 anim-slide-in-up">
+          <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-2 anim-slide-in-up">
             NUESTROS PAQUETES
           </h1>
           <p className="text-xl max-w-3xl mx-auto text-zinc-700 mb-2">
@@ -158,7 +157,7 @@ export default function PackagesPage() {
       </section>
 
       {/* Packages Section */}
-      <section className="py-10 bg-white">
+      <section className="py-3 bg-white">
         <div className="container px-4 md:px-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 anim-fade-in">
 

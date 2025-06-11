@@ -233,33 +233,24 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/50 text-zinc-900">
+    <div className="flex flex-col min-h-screen bg-white text-zinc-900">
       {/* Header mejorado */}
       <div className=" border-gray-100 ">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-zinc-900 mb-1">¡Hola, {currentUser.name || "Usuario"}!</h1>
+              <h1 className="text-3xl font-bold text-zinc-900 mb-1 mt-1">¡Hola, {currentUser.name || "Usuario"}!</h1>
               <p className="text-zinc-600">Gestiona tus clases y paquetes</p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm text-zinc-500">Clases disponibles</p>
-                <p className="text-2xl font-bold text-brand-sage">
-                  {isLoadingPackages ? "..." : totalAvailableClasses}
-                </p>
-              </div>
-
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-5">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Sidebar mejorado */}
           <div className="lg:col-span-3">
-            <Card className="border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+            <Card className="border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200 rounded-2xl">
               <CardHeader className="bg-gradient-to-r from-brand-sage/5 to-brand-mint/5">
                 <div className="flex items-center gap-3">
                   <div className="bg-brand-sage/10 p-2 rounded-full">
@@ -270,19 +261,21 @@ export default function ProfilePage() {
               </CardHeader>
               <CardContent className="pt-6">
                 <div className="space-y-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="bg-white  p-2 border-b border-brand-gray/30">
                     <div className="flex justify-between items-center">
                       <span className="text-zinc-600 text-sm">Email</span>
-                      <span className="font-medium text-sm text-zinc-800">{currentUser.email}</span>
                     </div>
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="font-medium text-xs text-zinc-800">{currentUser.email}</span>
+                      </div>
                   </div>
-                  <div className="bg-gradient-to-r from-brand-sage/10 to-brand-mint/10 rounded-lg p-4">
+                  <div className="bg-white p-2 border-b border-brand-gray/30">
                     <div className="flex justify-between items-center">
-                      <span className="text-zinc-700 font-medium">Clases disponibles</span>
-                      <span className="font-bold text-xl text-brand-sage">
-                        {isLoadingPackages ? "..." : totalAvailableClasses}
-                      </span>
+                      <span className="text-zinc-600 text-sm">Clases disponibles</span>
                     </div>
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="font-medium text-md text-zinc-800">{isLoadingPackages ? "..." : totalAvailableClasses}</span>
+                      </div>
                   </div>
                   <Button
                     variant="outline"
@@ -290,36 +283,34 @@ export default function ProfilePage() {
                     onClick={handleLogout}
                     disabled={isLoggingOut || isLoading}
                   >
-                    <LogOut className="mr-2 h-4 w-4" />
+                    <LogOut className="mr-1 h-4 w-4" />
                     {isLoggingOut ? "Cerrando..." : "Salir"}
               </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
-
-          {/* Main Content mejorado */}
           <div className="lg:col-span-9">
             <Tabs defaultValue="upcoming" className="w-full">
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
-                <TabsList className="bg-white border border-gray-200 shadow-sm p-1">
+                <TabsList className="bg-white border border-gray-200 shadow-sm p-1 rounded-2xl">
                   <TabsTrigger
                     value="upcoming"
-                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm"
+                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl"
                   >
                     <Calendar className="h-4 w-4 mr-2" />
                     Próximas Clases
                   </TabsTrigger>
                   <TabsTrigger
                     value="packages"
-                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm"
+                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl"
                   >
                     <Package className="h-4 w-4 mr-2" />
                     Mis Paquetes
                   </TabsTrigger>
                   <TabsTrigger
                     value="history"
-                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm"
+                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl"
                   >
                     <Target className="h-4 w-4 mr-2" />
                     Historial
@@ -328,7 +319,7 @@ export default function ProfilePage() {
 
                 <Button
                   asChild
-                  className="bg-brand-sage hover:bg-brand-gray text-white shadow-sm hover:shadow-md transition-all duration-200"
+                  className="bg-brand-sage hover:bg-brand-gray text-white shadow-sm hover:shadow-md transition-all duration-200 rounded-2xl"
                 >
                   <Link href="/reservar">
                     <Calendar className="mr-2 h-4 w-4" />
@@ -362,12 +353,12 @@ export default function ProfilePage() {
                     {upcomingClasses.map((classItem) => (
                       <Card
                         key={classItem.id}
-                        className="border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 group overflow-hidden"
+                        className="border-gray-200 shadow-sm transition-all duration-300 group overflow-hidden rounded-2xl"
                       >
-                        <div className="bg-gradient-to-r from-brand-sage/10 to-brand-mint/10 p-4 border-b border-gray-100">
+                        <div className="bg-gradient-to-r from-brand-sage/20 to-brand-cream/40 p-4 border-b border-gray-100">
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <h3 className="text-lg font-bold text-brand-sage group-hover:text-brand-mint transition-colors">
+                              <h3 className="text-lg font-bold text-brand-gray transition-colors">
                                 {classItem.className}
                               </h3>
                               <p className="text-sm text-zinc-600">Con {classItem.instructor}</p>
@@ -380,13 +371,12 @@ export default function ProfilePage() {
 
                         <CardContent className="p-6">
                           {classItem.description && (
-                            <p className="text-sm text-zinc-600 mb-4 line-clamp-2">{classItem.description}</p>
+                            <p className="text-sm text-zinc-600 mb-4 line-clamp-2 font-medium">{classItem.description}</p>
                           )}
 
                           <div className="space-y-3 mb-6">
                             <div className="flex items-center justify-between text-sm">
                               <div className="flex items-center gap-2 text-zinc-600">
-                                <Calendar className="h-4 w-4 text-brand-sage" />
                                 <span>Fecha</span>
                               </div>
                               <span className="font-medium text-zinc-800">
@@ -396,7 +386,6 @@ export default function ProfilePage() {
 
                             <div className="flex items-center justify-between text-sm">
                               <div className="flex items-center gap-2 text-zinc-600">
-                                <Clock className="h-4 w-4 text-brand-sage" />
                                 <span>Hora</span>
                               </div>
                               <span className="font-medium text-zinc-800">{classItem.time}</span>
@@ -405,7 +394,6 @@ export default function ProfilePage() {
                             {classItem.bikeNumber && (
                               <div className="flex items-center justify-between text-sm">
                                 <div className="flex items-center gap-2 text-zinc-600">
-                                  <Bike className="h-4 w-4 text-brand-sage" />
                                   <span>Bicicleta</span>
                                 </div>
                                 <span className="font-medium text-zinc-800">#{classItem.bikeNumber}</span>
@@ -415,10 +403,9 @@ export default function ProfilePage() {
                             {classItem.intensity && (
                               <div className="flex items-center justify-between text-sm">
                                 <div className="flex items-center gap-2 text-zinc-600">
-                                  <Target className="h-4 w-4 text-brand-sage" />
                                   <span>Intensidad</span>
                                 </div>
-                                <Badge className={`text-xs font-medium ${getIntensityColor(classItem.intensity)}`}>
+                                <Badge className={`text-xs bg-brand-sage/80 hover:bg-brand-mint/90 font-medium ${classItem.intensity}`}>
                                   {classItem.intensity}
                                 </Badge>
                               </div>
@@ -426,7 +413,6 @@ export default function ProfilePage() {
 
                             <div className="flex items-center justify-between text-sm">
                               <div className="flex items-center gap-2 text-zinc-600">
-                                <Users className="h-4 w-4 text-brand-sage" />
                                 <span>Capacidad</span>
                               </div>
                               <div className="flex items-center justify-between text-sm">
@@ -438,7 +424,7 @@ export default function ProfilePage() {
                           {classItem.status === "cancelled" ? (
                             <Button
                               variant="outline"
-                              className="w-full text-red-400 bg-red-50 border-red-200 cursor-not-allowed"
+                              className="w-full text-red-400 bg-red-50 border-red-200 rounded-2xl cursor-not-allowed"
                               disabled
                             >
                               <X className="mr-2 h-4 w-4" />
@@ -448,7 +434,7 @@ export default function ProfilePage() {
                             classItem.canCancel && (
                               <Button
                                 variant="outline"
-                                className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200 transition-colors"
+                                className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 rounded-2xl border-red-200 transition-colors"
                                 onClick={() => handleCancelClass(classItem)}
                               >
                                 <X className="mr-2 h-4 w-4" />
