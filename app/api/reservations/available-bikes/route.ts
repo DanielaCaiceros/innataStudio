@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "ID de clase requerido" }, { status: 400 })
     }
 
+    // Verificar autenticación para obtener el userId
     const token = request.cookies.get("auth_token")?.value
     let userId = null
     
