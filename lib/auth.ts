@@ -2,6 +2,7 @@ import { NextAuthOptions, DefaultSession } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaClient } from "@prisma/client"
 import { compare } from "bcrypt"
+import { jwtVerify } from "jose"
 
 const prisma = new PrismaClient()
 
@@ -79,5 +80,15 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt"
+  }
+}
+
+export async function verifyToken(token: string) {
+  try {
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key')
+    const { payload } = await jwtVerify(token, secret)
+    return payload
+  } catch (error) {
+    throw new Error('Invalid token')
   }
 } 

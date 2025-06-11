@@ -203,6 +203,9 @@ model Reservation {
   createdAt           DateTime?            @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt           DateTime?            @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   bikeNumber          Int?                 @map("bike_number")
+  checked_in          Boolean?             @default(false)
+  checked_in_at       DateTime?            @db.Timestamp(6)
+  checked_in_by       Int?
   balanceTransactions BalanceTransaction[]
   scheduledClass      ScheduledClass       @relation(fields: [scheduledClassId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   user                User                 @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
@@ -215,6 +218,17 @@ model Reservation {
   @@index([userId], map: "idx_reservations_user_id")
   @@index([bikeNumber], map: "idx_reservations_bike_number")
   @@map("reservations")
+}
+
+model SystemConfiguration {
+  id          Int       @id @default(autoincrement())
+  key         String    @unique @db.VarChar(255)
+  value       String
+  description String?
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("system_configuration")
 }
 
 model Payment {

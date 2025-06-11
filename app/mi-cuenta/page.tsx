@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Calendar, Clock, X, LogOut, Users, Target, ChevronRight, User, Package } from "lucide-react"
+import { Calendar, Clock, X, LogOut, Users, Target, ChevronRight, User, Package, Bike } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -45,6 +45,7 @@ interface UserReservation {
   intensity?: string
   capacity?: number
   description?: string
+  bikeNumber?: number | null
 }
 
 interface UserProfile {
@@ -54,7 +55,7 @@ interface UserProfile {
 }
 
 // Función para obtener el color según la intensidad
-const getIntensityColor = (intensity: string) => {
+const getIntensityColor = (intensity: string | undefined) => {
   switch (intensity?.toLowerCase()) {
     case "baja":
       return "bg-emerald-50 text-emerald-700 border-emerald-200"
@@ -401,6 +402,16 @@ export default function ProfilePage() {
                               <span className="font-medium text-zinc-800">{classItem.time}</span>
                             </div>
 
+                            {classItem.bikeNumber && (
+                              <div className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-2 text-zinc-600">
+                                  <Bike className="h-4 w-4 text-brand-sage" />
+                                  <span>Bicicleta</span>
+                                </div>
+                                <span className="font-medium text-zinc-800">#{classItem.bikeNumber}</span>
+                              </div>
+                            )}
+
                             {classItem.intensity && (
                               <div className="flex items-center justify-between text-sm">
                                 <div className="flex items-center gap-2 text-zinc-600">
@@ -413,15 +424,15 @@ export default function ProfilePage() {
                               </div>
                             )}
 
-                            {classItem.capacity && (
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2 text-zinc-600">
+                                <Users className="h-4 w-4 text-brand-sage" />
+                                <span>Capacidad</span>
+                              </div>
                               <div className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-2 text-zinc-600">
-                                  <Users className="h-4 w-4 text-brand-sage" />
-                                  <span>Capacidad</span>
-                                </div>
                                 <span className="font-medium text-zinc-800">{classItem.capacity} personas</span>
                               </div>
-                            )}
+                            </div>
                           </div>
 
                           {classItem.status === "cancelled" ? (

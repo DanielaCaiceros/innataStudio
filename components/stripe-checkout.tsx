@@ -30,7 +30,7 @@ function CheckoutForm({ amount, description, onSuccess, onCancel, name: initialN
   const [name, setName] = useState(defaultName)
 
   // El usuario paga exactamente el amount recibido (precio base)
-  const totalAmount = parseFloat((amount).toFixed(2))
+  const totalAmount = parseFloat(amount.toString().replace(/[^0-9.]/g, ''))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

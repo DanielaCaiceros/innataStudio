@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient, User } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
 import { sendPackagePurchaseConfirmationEmail } from "@/lib/email"
+import { getUnlimitedWeekExpiryDate } from '@/lib/utils/business-days'
+
 
 const prisma = new PrismaClient()
 
@@ -58,9 +60,8 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = await verifyToken(token)
-    const userId = Number.parseInt(payload.userId)
+    const userId = parseInt(payload.userId)
 
-    // Obtener los datos del body
     const body = await request.json()
     const { packageId, paymentId } = body
 
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
     if (packageInfo.is_first_time_only === true) {
       const existingFirstTimePackage = await prisma.userPackage.findFirst({
         where: {
-          userId: userId,
+          userId: userId as number,
           package: {
             is_first_time_only: true,
           },
@@ -101,23 +102,31 @@ export async function POST(request: NextRequest) {
 
     // Calcular fecha de expiración
     const purchaseDate = new Date()
-    const expiryDate = new Date()
-    expiryDate.setDate(purchaseDate.getDate() + packageInfo.validityDays)
+    let expiryDate: Date
+
+    // **NUEVA LÓGICA**: Para Semana Ilimitada (ID 3), usar días hábiles
+    if (Number(packageId) === 3) {
+      expiryDate = getUnlimitedWeekExpiryDate(purchaseDate)
+    } else {
+      // Para otros paquetes, usar días calendario normales
+      expiryDate = new Date()
+      expiryDate.setDate(purchaseDate.getDate() + packageInfo.validityDays)
+    }
 
     // Iniciar transacción de base de datos
     const { userPackage, payment } = await prisma.$transaction(async (tx) => {
       // Crear el registro UserPackage
       const createdUserPackage = await tx.userPackage.create({
         data: {
-          userId,
+          userId: userId as number,
           packageId: Number(packageId),
           purchaseDate,
           expiryDate,
           classesRemaining: packageInfo.classCount || 0,
           classesUsed: 0,
           isActive: true,
-          paymentMethod: "online", // Esto podría ser actualizado por el nuevo registro de Payment
-          paymentStatus: "paid"    // Esto podría ser actualizado por el nuevo registro de Payment
+          paymentMethod: "online",
+          paymentStatus: "paid"
         },
         include: {
           package: true
@@ -127,103 +136,101 @@ export async function POST(request: NextRequest) {
       // Crear el registro de Payment
       const createdPayment = await tx.payment.create({
         data: {
-          userId,
+          userId: userId as number,
           userPackageId: createdUserPackage.id,
-          amount: Number(packageInfo.price), // Asegurarse que sea un número
+          amount: Number(packageInfo.price),
           paymentMethod: "stripe",
-          stripePaymentIntentId: paymentId, // paymentId del request body
-          status: "completed",
-          paymentDate: new Date(),
-          currency: "mxn",
+          stripePaymentIntentId: paymentId,
+          status: "completed"
         }
       })
 
-      // Actualizar el balance del usuario si existe
+      // Actualizar el balance del usuario
       await tx.userAccountBalance.upsert({
-        where: { userId },
+        where: { userId: userId as number },
         update: {
-          totalClassesPurchased: {
-            increment: packageInfo.classCount || 0
-          },
-          classesAvailable: {
-            increment: packageInfo.classCount || 0
-          },
-          lastUpdated: new Date()
+          totalClassesPurchased: { increment: packageInfo.classCount || 0 },
+          classesAvailable: { increment: packageInfo.classCount || 0 }
         },
         create: {
-          userId,
+          userId: userId as number,
           totalClassesPurchased: packageInfo.classCount || 0,
           classesUsed: 0,
-          classesAvailable: packageInfo.classCount || 0,
-          lastUpdated: new Date()
+          classesAvailable: packageInfo.classCount || 0
         }
       })
 
-      // Crear una transacción de balance para el registro
+      // Crear transacción de balance
       await tx.balanceTransaction.create({
         data: {
-          userId,
+          userId: userId as number,
           type: "purchase",
           amount: packageInfo.classCount || 0,
-          description: `Compra de paquete: ${packageInfo.name}`,
-          createdAt: new Date(),
-          relatedPaymentId: createdPayment.id // Enlazar con el payment creado
+          description: `Compra de paquete: ${packageInfo.name}${Number(packageId) === 3 ? ' (5 días hábiles)' : ''}`,
+          relatedPaymentId: createdPayment.id
         }
       })
 
-      return { userPackage: createdUserPackage, payment: createdPayment };
-    });
+      return { userPackage: createdUserPackage, payment: createdPayment }
+    })
 
-    // Enviar correo de confirmación de compra de paquete
+    // Enviar email de confirmación con información específica para Semana Ilimitada
     try {
-      // Utilizar el 'userPackage' retornado por la transacción
-      const user = await prisma.user.findUnique({ 
-        where: { user_id: userId },
-        select: { email: true, firstName: true }
-      })
+      // Fetch user details to get firstName and lastName
+      const user = await prisma.user.findUnique({
+        where: { user_id: userId as number },
+        select: { firstName: true, lastName: true, email: true }
+      });
 
-      if (user && user.email && user.firstName && userPackage) {
-        const packageDetails = {
-          packageName: userPackage.package.name,
-          classCount: userPackage.package.classCount || 0,
-          expiryDate: userPackage.expiryDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
-          purchaseDate: userPackage.purchaseDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }),
-          price: Number(userPackage.package.price), // Asegurarse que el precio sea un número
-        }
-
-        await sendPackagePurchaseConfirmationEmail(user.email, user.firstName, packageDetails)
-        console.log(`Package confirmation email sent to user ${userId}`)
-      } else {
-        console.error(`User details not found for user ${userId}, cannot send package confirmation email.`)
+      if (!user) {
+        console.error('User not found for email confirmation:', userId);
+        // Continue without sending email, or handle as appropriate
+        return;
       }
+
+      const emailDetails = {
+        packageName: packageInfo.name,
+        classCount: packageInfo.classCount || 0,
+        price: Number(packageInfo.price),
+        purchaseDate: purchaseDate.toLocaleDateString('es-ES'),
+        expiryDate: expiryDate.toLocaleDateString('es-ES'),
+        isUnlimitedWeek: Number(packageId) === 3,
+        validityType: Number(packageId) === 3 ? '5 días hábiles' : `${packageInfo.validityDays} días`
+      }
+
+      await sendPackagePurchaseConfirmationEmail(
+        user.email,
+        user.firstName || 'Cliente',
+        emailDetails
+      )
     } catch (emailError) {
-      console.error(`Failed to send package confirmation email to user ${userId}:`, emailError)
-      // No relanzar el error, ya que la compra fue exitosa.
+      console.error('Error enviando email de confirmación de compra:', emailError)
+      // No fallar la compra si hay error en el email
     }
 
     return NextResponse.json({
-      success: true,
+      message: "Paquete comprado exitosamente",
       userPackage: {
-        id: userPackage.id, // userPackage retornado por la transacción
-        packageName: userPackage.package.name,
+        id: userPackage.id,
+        packageName: packageInfo.name,
         classesRemaining: userPackage.classesRemaining,
-        expiryDate: userPackage.expiryDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })
+        expiryDate: userPackage.expiryDate,
+        isUnlimitedWeek: Number(packageId) === 3,
+        validityMessage: Number(packageId) === 3 
+          ? "Válido por 5 días hábiles (lunes a viernes)"
+          : `Válido por ${packageInfo.validityDays} días`
       },
-      payment: { // Opcional: retornar información del pago
+      payment: {
         id: payment.id,
-        status: payment.status,
-        amount: payment.amount
+        amount: payment.amount,
+        status: payment.status
       }
     })
 
   } catch (error) {
-    console.error("Error creating user package:", error)
-    // Determinar si el error es por el paquete "PRIMERA VEZ"
-    if (error instanceof Error && error.message.includes("El paquete PRIMERA VEZ solo puede ser adquirido una vez por usuario.")) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
+    console.error("Error al procesar compra de paquete:", error)
     return NextResponse.json({ 
-      error: "Error interno del servidor al procesar la compra" 
+      error: "Error interno del servidor" 
     }, { status: 500 })
   }
 }

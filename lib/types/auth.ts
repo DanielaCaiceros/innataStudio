@@ -3,6 +3,8 @@ export interface User {
   id: string
   email: string
   name: string
+  firstName: string
+  lastName: string
   role: 'client' | 'instructor' | 'admin'
   profileImage?: string
   // other user fields

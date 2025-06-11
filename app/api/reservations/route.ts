@@ -5,6 +5,8 @@ import { sendBookingConfirmationEmail } from '@/lib/email'
 import { format, addHours, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { formatInTimeZone } from 'date-fns-tz'
+import { UnlimitedWeekService } from '@/lib/services/unlimited-week.service'
+import { SystemConfigService } from '@/lib/services/system-config.service'
 
 const prisma = new PrismaClient()
 
@@ -58,49 +60,37 @@ function isClassBookable(dateString: string, timeString: string): boolean {
 // POST - Crear nueva reserva
 export async function POST(request: NextRequest) {
   try {
-    // Verificar autenticación
     const token = request.cookies.get("auth_token")?.value
     if (!token) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }
 
     const payload = await verifyToken(token)
-    const userId = Number.parseInt(payload.userId)
+    const userId = Number(payload.userId)
 
     const body = await request.json()
-    const { scheduledClassId, userPackageId, paymentId, bikeNumber } = body
+    const { 
+      scheduledClassId, 
+      userPackageId, 
+      paymentId, 
+      bikeNumber,
+      useUnlimitedWeek = false // Nuevo parámetro
+    } = body
 
     if (!scheduledClassId) {
-      return NextResponse.json({ error: "ID de clase requerido" }, { status: 400 })
+      return NextResponse.json({ error: "scheduledClassId es requerido" }, { status: 400 })
     }
 
-    // Validar número de bicicleta
-    let parsedBikeNumber = null
-    if (bikeNumber !== undefined && bikeNumber !== null) {
-      parsedBikeNumber = Number(bikeNumber)
-      if (isNaN(parsedBikeNumber) || parsedBikeNumber < 1 || parsedBikeNumber > 10) {
-        return NextResponse.json({ error: "El número de bicicleta debe estar entre 1 y 10" }, { status: 400 })
-      }
-
-      // Verificar si la bicicleta ya está reservada para esta clase
-      const existingBikeReservation = await prisma.reservation.findFirst({
-        where: {
-          scheduledClassId: Number.parseInt(scheduledClassId),
-          bikeNumber: parsedBikeNumber,
-          status: "confirmed"
-        }
-      })
-
-      if (existingBikeReservation) {
-        return NextResponse.json({ error: "Esta bicicleta ya está reservada para esta clase" }, { status: 400 })
-      }
-    }
-
-    // Verificar que la clase existe y está disponible
+    // Obtener información de la clase
     const scheduledClass = await prisma.scheduledClass.findUnique({
       where: { id: Number.parseInt(scheduledClassId) },
       include: {
         classType: true,
+        instructor: {
+          include: {
+            user: true
+          }
+        }
       },
     })
 
@@ -108,21 +98,220 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Clase no encontrada" }, { status: 404 })
     }
 
-    if (scheduledClass.status !== "scheduled") {
-      return NextResponse.json({ error: "Esta clase no está disponible para reservas" }, { status: 400 })
+    // Verificar disponibilidad de espacios (aplicable para todos los tipos de reserva)
+    if (scheduledClass.availableSpots <= 0) {
+      const waitlistPosition = await prisma.waitlist.count({
+        where: { scheduledClassId: Number.parseInt(scheduledClassId) },
+      })
+
+      const waitlistEntry = await prisma.waitlist.create({
+        data: {
+          userId,
+          scheduledClassId: Number.parseInt(scheduledClassId),
+          position: waitlistPosition + 1,
+        },
+      })
+
+      return NextResponse.json(
+        {
+          message: "Clase llena. Te hemos agregado a la lista de espera.",
+          waitlistPosition: waitlistEntry.position,
+        },
+        { status: 202 }
+      )
     }
 
-    // Validación usando las funciones de utilidad
-    const classDateString = scheduledClass.date.toISOString()
-    const classTimeString = scheduledClass.time.toISOString()
-    
-    if (!isClassBookable(classDateString, classTimeString)) {
-      const classDateTime = createClassDateTime(classDateString, classTimeString)
-      const now = new Date()
-      
-      if (classDateTime < now) {
+    // **NUEVA LÓGICA: Manejar reserva con Semana Ilimitada**
+    if (useUnlimitedWeek) {
+      // Validar elegibilidad para Semana Ilimitada
+      const validation = await UnlimitedWeekService.validateUnlimitedWeekReservation(
+        userId, 
+        Number.parseInt(scheduledClassId)
+      )
+
+      if (!validation.isValid || !validation.canUseUnlimitedWeek) {
         return NextResponse.json({ 
-          error: "No puedes reservar una clase que ya pasó." 
+          error: validation.message || 'No puedes usar Semana Ilimitada para esta reserva',
+          reason: validation.reason,
+          weeklyUsage: validation.weeklyUsage
+        }, { status: 400 })
+      }
+
+      // Obtener el paquete Semana Ilimitada activo
+      const unlimitedWeekPackage = await prisma.userPackage.findFirst({
+        where: {
+          userId,
+          packageId: 3, // ID del paquete Semana Ilimitada
+          isActive: true,
+          classesRemaining: { gt: 0 },
+          expiryDate: { gte: new Date() }
+        }
+      })
+
+      if (!unlimitedWeekPackage) {
+        return NextResponse.json({ 
+          error: 'No se encontró un paquete Semana Ilimitada válido' 
+        }, { status: 400 })
+      }
+
+      // Procesar reserva con Semana Ilimitada
+      const result = await prisma.$transaction(async (tx) => {
+        // Crear la reserva como CONFIRMADA por defecto
+        const reservation = await tx.reservation.create({
+          data: {
+            userId,
+            scheduledClassId: Number.parseInt(scheduledClassId),
+            userPackageId: unlimitedWeekPackage.id,
+            status: "confirmed", // Estado confirmado por defecto
+            paymentMethod: "package",
+            bikeNumber: bikeNumber || null,
+          },
+          include: {
+            scheduledClass: {
+              include: {
+                classType: true,
+              },
+            },
+          },
+        })
+
+        // Descontar 1 clase del paquete
+        await tx.userPackage.update({
+          where: { id: unlimitedWeekPackage.id },
+          data: {
+            classesRemaining: { decrement: 1 },
+            classesUsed: { increment: 1 },
+          },
+        })
+
+        // Actualizar balance del usuario
+        await tx.userAccountBalance.upsert({
+          where: { userId },
+          update: {
+            classesAvailable: { decrement: 1 },
+            classesUsed: { increment: 1 },
+          },
+          create: {
+            userId,
+            classesAvailable: (unlimitedWeekPackage.classesRemaining || 0) - 1,
+            classesUsed: 1,
+          },
+        })
+
+        // Reducir capacidad disponible
+        await tx.scheduledClass.update({
+          where: { id: Number.parseInt(scheduledClassId) },
+          data: {
+            availableSpots: { decrement: 1 },
+          },
+        })
+
+        // Crear transacción de balance
+        await tx.balanceTransaction.create({
+          data: {
+            userId,
+            type: "debit",
+            amount: 1,
+            description: `Reserva Semana Ilimitada: ${scheduledClass.classType.name}`,
+            relatedReservationId: reservation.id,
+          },
+        })
+
+        return reservation
+      })
+
+      // Enviar email de confirmación con mensaje especial para Semana Ilimitada
+      const reservationWithDetails = await prisma.reservation.findUnique({
+        where: { id: result.id },
+        include: {
+          user: true,
+          scheduledClass: {
+            include: {
+              classType: true,
+              instructor: {
+                include: {
+                  user: true
+                }
+              }
+            }
+          }
+        }
+      })
+
+      if (reservationWithDetails) {
+        try {
+          const classDate = new Date(reservationWithDetails.scheduledClass.date)
+          const classTime = new Date(reservationWithDetails.scheduledClass.time)
+          const scheduledDateTimeUTC = new Date(
+            classDate.getUTCFullYear(),
+            classDate.getUTCMonth(),
+            classDate.getUTCDate(),
+            classTime.getUTCHours(),
+            classTime.getUTCMinutes(),
+            0,
+            0
+          )
+
+          const mexicoCityTimeZone = 'America/Mexico_City'
+          const graceTimeHours = await SystemConfigService.getGraceTimeHours()
+
+          const emailDetails = {
+            className: reservationWithDetails.scheduledClass.classType.name,
+            date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
+            time: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "HH:mm", { locale: es }),
+            instructor: `${reservationWithDetails.scheduledClass.instructor.user.firstName} ${reservationWithDetails.scheduledClass.instructor.user.lastName}`,
+            confirmationCode: reservationWithDetails.id.toString().padStart(6, '0'),
+            bikeNumber: reservationWithDetails.bikeNumber || undefined,
+            isUnlimitedWeek: true,
+            graceTimeHours
+          }
+
+          // Aquí necesitarías modificar tu función de email para incluir el mensaje de WhatsApp
+          await sendBookingConfirmationEmail(
+            reservationWithDetails.user.email,
+            reservationWithDetails.user.firstName,
+            emailDetails
+          )
+        } catch (emailError) {
+          console.error('Error enviando email de confirmación:', emailError)
+        }
+      }
+
+      return NextResponse.json({
+        message: `Reserva creada exitosamente con Semana Ilimitada. ${validation.message}`,
+        reservation: {
+          id: result.id,
+          className: result.scheduledClass.classType.name,
+          status: result.status,
+          paymentMethod: result.paymentMethod,
+          isUnlimitedWeek: true,
+          graceTimeRequired: true
+        },
+        weeklyUsage: validation.weeklyUsage
+      }, { status: 201 })
+    }
+
+    // **LÓGICA EXISTENTE para reservas normales (sin cambios significativos)**
+    // Verificar tiempo mínimo de 30 minutos antes de la clase
+    const classDate = new Date(scheduledClass.date)
+    const classTime = new Date(scheduledClass.time)
+    const classDateTime = new Date(
+      classDate.getUTCFullYear(),
+      classDate.getUTCMonth(),
+      classDate.getUTCDate(),
+      classTime.getUTCHours(),
+      classTime.getUTCMinutes(),
+      0,
+      0
+    )
+
+    const now = new Date()
+    const timeUntilClass = (classDateTime.getTime() - now.getTime()) / (1000 * 60)
+
+    if (timeUntilClass < 30) {
+      if (timeUntilClass < 0) {
+        return NextResponse.json({ 
+          error: "No puedes reservar una clase que ya comenzó." 
         }, { status: 400 })
       } else {
         return NextResponse.json({ 
@@ -130,7 +319,6 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
     }
-
     // Verificar que el usuario no tenga ya una reserva para esta clase
     const existingReservation = await prisma.reservation.findUnique({
       where: {
@@ -215,7 +403,7 @@ export async function POST(request: NextRequest) {
           userId,
           scheduledClassId: Number.parseInt(scheduledClassId),
           userPackageId: userPackage?.id,
-          bikeNumber: parsedBikeNumber,
+          bikeNumber: bikeNumber || null,
           status: "confirmed",
           // Ajustar paymentMethod basado en paymentId o userPackage
           paymentMethod: paymentId ? "stripe" : (userPackage ? "package" : "pending"),
