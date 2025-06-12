@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Calendar, Clock, X, LogOut, Users, Target, ChevronRight, User, Package, Bike } from "lucide-react"
+import { Calendar, Clock, LogOut, Target, ChevronRight, User, Package, Bike } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -126,7 +126,7 @@ const ClassReservationCard = ({
               {classInfo.dateFormatted} • {classInfo.time} • {classInfo.duration}
             </p>
           </div>
-          <Badge variant={allCancelled ? "secondary" : "default"}className="self-start sm:self-auto">
+          <Badge variant={allCancelled ? "secondary" : "default"}className="self-start sm:self-auto bg-white border-gray-200 text-gray-800 hover:bg-gray-50"> 
             {reservations.length} reserva{reservations.length > 1 ? 's' : ''}
           </Badge>
         </div>
@@ -157,7 +157,7 @@ const ClassReservationCard = ({
                     reservation.status === 'confirmed' ? 'default' :
                     reservation.status === 'cancelled' ? 'secondary' : 'outline'
                   }
-                  className="text-xs"
+                  className="text-xs bg-brand-sage"
                 >
                   {reservation.status === 'confirmed' ? 'Confirmada' :
                    reservation.status === 'cancelled' ? 'Cancelada' : reservation.status}
@@ -218,6 +218,8 @@ export default function ProfilePage() {
   const [userPackages, setUserPackages] = useState<UserPackage[]>([])
   const [isLoadingClasses, setIsLoadingClasses] = useState(true)
   const [isLoadingPackages, setIsLoadingPackages] = useState(true)
+  const [currentPackagePage, setCurrentPackagePage] = useState(1)
+  const packagesPerPage = 6
 
   useEffect(() => {
     if (!user && !isLoading) {
@@ -359,6 +361,16 @@ export default function ProfilePage() {
 
   // Calcular total de clases disponibles de todos los paquetes
   const totalAvailableClasses = userPackages.reduce((total, pkg) => total + pkg.classesRemaining, 0)
+
+  // Paginación para paquetes
+  const totalPackagePages = Math.ceil(userPackages.length / packagesPerPage)
+  const startPackageIndex = (currentPackagePage - 1) * packagesPerPage
+  const endPackageIndex = startPackageIndex + packagesPerPage
+  const currentPackages = userPackages.slice(startPackageIndex, endPackageIndex)
+
+  const handlePackagePageChange = (page: number) => {
+    setCurrentPackagePage(page)
+  }
 
   // Preparar datos del usuario
   const currentUser: UserProfile = {
@@ -510,62 +522,107 @@ export default function ProfilePage() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {userPackages.map((pkg) => (
-                      <Card
-                        key={pkg.id}
-                        className="border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden"
-                      >
-                        <div className="bg-gradient-to-r from-brand-sage/10 to-brand-mint/10 p-6 border-b border-gray-100">
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-bold text-brand-sage">{pkg.name}</h3>
-                            <div className="bg-brand-sage/20 p-2 rounded-full">
-                              <Package className="h-5 w-5 text-brand-sage" />
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {currentPackages.map((pkg) => (
+                        <Card
+                          key={pkg.id}
+                          className="border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden"
+                        >
+                          <div className="bg-gradient-to-r from-brand-sage/10 to-brand-mint/10 p-6 border-b border-gray-100">
+                            <div className="flex items-center justify-between mb-4">
+                              <h3 className="text-xl font-bold text-brand-sage">{pkg.name}</h3>
+                              <div className="bg-brand-sage/20 p-2 rounded-full">
+                                <Package className="h-5 w-5 text-brand-sage" />
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-3xl font-bold text-brand-sage mb-1">{pkg.classesRemaining}</div>
+                              <p className="text-sm text-zinc-600">clases restantes</p>
                             </div>
                           </div>
-                          <div className="text-center">
-                            <div className="text-3xl font-bold text-brand-sage mb-1">{pkg.classesRemaining}</div>
-                            <p className="text-sm text-zinc-600">clases restantes</p>
-                          </div>
+
+                          <CardContent className="p-6">
+                            <div className="space-y-4 mb-6">
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-zinc-600">Clases usadas</span>
+                                <span className="font-medium text-zinc-800">{pkg.classesUsed}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-zinc-600">Expira el</span>
+                                <span className="font-medium text-zinc-800">
+                                  {new Date(pkg.expiryDate).toLocaleDateString("es-ES", {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-gradient-to-r from-brand-sage to-brand-mint h-2 rounded-full transition-all duration-500"
+                                  style={{
+                                    width: `${(pkg.classesUsed / (pkg.classesUsed + pkg.classesRemaining)) * 100}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <Button
+                              asChild
+                              className="w-full bg-brand-mint hover:bg-brand-sage text-white shadow-sm hover:shadow-md transition-all duration-200"
+                            >
+                              <Link href="/reservar">
+                                <Calendar className="mr-2 h-4 w-4" />
+                                Usar para reservar
+                              </Link>
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+
+                    {/* Paginador para paquetes */}
+                    {totalPackagePages > 1 && (
+                      <div className="flex justify-center items-center space-x-2 mt-8">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePackagePageChange(currentPackagePage - 1)}
+                          disabled={currentPackagePage === 1}
+                          className="h-9 px-3"
+                        >
+                          Anterior
+                        </Button>
+                        
+                        <div className="flex space-x-1">
+                          {Array.from({ length: totalPackagePages }, (_, i) => i + 1).map((page) => (
+                            <Button
+                              key={page}
+                              variant={currentPackagePage === page ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handlePackagePageChange(page)}
+                              className={`h-9 w-9 ${
+                                currentPackagePage === page 
+                                  ? "bg-brand-sage hover:bg-brand-gray text-white" 
+                                  : "hover:bg-brand-sage/10"
+                              }`}
+                            >
+                              {page}
+                            </Button>
+                          ))}
                         </div>
 
-                        <CardContent className="p-6">
-                          <div className="space-y-4 mb-6">
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-zinc-600">Clases usadas</span>
-                              <span className="font-medium text-zinc-800">{pkg.classesUsed}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-zinc-600">Expira el</span>
-                              <span className="font-medium text-zinc-800">
-                                {new Date(pkg.expiryDate).toLocaleDateString("es-ES", {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                })}
-                              </span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div
-                                className="bg-gradient-to-r from-brand-sage to-brand-mint h-2 rounded-full transition-all duration-500"
-                                style={{
-                                  width: `${(pkg.classesUsed / (pkg.classesUsed + pkg.classesRemaining)) * 100}%`,
-                                }}
-                              />
-                            </div>
-                          </div>
-                          <Button
-                            asChild
-                            className="w-full bg-brand-mint hover:bg-brand-sage text-white shadow-sm hover:shadow-md transition-all duration-200"
-                          >
-                            <Link href="/reservar">
-                              <Calendar className="mr-2 h-4 w-4" />
-                              Usar para reservar
-                            </Link>
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePackagePageChange(currentPackagePage + 1)}
+                          disabled={currentPackagePage === totalPackagePages}
+                          className="h-9 px-3"
+                        >
+                          Siguiente
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </TabsContent>
@@ -613,15 +670,6 @@ export default function ProfilePage() {
                                 </span>
                               </div>
                             </div>
-                          </div>
-                          <div className="p-6 flex items-center border-t md:border-t-0 md:border-l border-gray-100">
-                            <Button
-                              variant="outline"
-                              className="bg-brand-mint/10 hover:bg-brand-mint/20 border-brand-mint/30 text-brand-mint hover:text-brand-sage transition-colors"
-                            >
-                              Reservar Similar
-                              <ChevronRight className="ml-2 h-4 w-4" />
-                            </Button>
                           </div>
                         </div>
                       </Card>

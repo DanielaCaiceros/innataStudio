@@ -245,6 +245,13 @@ export default function BookingPage() {
 
     setSelectedScheduledClassForBooking(classToBook)
 
+    // Check if user is authenticated first
+    if (!isAuthenticated) {
+      console.log("User not authenticated, showing auth modal")
+      setIsAuthModalOpen(true)
+      return
+    }
+
     // 1. Handle Unlimited Week reservation first
     if (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
       console.log("Using Unlimited Week, showing confirmation")
@@ -418,6 +425,8 @@ export default function BookingPage() {
           <p className="text-xl max-w-3xl mx-auto text-zinc-700">
             Selecciona fecha, clase y horario para asegurar tu lugar
           </p>
+          
+
         </div>
       </section>
 
@@ -574,6 +583,15 @@ export default function BookingPage() {
                                   </p>
                                 </div>
                               )}
+                              
+                              {/* Información para usuarios no autenticados */}
+                              {!isAuthenticated && (
+                                <div className="bg-yellow-50 p-3 rounded-md border border-yellow-200 mb-4">
+                                  <p className="text-sm text-yellow-800">
+                                   Inicia sesión para usar tus paquetes o completar la reserva
+                                  </p>
+                                </div>
+                              )}
 
                               {/* Botón de reserva */}
                               <Button
@@ -587,7 +605,9 @@ export default function BookingPage() {
                                 onClick={handleConfirmBooking}
                               >
                                 <span className="flex items-center gap-1">
-                                  {isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek
+                                  {!isAuthenticated 
+                                    ? "INICIAR SESIÓN PARA RESERVAR"
+                                    : isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek
                                     ? "RESERVAR CON SEMANA ILIMITADA"
                                     : isAuthenticated && userAvailableClasses > 0 
                                     ? "USAR PAQUETE - RESERVAR" 
@@ -719,7 +739,9 @@ export default function BookingPage() {
                   onClick={handleConfirmBooking}
                 >
                   <span className="flex items-center gap-1">
-                    {isAuthenticated && userAvailableClasses > 0 
+                    {!isAuthenticated 
+                      ? "INICIAR SESIÓN PARA RESERVAR"
+                      : isAuthenticated && userAvailableClasses > 0 
                       ? "USAR PAQUETE - RESERVAR" 
                       : "CONFIRMAR RESERVA"
                     } 
@@ -850,33 +872,48 @@ export default function BookingPage() {
 
       {/* Auth Dialog */}
       <Dialog open={isAuthModalOpen} onOpenChange={setIsAuthModalOpen}>
-        <DialogContent className="bg-white border-gray-200 text-zinc-900">
+        <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-[#4A102A]">Acceso Requerido</DialogTitle>
+            <DialogTitle className="text-[#4A102A] text-xl">¡Estás a un paso!</DialogTitle>
             <DialogDescription className="text-gray-600">
-              Necesitas iniciar sesión o registrarte para completar tu reserva.
+              Regístrate o inicia sesión para confirmar tu lugar en esta clase increíble.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-            <Button 
-              className="w-full bg-brand-mint hover:bg-brand-mint/90 text-white" 
-              onClick={() => {
-                router.push("/login?redirect=/reservar");
-                setIsAuthModalOpen(false);
-              }}
-            >
-              Iniciar Sesión
-            </Button>
-            <Button 
-              variant="outline" 
-              className="w-full border-brand-mint text-brand-mint hover:bg-brand-mint/10"
-              onClick={() => {
-                router.push("/registro?redirect=/reservar");
-                setIsAuthModalOpen(false);
-              }}
-            >
-              Registrarse
-            </Button>
+            {/* Mostrar resumen de la clase seleccionada */}
+            {selectedClass && (
+              <div className="bg-gray-50 p-4 rounded-lg border">
+                <h4 className="font-semibold text-brand-burgundy mb-2">Tu selección:</h4>
+                <div className="space-y-1 text-sm">
+                  <p><strong>Clase:</strong> {availableClasses.find((c) => c.id === selectedClass)?.classType.name}</p>
+                  <p><strong>Fecha:</strong> {date ? format(date, "EEEE, d 'de' MMMM", { locale: es }) : ""}</p>
+                  <p><strong>Hora:</strong> {selectedTime}</p>
+                  <p><strong>Instructor:</strong> {availableClasses.find((c) => c.id === selectedClass)?.instructor.name}</p>
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-3">
+              <Button 
+                className="w-full bg-brand-mint hover:bg-brand-mint/90 text-white font-semibold py-3" 
+                onClick={() => {
+                  router.push("/login?redirect=/reservar");
+                  setIsAuthModalOpen(false);
+                }}
+              >
+                Iniciar Sesión
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full border-brand-mint text-brand-mint hover:bg-brand-mint/10 font-semibold py-3"
+                onClick={() => {
+                  router.push("/registro?redirect=/reservar");
+                  setIsAuthModalOpen(false);
+                }}
+              >
+                Registrarse Gratis
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
