@@ -24,20 +24,20 @@ interface Bike {
 // Posiciones de las bicicletas en el grid (versión de main)
 const bikePositions: { [key: number]: { x: number; y: number } } = {
   // Fila superior (2 bicis en las columnas 1 y 3)
-  6: { x: 15, y: 15 },
-  1: { x: 70, y: 15 },
+  6: { x: 26, y: 23 },
+  1: { x: 73, y: 28 },
 
   // Fila media (4 bicis en las columnas 1, 2, 3, 4)
-  5: { x: 15, y: 45 },
-  4: { x: 35, y: 45 },
-  3: { x: 55, y: 45 },
-  2: { x: 75, y: 45 },
+  5: { x: 26, y: 49 },
+  4: { x: 43, y: 52 },
+  3: { x: 58, y: 52 },
+  2: { x: 73, y: 55 },
 
   // Fila inferior (4 bicis en las columnas 1, 2, 3, 4)
-  7: { x: 15, y: 75 },
-  8: { x: 35, y: 75 },
-  9: { x: 55, y: 75 },
-  10: { x: 75, y: 75 },
+  7: { x: 26, y: 74 },
+  8: { x: 37, y: 80 },
+  9: { x: 50, y: 80 },
+  10: { x: 63, y: 80 },
 }
 
 export function BikeSelectionDialog({

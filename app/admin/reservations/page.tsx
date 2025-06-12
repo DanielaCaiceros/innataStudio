@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
-import { formatAdminDate, formatAdminTime } from "@/lib/utils/admin-date"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 import {
   Dialog,
@@ -829,7 +827,7 @@ export default function ReservationsPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto ">
-              <div className="max-h-[500px] overflow-y-auto">
+              <div className="max-h-[55vh] overflow-y-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
