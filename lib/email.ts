@@ -40,7 +40,7 @@ export async function sendBookingConfirmationEmail(
 
           <p style="color: #374151; line-height: 1.6; margin: 0 0 16px 0;">
             Para garantizar tu lugar en esta clase, es OBLIGATORIO que envíes
-            un mensaje de confirmación por WhatsApp con al menos ${details.graceTimeHours || 12} horas de anticipación.
+            un mensaje de confirmación por WhatsApp con al menos 12 horas de anticipación.
           </p>
 
           <div style="margin: 20px 0;">
@@ -51,7 +51,7 @@ export async function sendBookingConfirmationEmail(
             <ul style="color: #374151; line-height: 1.6; margin: 0; padding-left: 20px;">
               <li>Envía un WhatsApp confirmando tu asistencia</li>
               <li>Incluye tu código de confirmación: ${details.confirmationCode}</li>
-              <li>Hazlo antes de las ${details.graceTimeHours || 12} horas previas a la clase</li>
+              <li>Hazlo antes de las 12 horas previas a la clase</li>
             </ul>
 
             <div style="text-align: center; margin: 20px 0;">
