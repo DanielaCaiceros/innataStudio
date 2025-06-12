@@ -117,8 +117,8 @@ const ClassReservationCard = ({
 
   return (
     <Card className="mb-4">
-      <CardContent className="p-6">
-        <div className="flex justify-between items-start mb-4">
+      <CardContent className="p-4 sm:p-6">
+        <div className="flex justify-between items-start sm:flex-row sm:justify-between sm:items-start gap 2 sm:gap-0 mb-4">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">{classInfo.className}</h3>
             <p className="text-sm text-gray-600">Instructor: {classInfo.instructor}</p>
@@ -126,7 +126,7 @@ const ClassReservationCard = ({
               {classInfo.dateFormatted} • {classInfo.time} • {classInfo.duration}
             </p>
           </div>
-          <Badge variant={allCancelled ? "secondary" : "default"}>
+          <Badge variant={allCancelled ? "secondary" : "default"}className="self-start sm:self-auto">
             {reservations.length} reserva{reservations.length > 1 ? 's' : ''}
           </Badge>
         </div>
@@ -136,9 +136,9 @@ const ClassReservationCard = ({
           {reservations.map((reservation: UserReservation) => (
             <div 
               key={reservation.id}
-              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+              className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 rounded-lg gap-3"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
                   {reservation.bikeNumber && (
                     <div className="flex items-center gap-1 text-sm text-gray-600">
@@ -151,7 +151,7 @@ const ClassReservationCard = ({
                 </Badge>
               </div>
               
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Badge 
                   variant={
                     reservation.status === 'confirmed' ? 'default' :
@@ -430,23 +430,20 @@ export default function ProfilePage() {
                 <TabsList className="bg-white border border-gray-200 shadow-sm p-1 rounded-2xl">
                   <TabsTrigger
                     value="upcoming"
-                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl"
+                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl text-xs sm:text-sm flex-1 sm:flex-auto"
                   >
-                    <Calendar className="h-4 w-4 mr-2" />
                     Próximas Clases
                   </TabsTrigger>
                   <TabsTrigger
                     value="packages"
-                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl"
+                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl text-xs sm:text-sm flex-1 sm:flex-auto"
                   >
-                    <Package className="h-4 w-4 mr-2" />
                     Mis Paquetes
                   </TabsTrigger>
                   <TabsTrigger
                     value="history"
-                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl"
+                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl text-xs sm:text-sm flex-1 sm:flex-auto"
                   >
-                    <Target className="h-4 w-4 mr-2" />
                     Historial
                   </TabsTrigger>
                 </TabsList>

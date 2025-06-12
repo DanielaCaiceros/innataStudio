@@ -829,7 +829,7 @@ export default function ReservationsPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto ">
-              <div className="max-h-[500px] overflow-y-auto">
+              <div className="max-h-[55vh] overflow-y-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b">

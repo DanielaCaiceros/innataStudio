@@ -21,6 +21,17 @@ import { Search, Download, UserPlus, Mail, Phone, Package, Calendar, Edit, Trash
 import { useToast } from "@/components/ui/use-toast"
 
 // Interfaces
+interface ApiUser {
+  user_id: number
+  firstName: string
+  lastName: string
+  email: string
+  phone: string | null
+  role: string
+  createdAt: string
+  status: string
+}
+
 interface User {
   id: number
   name: string
@@ -79,7 +90,8 @@ export default function UsersPage() {
 
   // Form states
   const [newUserForm, setNewUserForm] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     phone: "",
     package: "",
@@ -111,8 +123,21 @@ export default function UsersPage() {
         throw new Error("Error al cargar usuarios")
       }
 
-      const data = await response.json()
-      setUsers(data)
+      // Transformar los datos del API al formato que espera la UI
+      const apiUsers: ApiUser[] = await response.json()
+      const transformedUsers: User[] = apiUsers.map(apiUser => ({
+        id: apiUser.user_id,
+        name: `${apiUser.firstName} ${apiUser.lastName}`,
+        email: apiUser.email,
+        phone: apiUser.phone || "No registrado",
+        package: "Paquete por defecto", // Valor por defecto hasta tener la info real
+        remainingClasses: 0, // Valor por defecto hasta tener la info real
+        joinDate: new Date(apiUser.createdAt).toLocaleDateString(),
+        lastVisit: "No disponible", // Valor por defecto hasta tener la info real
+        status: apiUser.status
+      }))
+      
+      setUsers(transformedUsers)
     } catch (error) {
       console.error("Error loading users:", error)
       toast({
@@ -135,15 +160,39 @@ export default function UsersPage() {
       }
 
       const data = await response.json()
-      setSelectedUser(data)
+      
+      // Asegurarse de que los datos estén en el formato esperado
+      const userDetail: UserDetail = {
+        id: data.user_id || userId,
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        email: data.email || '',
+        phone: data.phone || '',
+        joinDate: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : '',
+        lastVisitDate: data.lastVisit ? new Date(data.lastVisit).toLocaleDateString() : null,
+        status: data.status || 'inactive',
+        role: data.role || 'client',
+        // Si no hay datos de balance, usar valores por defecto
+        balance: data.balance || {
+          totalClassesPurchased: 0,
+          classesUsed: 0,
+          classesAvailable: 0
+        },
+        // Si no hay paquetes activos, usar un array vacío
+        activePackages: data.packages || [],
+        // Si no hay reservaciones recientes, usar un array vacío
+        recentReservations: data.reservations || []
+      }
+      
+      setSelectedUser(userDetail)
       
       // Poblar form de edición
       setEditUserForm({
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        phone: data.phone || "",
-        status: data.status,
+        firstName: userDetail.firstName,
+        lastName: userDetail.lastName,
+        email: userDetail.email,
+        phone: userDetail.phone || "",
+        status: userDetail.status,
         password: ""
       })
     } catch (error) {
@@ -158,10 +207,10 @@ export default function UsersPage() {
 
   // Crear nuevo usuario
   const handleCreateUser = async () => {
-    if (!newUserForm.name || !newUserForm.email || !newUserForm.password) {
+    if (!newUserForm.firstName || !newUserForm.lastName || !newUserForm.email || !newUserForm.password) {
       toast({
         title: "Error",
-        description: "Nombre, email y contraseña son obligatorios",
+        description: "Nombre, apellido, email y contraseña son obligatorios",
         variant: "destructive",
       })
       return
@@ -178,10 +227,21 @@ export default function UsersPage() {
 
     setIsSubmitting(true)
     try {
+      // Preparar los datos para enviar al API
+      const userData = {
+        firstName: newUserForm.firstName,
+        lastName: newUserForm.lastName,
+        email: newUserForm.email,
+        phone: newUserForm.phone || null,
+        password: newUserForm.password,
+        package: newUserForm.package,
+        notes: newUserForm.notes
+      }
+
       const response = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newUserForm)
+        body: JSON.stringify(userData)
       })
 
       if (!response.ok) {
@@ -196,7 +256,8 @@ export default function UsersPage() {
 
       setIsNewUserOpen(false)
       setNewUserForm({
-        name: "",
+        firstName: "",
+        lastName: "",
         email: "",
         phone: "",
         package: "",
@@ -334,12 +395,23 @@ export default function UsersPage() {
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Nombre Completo</Label>
+                    <Label htmlFor="firstName">Nombre</Label>
                     <Input
-                      id="name"
-                      value={newUserForm.name}
-                      onChange={(e) => setNewUserForm(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Nombre y apellido"
+                      id="firstName"
+                      value={newUserForm.firstName}
+                      onChange={(e) => setNewUserForm(prev => ({ ...prev, firstName: e.target.value }))}
+                      placeholder="Nombre"
+                      className="border-gray-300"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Apellido</Label>
+                    <Input
+                      id="lastName"
+                      value={newUserForm.lastName}
+                      onChange={(e) => setNewUserForm(prev => ({ ...prev, lastName: e.target.value }))}
+                      placeholder="Apellido"
                       className="border-gray-300"
                     />
                   </div>
@@ -468,13 +540,11 @@ export default function UsersPage() {
                   <p className="text-gray-500">Cargando usuarios...</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-[65vh] overflow-y-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-gray-200">
-                        <th className="text-left p-4 font-medium text-gray-500">Usuario</th>
                         <th className="text-left p-4 font-medium text-gray-500">Contacto</th>
-                        <th className="text-left p-4 font-medium text-gray-500">Paquete</th>
                         <th className="text-left p-4 font-medium text-gray-500">Fecha de Registro</th>
                         <th className="text-left p-4 font-medium text-gray-500">Estado</th>
                         <th className="text-left p-4 font-medium text-gray-500">Acciones</th>
@@ -484,15 +554,7 @@ export default function UsersPage() {
                       {filteredUsers.length > 0 ? (
                         filteredUsers.map((user) => (
                           <tr key={user.id} className="border-b border-gray-200 hover:bg-gray-50">
-                            <td className="p-4">
-                              <div className="flex items-center">
-        
-                                <div>
-                                  <div className="font-medium text-gray-900">{user.name}</div>
-                                  <div className="text-sm text-gray-500">ID: #{user.id}</div>
-                                </div>
-                              </div>
-                            </td>
+                            
                             <td className="p-4">
                               <div className="space-y-1">
                                 <div className="flex items-center text-sm text-gray-700">
@@ -505,17 +567,7 @@ export default function UsersPage() {
                                 </div>
                               </div>
                             </td>
-                            <td className="p-4">
-                              <div className="space-y-1">
-                                <div className="flex items-center text-gray-700">
-                                  <Package className="h-4 w-4 mr-2 text-[#4A102A]" />
-                                  <span>{user.package}</span>
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                  Clases restantes: {user.remainingClasses}
-                                </div>
-                              </div>
-                            </td>
+                            
                             <td className="p-4">
                               <div className="flex items-center text-gray-700">
                                 <Calendar className="h-4 w-4 mr-2 text-gray-400" />
@@ -798,9 +850,7 @@ export default function UsersPage() {
                   >
                     <Edit className="h-4 w-4 mr-2" /> Editar
                   </Button>
-                  <Button className="bg-[#4A102A] hover:bg-[#85193C]">
-                    Ver Reservaciones
-                  </Button>
+
                 </div>
               </div>
             </div>
