@@ -21,7 +21,7 @@ const instructors = [
     name: "Óscar Fernández",
     role:"Coach de Indoor",
     bio: "Entrenador profesional certificado por IFBB PRO LIGUE y certificado en MASTER COACH en seminario. Cuento con más de 2 años de experiencia en entrenamiento físico de hipertrofia para crecimiento muscular y reducción de masa corporal.",
-    image: "/Coach1.jpeg",
+    image: "/coach1.jpeg",
     socials: ["@barbie_mamada_"],
   },
   {

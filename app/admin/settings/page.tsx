@@ -215,8 +215,6 @@ export default function SettingsPage() {
                 <Label htmlFor="studio-name">Nombre del Estudio</Label>
                 <Input id="studio-name" defaultValue="Innata Indoor Cycling Studio "className="border-gray-300" />
               </div>
-
-              <Button className="bg-[#4A102A] hover:bg-[#4A102A]/90 w-full">Guardar Cambios</Button>
             </form>
           </CardContent>
         </Card>
@@ -237,17 +235,9 @@ export default function SettingsPage() {
                   <Mail className="h-4 w-4 text-[#4A102A]" />
                   <span className="font-medium">Email de Soporte</span>
                 </div>
-                <p className="text-sm text-gray-600">soporte@cyclestudio.com</p>
+                <p className="text-sm text-gray-600">email@soporte.com</p>
               </div>
 
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Phone className="h-4 w-4 text-[#4A102A]" />
-                  <span className="font-medium">Teléfono de Soporte</span>
-                </div>
-                <p className="text-sm text-gray-600">+52 (55) 1234-5678</p>
-                <p className="text-xs text-gray-500 mt-1">Lunes a Viernes, 9:00 AM - 6:00 PM</p>
-              </div>
 
              
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
