@@ -62,6 +62,12 @@ export function getStatusCodeForAuthError(code: string): number {
         return 'Este enlace de verificación ya fue utilizado';
       case 'ALREADY_VERIFIED':
         return 'Esta cuenta ya ha sido verificada';
+      case 'MISSING_TOKEN':
+        return 'Token de reset no proporcionado';
+      case 'INVALID_TOKEN':
+        return 'El enlace de reset es inválido o ha expirado. Solicita uno nuevo';
+      case 'MISSING_EMAIL':
+        return 'Email es requerido';
       default:
         return defaultMessage || 'Ha ocurrido un error inesperado';
     }

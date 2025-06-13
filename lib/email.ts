@@ -342,7 +342,7 @@ export async function sendPasswordResetEmail(
   name: string,
   token: string,
 ): Promise<void> {
-  const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+  const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/login?reset-token=${token}`;
 
   try {
     const { data, error } = await resend.emails.send({

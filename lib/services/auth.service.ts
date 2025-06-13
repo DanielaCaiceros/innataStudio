@@ -7,6 +7,7 @@ import { addDays } from 'date-fns';
 import { UserRegistrationData, LoginCredentials, AuthResponse, TokenPayload } from '../types/auth';
 import { signToken, verifyToken } from '../jwt';
 import { sendVerificationEmail } from '../email';
+import { sendPasswordResetEmail } from '../email'; // Asegúrate de tener esta función para enviar emails
 
 const prisma = new PrismaClient();
 
@@ -281,5 +282,111 @@ export async function resendVerificationEmail(email: string): Promise<boolean> {
   } catch (error) {
     console.error('Error resending verification email:', error);
     throw new AuthError('Error interno al reenviar el correo de verificación', 'EMAIL_SEND_ERROR');
+  }
+}
+
+// Función para solicitar reset de contraseña
+export async function requestPasswordReset(email: string): Promise<boolean> {
+  if (!email) {
+    throw new AuthError('Email es requerido', 'MISSING_EMAIL');
+  }
+
+  // Validar formato de email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    throw new AuthError('El formato del email no es válido', 'INVALID_EMAIL_FORMAT');
+  }
+
+  // Buscar usuario por email
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase().trim() }
+  });
+
+  if (!user) {
+    throw new AuthError('No se encontró una cuenta con este email', 'USER_NOT_FOUND');
+  }
+
+  // Verificar que la cuenta esté activa
+  if (user.status !== 'active') {
+    throw new AuthError('La cuenta debe estar verificada para poder restablecer la contraseña', 'ACCOUNT_NOT_VERIFIED');
+  }
+
+  try {
+    // Generar token de reset seguro
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = addDays(new Date(), 1); // Token expira en 1 día
+
+    // Guardar token en la base de datos
+    await prisma.user.update({
+      where: { user_id: user.user_id },
+      data: {
+        resetPasswordToken: resetToken,
+        resetPasswordExpires: resetExpires
+      }
+    });
+
+    // Enviar email de reset usando la función existente
+    await sendPasswordResetEmail(user.email, user.firstName, resetToken);
+
+    return true;
+  } catch (error) {
+    console.error('Error requesting password reset:', error);
+    throw new AuthError('Error interno al procesar la solicitud de reset', 'EMAIL_SEND_ERROR');
+  }
+}
+
+// Función para confirmar reset de contraseña
+export async function confirmPasswordReset(token: string, newPassword: string): Promise<boolean> {
+  if (!token) {
+    throw new AuthError('Token de reset no proporcionado', 'MISSING_TOKEN');
+  }
+
+  if (!newPassword) {
+    throw new AuthError('Nueva contraseña es requerida', 'MISSING_FIELDS');
+  }
+
+  // Validar contraseña
+  if (newPassword.length < 8) {
+    throw new AuthError('La contraseña debe tener al menos 8 caracteres', 'WEAK_PASSWORD');
+  }
+
+  if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
+    throw new AuthError('La contraseña debe contener al menos una mayúscula, una minúscula y un número', 'WEAK_PASSWORD');
+  }
+
+  // Buscar usuario por token
+  const user = await prisma.user.findFirst({
+    where: { 
+      resetPasswordToken: token,
+      resetPasswordExpires: {
+        gt: new Date() // Token no expirado
+      }
+    }
+  });
+
+  if (!user) {
+    throw new AuthError('Token de reset inválido o expirado', 'INVALID_TOKEN');
+  }
+
+  try {
+    // Hash de la nueva contraseña
+    const salt = await bcrypt.genSalt(12);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Actualizar contraseña y limpiar token
+    await prisma.user.update({
+      where: { user_id: user.user_id },
+      data: {
+        passwordHash: hashedPassword,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+        updatedAt: new Date()
+      }
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error confirming password reset:', error);
+    throw new AuthError('Error interno al restablecer la contraseña', 'DATABASE_ERROR');
   }
 }
