@@ -19,39 +19,65 @@ export async function POST(request: NextRequest) {
     let event: Stripe.Event
 
     try {
-      event = stripe.webhooks.constructEvent(body, sig, endpointSecret)
+      // Add 5-minute tolerance for timestamp verification
+      event = stripe.webhooks.constructEvent(body, sig, endpointSecret, 300)
       console.log(`✅ Webhook verificado exitosamente. Tipo: ${event.type}`)
     } catch (err) {
       console.error(`❌ Error verificando webhook: ${err}`)
       return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 })
     }
 
-    // Manejar los eventos específicos del negocio de Innata Studio
-    switch (event.type) {
-      case 'payment_intent.succeeded':
-        await handlePaymentSucceeded(event.data.object as Stripe.PaymentIntent)
-        break
-      
-      case 'payment_intent.payment_failed':
-        await handlePaymentFailed(event.data.object as Stripe.PaymentIntent)
-        break
-      
-      case 'payment_intent.canceled':
-        await handlePaymentCanceled(event.data.object as Stripe.PaymentIntent)
-        break
-      
-      case 'charge.dispute.created':
-        await handleChargeDispute(event.data.object as Stripe.Dispute)
-        break
-      
-      default:
-        console.log(`🤷‍♀️ Evento no manejado: ${event.type}`)
-    }
+    // Return 200 immediately after verification
+    const response = NextResponse.json({ received: true })
 
-    return NextResponse.json({ received: true })
+    // Process the event asynchronously
+    processEvent(event).catch(error => {
+      console.error('Error processing webhook event:', error)
+    })
+
+    return response
   } catch (error) {
     console.error('Error en webhook de Stripe:', error)
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+  }
+}
+
+async function processEvent(event: Stripe.Event) {
+  switch (event.type) {
+    case 'payment_intent.succeeded':
+      await handlePaymentSucceeded(event.data.object as Stripe.PaymentIntent)
+      break
+    
+    case 'payment_intent.payment_failed':
+      await handlePaymentFailed(event.data.object as Stripe.PaymentIntent)
+      break
+    
+    case 'payment_intent.canceled':
+      await handlePaymentCanceled(event.data.object as Stripe.PaymentIntent)
+      break
+    
+    case 'payment_intent.requires_action':
+      await handlePaymentRequiresAction(event.data.object as Stripe.PaymentIntent)
+      break
+    
+    case 'payment_intent.processing':
+      await handlePaymentProcessing(event.data.object as Stripe.PaymentIntent)
+      break
+    
+    case 'charge.succeeded':
+      await handleChargeSucceeded(event.data.object as Stripe.Charge)
+      break
+    
+    case 'charge.failed':
+      await handleChargeFailed(event.data.object as Stripe.Charge)
+      break
+    
+    case 'charge.dispute.created':
+      await handleChargeDispute(event.data.object as Stripe.Dispute)
+      break
+    
+    default:
+      console.log(`🤷‍♀️ Evento no manejado: ${event.type}`)
   }
 }
 
@@ -367,5 +393,47 @@ async function handleChargeDispute(dispute: Stripe.Dispute) {
 
   } catch (error) {
     console.error(`❌ Error procesando disputa ${dispute.id}:`, error)
+  }
+}
+
+async function handlePaymentRequiresAction(paymentIntent: Stripe.PaymentIntent) {
+  console.log(`⚠️ Pago requiere acción adicional: ${paymentIntent.id}`)
+  // Update payment status to requires_action
+  await updatePaymentStatus(paymentIntent.id, 'requires_action')
+}
+
+async function handlePaymentProcessing(paymentIntent: Stripe.PaymentIntent) {
+  console.log(`⏳ Pago en procesamiento: ${paymentIntent.id}`)
+  // Update payment status to processing
+  await updatePaymentStatus(paymentIntent.id, 'processing')
+}
+
+async function handleChargeSucceeded(charge: Stripe.Charge) {
+  console.log(`✅ Cargo exitoso: ${charge.id}`)
+  // Additional charge-specific logic if needed
+}
+
+async function handleChargeFailed(charge: Stripe.Charge) {
+  console.log(`❌ Cargo fallido: ${charge.id}`)
+  // Additional charge-specific logic if needed
+}
+
+async function updatePaymentStatus(paymentIntentId: string, status: string) {
+  const existingPayment = await prisma.payment.findFirst({
+    where: { stripePaymentIntentId: paymentIntentId }
+  })
+
+  if (existingPayment) {
+    await prisma.payment.update({
+      where: { id: existingPayment.id },
+      data: { 
+        status,
+        metadata: {
+          ...existingPayment.metadata as object,
+          webhook_processed_at: new Date().toISOString(),
+          stripe_status: status
+        }
+      }
+    })
   }
 }
