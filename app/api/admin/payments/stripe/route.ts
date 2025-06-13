@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { cookies } from 'next/headers'
 import Stripe from "stripe"
+import { getUnlimitedWeekExpiryDate } from '@/lib/utils/business-days'
 
 const prisma = new PrismaClient()
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-04-30.basil"
+  apiVersion: "2025-05-28.basil"
 })
 
 // POST - Asociar un pago de Stripe con usuario y paquete
@@ -92,8 +93,15 @@ export async function POST(request: NextRequest) {
       })
 
       // Crear el paquete de usuario
-      const expirationDate = new Date()
-      expirationDate.setMonth(expirationDate.getMonth() + 3) // 3 meses de vigencia
+      let expirationDate = new Date()
+      
+      // **NUEVA LÓGICA**: Para Semana Ilimitada (ID 3), usar días hábiles
+      if (packageId === 3) {
+        expirationDate = getUnlimitedWeekExpiryDate(new Date())
+      } else {
+        // Para otros paquetes, usar validityDays del paquete (30 días)
+        expirationDate.setDate(expirationDate.getDate() + packageData.validityDays)
+      }
 
       const userPackage = await tx.userPackage.create({
         data: {
