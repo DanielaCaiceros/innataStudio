@@ -262,7 +262,7 @@ export default function PackagesPage() {
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-[#727D73]">¿Los paquetes tienen fecha de expiración?</h3>
               <p className="text-zinc-600">
-                Sí,todos nuestros paquetes tienen una validez de 30 días desde la compra.
+                Sí, todos nuestros paquetes tienen una validez de 30 días desde la compra.
               </p>
             </div>
 
