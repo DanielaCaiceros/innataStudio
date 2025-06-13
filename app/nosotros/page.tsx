@@ -13,7 +13,7 @@ const instructors = [
     name: "Inés Miroslava",
     role: "Coach de Indoor",
     bio: "He hecho deporte toda mi vida. Me encanta el crossfit, los triatlones y amo con locura el indoor. También soy fotógrafa y mamá.",
-    image: "/coach3.JPG",
+    image: "/coach3.jpeg",
     socials: ["@inessmiroslava"],
   },
   {
