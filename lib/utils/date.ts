@@ -104,21 +104,31 @@ export function filterClassesByDateAndTime(
 
 /**
  * Crea un Date object completo combinando fecha y hora de la clase
- * Mantiene las fechas en UTC para evitar problemas de zona horaria
+ * Acepta hora en formato 'HH:mm' o string ISO (por ejemplo, '1970-01-01T10:00:00.000Z')
+ * Siempre usa la fecha de la clase y la hora/minutos extraídos
  */
 export function createClassDateTime(dateString: string, timeString: string): Date {
-  const classDate = new Date(dateString)
-  const timeDate = new Date(timeString)
-  
-  return new Date(Date.UTC(
-    classDate.getUTCFullYear(),
-    classDate.getUTCMonth(), 
-    classDate.getUTCDate(),
-    timeDate.getUTCHours(),
-    timeDate.getUTCMinutes(),
+  let hours = 0, minutes = 0;
+
+  if (timeString.includes('T')) {
+    const dateObj = new Date(timeString);
+    hours = dateObj.getUTCHours();
+    minutes = dateObj.getUTCMinutes();
+  } else if (/^\d{2}:\d{2}$/.test(timeString)) {
+    [hours, minutes] = timeString.split(':').map(Number);
+  }
+
+  const date = new Date(dateString);
+  // Usar SIEMPRE la fecha en UTC
+  return new Date(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    hours,
+    minutes,
     0,
     0
-  ))
+  );
 }
 
 /**
