@@ -4,7 +4,13 @@ import { PrismaClient } from "@prisma/client";
 import { verifyToken } from "@/lib/jwt";
 import { addHours, format } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
-import { getUnlimitedWeekExpiryDate } from '@/lib/utils/business-days'
+import { getUnlimitedWeekExpiryDate } from '@/lib/utils/business-days';
+import { 
+  formatAdminDate, 
+  formatAdminTime, 
+  parseAdminDateInput, 
+  parseAdminTimeInput 
+} from '@/lib/utils/admin-date';
 
 
 const prisma = new PrismaClient();
@@ -104,15 +110,9 @@ export async function GET(request: NextRequest) {
 
     // Formatear los datos para la respuesta con manejo correcto de fechas
     const formattedReservations = reservations.map((res) => {
-      // Formatear la fecha de la clase
-      const classDate = new Date(res.scheduledClass.date);
-      const formattedDate = classDate.toISOString().split('T')[0]; // YYYY-MM-DD
-      
-      // Formatear la hora de la clase
-      const classTime = new Date(res.scheduledClass.time);
-      const hours = classTime.getUTCHours().toString().padStart(2, '0');
-      const minutes = classTime.getUTCMinutes().toString().padStart(2, '0');
-      const formattedTime = `${hours}:${minutes}`;
+      // Usar las utilidades de admin para formatear correctamente
+      const formattedDate = formatAdminDate(res.scheduledClass.date);
+      const formattedTime = formatAdminTime(res.scheduledClass.time);
       
       // Calcular clases restantes en el paquete
       const remainingClasses = res.userPackage?.classesRemaining || 0;
@@ -188,31 +188,46 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { userId, classId, date, time, package: packageType, paymentMethod } = body;
+    const { userId, classId, date, time, package: packageType, paymentMethod, bikeNumber } = body;
 
     if (!userId || !classId || !date || !time || !packageType) {
       return NextResponse.json({ error: "Faltan datos requeridos" }, { status: 400 });
     }
 
-    // --- NUEVA LÓGICA PARA MANEJO DE FECHA Y HORA (ALMACENAMIENTO) ---
-    // El usuario proporciona fecha (YYYY-MM-DD) y hora (HH:MM) en hora local de México (UTC-6).
-    // Necesitamos almacenar esto en la base de datos como su equivalente UTC.
+    // Usar las utilidades de admin para procesar fecha y hora correctamente
+    const scheduledDateUTC = parseAdminDateInput(date);
+    const scheduledTimeUTC = parseAdminTimeInput(time);
 
-    const [year, month, day] = date.split('-').map(Number);
-    const [hours, minutes] = time.split(':').map(Number);
+    // Validar número de bicicleta si se especifica
+    let parsedBikeNumber = null;
+    if (bikeNumber !== undefined && bikeNumber !== null) {
+      parsedBikeNumber = Number(bikeNumber);
+      if (isNaN(parsedBikeNumber) || parsedBikeNumber < 1 || parsedBikeNumber > 10) {
+        return NextResponse.json({ error: "El número de bicicleta debe estar entre 1 y 10" }, { status: 400 });
+      }
 
-    // Crear un objeto Date representando la hora de la clase en UTC.
-    // México es UTC-6, por lo que sumamos 6 horas a los componentes de hora local para obtener UTC.
-    // El mes es 0-indexado en Date.UTC, por eso 'month - 1'.
-    const scheduledTimeUTC = new Date(Date.UTC(year, month - 1, day, hours + 6, minutes, 0, 0));
+      // Verificar si la bicicleta ya está reservada para esta clase específica
+      const scheduledDateUTC = parseAdminDateInput(date);
+      const scheduledTimeUTC = parseAdminTimeInput(time);
+      
+      const bikeConflict = await prisma.reservation.findFirst({
+        where: {
+          bikeNumber: parsedBikeNumber,
+          status: "confirmed",
+          scheduledClass: {
+            classTypeId: classId,
+            date: scheduledDateUTC,
+            time: scheduledTimeUTC
+          }
+        }
+      });
 
-    // Para el campo scheduledClass.date, necesitamos el inicio del día en UTC para esta clase.
-    const scheduledDateUTC = new Date(Date.UTC(
-      scheduledTimeUTC.getUTCFullYear(),
-      scheduledTimeUTC.getUTCMonth(),
-      scheduledTimeUTC.getUTCDate()
-    ));
-    // --- FIN NUEVA LÓGICA ---
+      if (bikeConflict) {
+        return NextResponse.json({ 
+          error: `La bicicleta #${parsedBikeNumber} ya está reservada para esta clase` 
+        }, { status: 400 });
+      }
+    }
 
     // Buscar la clase programada o crearla si no existe
     let scheduledClass = await prisma.scheduledClass.findFirst({
@@ -246,7 +261,6 @@ export async function POST(request: NextRequest) {
         data: {
           classTypeId: classId,
           instructorId: instructor.id,
-          // Usar las nuevas fechas UTC calculadas
           date: scheduledDateUTC,
           time: scheduledTimeUTC,
           maxCapacity: classType.capacity,
@@ -329,6 +343,7 @@ export async function POST(request: NextRequest) {
         userPackageId: userPackage?.id, // Puede ser null para pases individuales
         status: "confirmed",
         paymentMethod: packageType !== "individual" ? "package" : paymentMethod,
+        bikeNumber: parsedBikeNumber, // Agregar el número de bicicleta
       },
       include: {
         user: {
@@ -373,26 +388,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Formatear la respuesta para el frontend del admin (también debe usar la zona horaria local)
-    // Asumiendo que `reservation.scheduledClass.date` y `reservation.scheduledClass.time` ya son UTC del DB.
-    const classDateTimeUTC = new Date(Date.UTC(
-      reservation.scheduledClass.date.getUTCFullYear(),
-      reservation.scheduledClass.date.getUTCMonth(),
-      reservation.scheduledClass.date.getUTCDate(),
-      reservation.scheduledClass.time.getUTCHours(),
-      reservation.scheduledClass.time.getUTCMinutes()
-    ));
-
-    const mexicoCityTimeZone = 'America/Mexico_City';
-
+    // Formatear la respuesta usando las utilidades de admin
     const formattedReservation = {
       id: reservation.id,
       user: `${reservation.user.firstName} ${reservation.user.lastName}`,
       email: reservation.user.email,
       phone: reservation.user.phone || "",
       class: reservation.scheduledClass.classType.name,
-      date: formatInTimeZone(classDateTimeUTC, mexicoCityTimeZone, 'yyyy-MM-dd'),
-      time: formatInTimeZone(classDateTimeUTC, mexicoCityTimeZone, 'HH:mm'),
+      date: formatAdminDate(reservation.scheduledClass.date),
+      time: formatAdminTime(reservation.scheduledClass.time),
       status: reservation.status,
       package: reservation.userPackage?.package.name || "PASE INDIVIDUAL",
       remainingClasses: reservation.userPackage?.classesRemaining || 0,
@@ -400,7 +404,7 @@ export async function POST(request: NextRequest) {
       paymentMethod: reservation.userPackage?.paymentMethod || paymentMethod,
       checkedIn: false, // Nueva reserva, no ha hecho check-in
       checkedInAt: null, // Nueva reserva, no ha hecho check-in
-      bikeNumber: null // Se asignará cuando se haga la reserva con bicicleta específica
+      bikeNumber: reservation.bikeNumber || null // Incluir el número de bicicleta en la respuesta
     };
 
     return NextResponse.json(formattedReservation);

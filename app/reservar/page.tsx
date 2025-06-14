@@ -369,12 +369,25 @@ export default function BookingPage() {
       : []
   }
   
-  // Obtener horarios disponibles
+  // Obtener horarios disponibles con información de disponibilidad
   const getTimeSlotsForSelectedDate = () => {
     const classesForDate = getClassesForSelectedDate()
-    return getUniqueTimeSlotsFromClasses(
+    const timeSlots = getUniqueTimeSlotsFromClasses(
       classesForDate.map(cls => ({ date: cls.date, time: cls.time }))
     )
+    
+    // Agregar información de disponibilidad a cada time slot
+    return timeSlots.map(time => {
+      const classesForTime = getClassesForSelectedTime(time)
+      const totalAvailableSpots = classesForTime.reduce((total, cls) => total + cls.availableSpots, 0)
+      const hasAvailability = totalAvailableSpots > 0
+      
+      return {
+        time,
+        hasAvailability,
+        totalAvailableSpots
+      }
+    })
   }
   
   // Obtener clases para horario específico
@@ -405,6 +418,14 @@ export default function BookingPage() {
       console.error("Error verificando disponibilidad:", error)
       return false
     }
+  }
+
+  // Verificar si una fecha tiene clases disponibles
+  const hasAvailableClassesOnDate = (checkDate: Date) => {
+    const classesForDate = availableClasses.filter(cls => 
+      isClassOnSelectedDate(cls.date, checkDate)
+    )
+    return classesForDate.some(cls => cls.availableSpots > 0 && isClassReservable(cls))
   }
 
   // Reset isUsingUnlimitedWeek if hasActiveUnlimitedWeek becomes false
@@ -464,9 +485,36 @@ export default function BookingPage() {
                         classNames={{
                           day_selected: "bg-brand-mint text-white rounded-lg",
                           day_today: "bg-gray-100 text-zinc-900 rounded-lg",
-                          day: "text-zinc-900 hover:bg-gray-100 rounded-lg",
+                          day: "text-zinc-900 hover:bg-gray-100 rounded-lg relative",
+                        }}
+                        modifiers={{
+                          hasAvailability: (day) => hasAvailableClassesOnDate(day),
+                          noAvailability: (day) => {
+                            const classesForDate = availableClasses.filter(cls => 
+                              isClassOnSelectedDate(cls.date, day)
+                            )
+                            return classesForDate.length > 0 && !hasAvailableClassesOnDate(day)
+                          }
+                        }}
+                        modifiersClassNames={{
+                          hasAvailability: "before:absolute before:bottom-1 before:left-1/2 before:-translate-x-1/2 before:w-1 before:h-1 before:bg-green-500 before:rounded-full",
+                          noAvailability: "before:absolute before:bottom-1 before:left-1/2 before:-translate-x-1/2 before:w-1 before:h-1 before:bg-green-900 before:rounded-full opacity-60"
                         }}
                       />
+                      
+                      {/* Leyenda del calendario */}
+                      <div className="mt-3 px-2">
+                        <div className="flex justify-center gap-4 text-xs">
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span className="text-gray-600">Con cupos</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 bg-green-900 rounded-full"></div>
+                            <span className="text-gray-600">Sin cupos</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -478,30 +526,60 @@ export default function BookingPage() {
                     <Clock className="mr-2 h-5 w-5 text-brand-sage" />
                     <h3 className="text-xl font-bold text-brand-sage-dark">Selecciona Horario</h3>
                   </div>
+                  
+                  {/* Leyenda de disponibilidad */}
+                  
                   <div className="p-4 grid grid-cols-3 gap-2">
                     {isLoading ? (
                       <div className="col-span-3 text-center py-8 text-gray-500">Cargando horarios...</div>
                     ) : getTimeSlotsForSelectedDate().length > 0 ? (
-                      getTimeSlotsForSelectedDate().map((time) => (
-                        <Button
-                          key={time}
-                          variant={selectedTime === time ? "default" : "outline"}
-                          className={`rounded-full ${
-                            selectedTime === time
-                              ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
-                              : "border-brand-sage text-brand-sage hover:bg-gray-50"
-                          }`}
-                          onClick={() => {
-                            setSelectedTime(time);
-                            setSelectedClass(null);
-                          }}
-                        >
-                          {time}
-                        </Button>
-                      ))
+                      getTimeSlotsForSelectedDate().map((timeSlot) => {
+                        const isSelected = selectedTime === timeSlot.time
+                        const hasAvailability = timeSlot.hasAvailability
+                        
+                        return (
+                          <Button
+                            key={timeSlot.time}
+                            variant={isSelected ? "default" : "outline"}
+                            disabled={!hasAvailability}
+                            className={`rounded-full relative ${
+                              isSelected
+                                ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
+                                : hasAvailability
+                                ? "border-brand-sage text-brand-sage hover:bg-gray-50"
+                                : "border-gray-300 text-gray-400 bg-gray-50 cursor-not-allowed"
+                            } ${!hasAvailability ? "opacity-60" : ""}`}
+                            onClick={() => {
+                              if (hasAvailability) {
+                                setSelectedTime(timeSlot.time);
+                                setSelectedClass(null);
+                              }
+                            }}
+                          >
+                            <span className={!hasAvailability ? "line-through" : ""}>
+                              {timeSlot.time}
+                            </span>
+                            {!hasAvailability && (
+                              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                                ✕
+                              </span>
+                            )}
+                          </Button>
+                        )
+                      })
                     ) : (
-                      <div className="col-span-3 text-center py-8 text-gray-500">
-                        No hay clases disponibles para la fecha seleccionada
+                      <div className="col-span-3 text-center py-8">
+                        <div className="text-gray-500 mb-2">
+                          No hay clases disponibles para la fecha seleccionada
+                        </div>
+                        {date && (
+                          <div className="text-sm text-gray-400">
+                            {availableClasses.filter(cls => isClassOnSelectedDate(cls.date, date)).length > 0 
+                              ? "Todas las clases están llenas o ya pasó el tiempo de reserva"
+                              : "No hay clases programadas para este día"
+                            }
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -519,25 +597,83 @@ export default function BookingPage() {
                       <div className="text-center py-8 text-gray-500">Cargando clases...</div>
                     ) : selectedTime ? (
                       <div className="space-y-4">
-                        {getClassesForSelectedTime(selectedTime).map((cls) => (
-                          <Card 
-                            key={cls.id} 
-                            className={`cursor-pointer transition-all ${
-                              selectedClass === cls.id ? 'ring-2 ring-[#4A102A] bg-gray-50' : 'hover:shadow-md'
-                            }`}
-                            onClick={() => handleClassSelection(cls.id)}
-                          >
-                            <CardContent className="p-4">
-                              <div className="flex justify-between items-center">
-                                <div>
-                                  <h4 className="font-medium">{cls.classType.name}</h4>
-                                  <p className="text-sm text-gray-500">{cls.instructor.name}</p>
+                        {getClassesForSelectedTime(selectedTime).map((cls) => {
+                          const hasAvailability = cls.availableSpots > 0
+                          const isReservable = isClassReservable(cls)
+                          const canReserve = hasAvailability && isReservable
+                          
+                          return (
+                            <Card 
+                              key={cls.id} 
+                              className={`transition-all ${
+                                selectedClass === cls.id 
+                                  ? 'ring-2 ring-[#4A102A] bg-gray-50' 
+                                  : canReserve 
+                                  ? 'hover:shadow-md cursor-pointer' 
+                                  : !hasAvailability 
+                                  ? 'cursor-not-allowed bg-green-900 border-green-700' // Color verde oscuro para sin cupo
+                                  : 'opacity-60 cursor-not-allowed bg-gray-100'
+                              }`}
+                              onClick={() => canReserve && handleClassSelection(cls.id)}
+                            >
+                              <CardContent className="p-4">
+                                <div className="flex justify-between items-center">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <h4 className={`font-medium ${
+                                        !hasAvailability 
+                                          ? 'text-white' // Texto blanco para contraste con verde oscuro
+                                          : !canReserve 
+                                          ? 'text-gray-500 line-through' 
+                                          : ''
+                                      }`}>
+                                        {cls.classType.name}
+                                      </h4>
+                                      {!hasAvailability && (
+                                        <span className="bg-white text-green-900 text-xs px-2 py-1 rounded-full font-semibold">
+                                          SIN CUPO
+                                        </span>
+                                      )}
+                                      {hasAvailability && !isReservable && (
+                                        <span className="bg-gray-500 text-white text-xs px-2 py-1 rounded-full">
+                                          TIEMPO AGOTADO
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className={`text-sm ${
+                                      !hasAvailability 
+                                        ? 'text-green-100' // Texto claro para el instructor en clases sin cupo
+                                        : !canReserve 
+                                        ? 'text-gray-400' 
+                                        : 'text-gray-500'
+                                    }`}>
+                                      {cls.instructor.name}
+                                    </p>
+                                    <p className={`text-xs mt-1 ${
+                                      !hasAvailability 
+                                        ? 'text-green-200 font-medium' // Texto claro para la descripción en clases sin cupo
+                                        : !isReservable
+                                        ? 'text-gray-500'
+                                        : 'text-green-600'
+                                    }`}>
+                                      {!hasAvailability 
+                                        ? 'Clase llena - Sin cupos disponibles'
+                                        : !isReservable
+                                        ? 'Reservas cerradas (30 min antes del inicio)'
+                                        : `${cls.availableSpots} lugar${cls.availableSpots !== 1 ? 'es' : ''} disponible${cls.availableSpots !== 1 ? 's' : ''}`
+                                      }
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className={`text-sm ${!canReserve ? 'text-gray-400' : 'text-gray-500'}`}>
+                                      {cls.classType.duration} min
+                                    </span>
+                                  </div>
                                 </div>
-                                <span className="text-sm text-gray-500">{cls.classType.duration} min</span>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
 
                         {/* Opciones de reserva */}
                         {selectedClass && (
@@ -579,7 +715,7 @@ export default function BookingPage() {
                               {!isUsingUnlimitedWeek && isAuthenticated && userAvailableClasses > 0 && (
                                 <div className="bg-green-50 p-3 rounded-md border border-green-200 mb-4">
                                   <p className="text-sm text-green-800">
-                                    ✅ Tienes {userAvailableClasses} clase(s) disponible(s) en tus paquetes
+                                    Tienes {userAvailableClasses} clase(s) disponible(s) en tus paquetes
                                   </p>
                                 </div>
                               )}
@@ -761,7 +897,7 @@ export default function BookingPage() {
             POLÍTICAS DE <span className="text-brand-burgundy">RESERVA</span>
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-12">
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-brand-burgundy-dark">Cancelaciones</h3>
               <p className="text-zinc-600">
@@ -783,6 +919,49 @@ export default function BookingPage() {
               <p className="text-zinc-600">
                  Si una persona reservada no llega antes del inicio de la segunda canción, su lugar se cederá a quienes estén en lista de espera.
               </p>
+            </div>
+          </div>
+
+          {/* Guía de indicadores visuales */}
+          <div className="max-w-4xl mx-auto">
+            <h3 className="text-xl font-bold text-center mb-6 text-brand-burgundy-dark">
+              Guía de Disponibilidad
+            </h3>
+            <div className="bg-white p-6 rounded-3xl shadow-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="font-semibold mb-3 text-brand-mint-dark">Indicadores de Horarios</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-6 bg-brand-sage rounded-full flex items-center justify-center text-white text-xs">09:00</div>
+                      <span className="text-sm text-gray-600">Horario con cupos disponibles</span>
+                    </div>                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-500 text-xs relative">
+                        <span className="line-through">09:00</span>
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">✕</span>
+                      </div>
+                      <span className="text-sm text-gray-600">Horario sin cupos disponibles</span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-semibold mb-3 text-brand-mint-dark">Estados de Clases</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">5 lugares disponibles</span>
+                      <span className="text-sm text-gray-600">Clase con cupos</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">SIN CUPO</span>
+                      <span className="text-sm text-gray-600">Clase completa</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="bg-gray-500 text-white text-xs px-2 py-1 rounded-full">TIEMPO AGOTADO</span>
+                      <span className="text-sm text-gray-600">Reservas cerradas (30 min antes)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
