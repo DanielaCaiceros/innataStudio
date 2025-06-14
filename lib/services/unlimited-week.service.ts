@@ -142,13 +142,14 @@ export class UnlimitedWeekService {
       }
 
       // 8. Verificar que el usuario no tenga otra reserva para la misma clase
-const existingReservation = await prisma.reservation.findFirst({
-  where: {
-    userId,
-    scheduledClassId,
-    status: "confirmed"
-  }
-})
+      const existingReservation = await prisma.reservation.findFirst({
+        where: {
+          userId,
+          scheduledClassId,
+          status: "confirmed"
+        }
+      })
+
 
       if (existingReservation) {
         return {

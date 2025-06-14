@@ -404,7 +404,9 @@ export default function BookingPage() {
   }
 
   // Verificar si una clase es reservable
-  const isClassReservable = (cls: ScheduledClass) => {
+  const isClassReservable = (cls: ScheduledClass | undefined) => {
+    if (!cls) return false;
+    
     try {
       const now = new Date()
       const classDateTime = createClassDateTime(cls.date, cls.time)
@@ -856,7 +858,7 @@ export default function BookingPage() {
                                   isLoading || 
                                   !selectedClass || 
                                   (isUsingUnlimitedWeek && !unlimitedWeekValidation?.canUseUnlimitedWeek) ||
-                                  !isClassReservable(availableClasses.find(c => c.id === selectedClass)!)
+                                  !isClassReservable(availableClasses.find(c => c.id === selectedClass))
                                 }
                                 onClick={handleConfirmBooking}
                               >
@@ -991,7 +993,7 @@ export default function BookingPage() {
 
                 <Button
                   className="w-full mt-6 bg-brand-mint hover:bg-brand-mint/90 font-bold text-lg py-6 rounded-full text-white"
-                  disabled={!date || !selectedClass || !selectedTime || (selectedClass ? !isClassReservable(availableClasses.find(c => c.id === selectedClass)!) : false)}
+                  disabled={!date || !selectedClass || !selectedTime || !isClassReservable(availableClasses.find(c => c.id === selectedClass))}
                   onClick={handleConfirmBooking}
                 >
                   <span className="flex items-center gap-1">
