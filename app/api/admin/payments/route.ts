@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
       stripe_payment_intent_id: payment.stripePaymentIntentId,
       userPackageId: payment.userPackageId,
       metadata: payment.metadata,
+      transaction_id: payment.transactionId, // Agregado para el menú de detalles
       user: {
         firstName: payment.user.firstName,
         lastName: payment.user.lastName,

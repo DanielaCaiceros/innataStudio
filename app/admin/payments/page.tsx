@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,6 +21,11 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   PlusCircle,
   Search,
   Download,
@@ -27,6 +33,14 @@ import {
   DollarSign,
   Receipt,
   ArrowUpRight,
+  AlertTriangle,
+  CheckCircle,
+  ArrowLeft,
+  MoreVertical,
+  ExternalLink,
+  Copy,
+  Clock,
+  User,
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { Textarea } from "@/components/ui/textarea"
@@ -38,12 +52,17 @@ interface Payment {
   package: string
   amount: number
   date: string
-  method: "efectivo" | "en linea"
-  status: "completado" | "pendiente" | "fallido"
+  method: "Pago en efectivo" | "Pago en línea"
+  status: "Completado" | "Pendiente" | "Fallido"
   invoice: string
   stripePaymentIntentId?: string
   userPackageId?: number
   userId: number
+  // Datos adicionales para el menú de detalles
+  createdAt: string
+  paymentDate: string
+  metadata: any
+  transactionId?: string
 }
 
 interface User {
@@ -60,6 +79,17 @@ interface Package {
 }
 
 export default function PaymentsPage() {
+  const searchParams = useSearchParams()
+  
+  // Estados para detección de contexto de reservación
+  const [isFromReservation, setIsFromReservation] = useState(false)
+  const [showReservationBanner, setShowReservationBanner] = useState(false)
+  const [reservationContext, setReservationContext] = useState<{
+    userId: string
+    userInfo?: any
+    pendingReservation?: any
+  } | null>(null)
+
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [isNewPaymentOpen, setIsNewPaymentOpen] = useState(false)
@@ -87,6 +117,15 @@ export default function PaymentsPage() {
     email: "",
     phone: ""
   })
+
+  // Función para manejar apertura del modal de nuevo pago
+  const handleNewPaymentClick = () => {
+    // Si viene desde reservaciones, ocultar el banner para distinguir entre acceso directo y click manual
+    if (isFromReservation) {
+      setShowReservationBanner(false)
+    }
+    setIsNewPaymentOpen(true)
+  }
 
   // Función para validar email
   const isValidEmail = (email: string) => {
@@ -258,7 +297,12 @@ export default function PaymentsPage() {
           invoice: `INV-${payment.payment_id}`,
           stripePaymentIntentId: payment.stripe_payment_intent_id,
           userPackageId: payment.userPackageId,
-          userId: payment.user_id
+          userId: payment.user_id,
+          // Datos adicionales para detalles
+          createdAt: payment.created_at,
+          paymentDate: payment.payment_date,
+          metadata: payment.metadata || {},
+          transactionId: payment.transaction_id
         }))
         setPayments(transformedPayments)
       }
@@ -294,10 +338,18 @@ export default function PaymentsPage() {
 
   const loadPackages = async () => {
     try {
+      console.log("Cargando paquetes...")
       const response = await fetch("/api/packages")
+      console.log("Respuesta de paquetes:", response.status, response.ok)
+      
       if (response.ok) {
         const data = await response.json()
+        console.log("Datos de paquetes recibidos:", data)
         setPackages(data)
+      } else {
+        console.error("Error en respuesta de paquetes:", response.status, response.statusText)
+        const errorText = await response.text()
+        console.error("Texto de error:", errorText)
       }
     } catch (error) {
       console.error("Error loading packages:", error)
@@ -355,6 +407,21 @@ export default function PaymentsPage() {
         
         // Recargar la lista de pagos
         loadPayments()
+        
+        // Si viene desde reservaciones, mostrar opciones adicionales
+        if (isFromReservation) {
+          toast({
+            title: "¡Pago completado!",
+            description: "Ahora puedes finalizar la reservación del usuario desde el panel de reservaciones.",
+          })
+          
+          // Opcional: redirigir automáticamente después de unos segundos
+          setTimeout(() => {
+            if (confirm("¿Deseas ir al panel de reservaciones para completar la reservación?")) {
+              handleCompleteReservationAfterPayment()
+            }
+          }, 2000)
+        }
       } else {
         throw new Error(data.error || "Error al registrar el pago")
       }
@@ -421,6 +488,42 @@ export default function PaymentsPage() {
     }
   }
 
+  // Funciones para manejar el contexto de reservación
+  const handleReturnToReservations = () => {
+    // Mantener la información de la reservación pendiente
+    window.location.href = '/admin/reservations'
+  }
+
+  const handleCompleteReservationAfterPayment = async () => {
+    if (!reservationContext?.pendingReservation) {
+      toast({
+        title: "Error",
+        description: "No se encontraron datos de la reservación pendiente",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      toast({
+        title: "Redirigiendo...",
+        description: "Te llevamos al panel de reservaciones para completar la reservación",
+      })
+      
+      // Redirigir con parámetro para indicar que viene desde pagos
+      setTimeout(() => {
+        window.location.href = '/admin/reservations?fromPayments=true'
+      }, 1000)
+    } catch (error) {
+      console.error('Error completing reservation:', error)
+      toast({
+        title: "Error",
+        description: "Error al completar la reservación",
+        variant: "destructive"
+      })
+    }
+  }
+
   // TODOS LOS useEffect DEBEN IR AQUÍ, ANTES DEL RETURN
   
   // Cargar datos al montar el componente
@@ -429,6 +532,47 @@ export default function PaymentsPage() {
     loadUsers()
     loadPackages()
   }, [])
+
+  // Debug para verificar el estado de packages
+  useEffect(() => {
+    console.log("Estado actual de packages:", packages)
+  }, [packages])
+
+  // Detectar contexto de reservación al cargar
+  useEffect(() => {
+    const userId = searchParams.get('userId')
+    const context = searchParams.get('context')
+    
+    if (userId && context === 'reservation') {
+      setIsFromReservation(true)
+      setShowReservationBanner(true) // Mostrar banner solo al cargar la página
+      setReservationContext({ userId })
+      
+      // Pre-seleccionar el usuario
+      setSelectedUserId(userId)
+      
+      // Cargar datos de la reservación pendiente desde localStorage
+      try {
+        const pendingReservation = localStorage.getItem('pendingReservation')
+        if (pendingReservation) {
+          const reservationData = JSON.parse(pendingReservation)
+          setReservationContext(prev => ({
+            ...prev!,
+            userId,
+            userInfo: reservationData.userInfo,
+            pendingReservation: reservationData
+          }))
+          
+          // Pre-cargar el email del usuario para facilitar la búsqueda
+          if (reservationData.userInfo?.email) {
+            setUserSearchEmail(reservationData.userInfo.email)
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing pending reservation:', error)
+      }
+    }
+  }, [searchParams])
 
   // Actualizar el monto cuando cambie el paquete seleccionado
   useEffect(() => {
@@ -469,6 +613,121 @@ export default function PaymentsPage() {
   const selectedUser = users.find((u) => u.id && u.id.toString() === selectedUserId)
   const selectedPackage = packages.find((p) => p.id && p.id.toString() === selectedPackageId)
 
+  // Componente para mostrar detalles del pago
+  const PaymentDetailsMenu = ({ payment }: { payment: Payment }) => {
+    const copyToClipboard = (text: string) => {
+      navigator.clipboard.writeText(text)
+      toast({
+        title: "Copiado",
+        description: "Texto copiado al portapapeles",
+      })
+    }
+
+    const formatDateTime = (dateString: string) => {
+      const date = new Date(dateString)
+      return date.toLocaleString('es-MX', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    }
+
+    const isStripePayment = payment.method === "Pago en línea"
+    const metadata = payment.metadata || {}
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-80 p-4">
+          <div className="space-y-3">
+            <div className="border-b pb-2">
+              <h4 className="font-semibold text-sm text-gray-900">Detalles del Pago</h4>
+              <p className="text-xs text-gray-500">ID: {payment.id}</p>
+            </div>
+
+            {/* Información básica */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs">
+                <Clock className="h-3 w-3 text-gray-400" />
+                <span className="text-gray-600">Creado:</span>
+                <span className="font-medium">{formatDateTime(payment.createdAt)}</span>
+              </div>
+              
+              <div className="flex items-center gap-2 text-xs">
+                <User className="h-3 w-3 text-gray-400" />
+                <span className="text-gray-600">Cliente:</span>
+                <span className="font-medium">{payment.user}</span>
+              </div>
+            </div>
+
+            {/* Detalles específicos según el método de pago */}
+            {isStripePayment ? (
+              <div className="space-y-2 p-3 bg-blue-50 rounded-md">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-blue-800">Pago Stripe</span>
+                  <span className="text-xs text-blue-600">ID: {payment.stripePaymentIntentId}</span>
+                </div>
+                
+                {payment.stripePaymentIntentId && (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => copyToClipboard(payment.stripePaymentIntentId!)}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copiar ID
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => window.open(`https://dashboard.stripe.com/payments/${payment.stripePaymentIntentId}`, '_blank')}
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Ver en Stripe
+                    </Button>
+                  </div>
+                )}
+                
+                <p className="text-xs text-blue-600 italic">
+                  Para detalles completos, consulta el Dashboard de Stripe
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 p-3 bg-green-50 rounded-md">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-green-800">Pago en Efectivo</span>
+                </div>
+
+                {/* Notas del administrador */}
+                {metadata.notes && (
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium text-gray-700">Notas:</span>
+                    <p className="text-xs text-gray-600 bg-white p-2 rounded border">
+                      {metadata.notes}
+                    </p>
+                  </div>
+                )}
+
+
+
+              
+              </div>
+            )}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
   if (loading) {
     return (
       <div className="p-6 bg-gray-50 min-h-screen">
@@ -479,6 +738,66 @@ export default function PaymentsPage() {
 
   return (
     <div className="p-6 bg-white-50 min-h-screen">
+      {/* Banner de contexto de reservación */}
+      {showReservationBanner && reservationContext && (
+        <Card className="mb-6 border-blue-200 bg-blue-50">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-blue-800">
+                    Redirección desde Reservaciones
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleReturnToReservations}
+                    className="text-blue-700 hover:text-blue-800 hover:bg-blue-100"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-1" />
+                    Volver a Reservaciones
+                  </Button>
+                </div>
+                <div className="text-blue-700 space-y-1">
+
+                  <p className="text-sm">
+                    <strong>Situación:</strong> El usuario no tiene paquetes disponibles para completar su reservación.
+                  </p>
+                  <p className="text-sm">
+                    <strong>Acción requerida:</strong> Registra o procesa un pago para que el usuario pueda completar su reservación.
+                  </p>
+                  {reservationContext.pendingReservation && (
+                    <div className="bg-blue-100 p-3 rounded-md mt-3">
+                      <p className="text-sm font-medium text-blue-800 mb-1">Detalles de la reservación pendiente:</p>
+                      <div className="text-xs text-blue-700 space-y-1">
+                        <p>• Fecha: {reservationContext.pendingReservation.date}</p>
+                        <p>• Hora: {reservationContext.pendingReservation.time}</p>
+                        <p>• Paquete solicitado: {reservationContext.pendingReservation.package}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setShowReservationBanner(false)
+                      setIsNewPaymentOpen(true)
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <CreditCard className="h-4 w-4 mr-1" />
+                    Registrar Pago
+                  </Button>
+                 
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#4A102A]">Gestión de Pagos</h1>
@@ -488,18 +807,54 @@ export default function PaymentsPage() {
         <div className="flex flex-col sm:flex-row gap-4">
           <AlertDialog open={isNewPaymentOpen} onOpenChange={setIsNewPaymentOpen}>
             <AlertDialogTrigger asChild>
-              <Button className="bg-[#4A102A] hover:bg-[#5A1A3A]">
+              <Button 
+                className="bg-[#4A102A] hover:bg-[#5A1A3A]"
+                onClick={handleNewPaymentClick}
+              >
                 <PlusCircle className="h-4 w-4 mr-2" /> Nuevo Pago
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <AlertDialogHeader>
-                <AlertDialogTitle>Registrar Pago en Efectivo</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {isFromReservation ? "Registrar Pago para Reservación" : "Registrar Pago en Efectivo"}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Complete la información para registrar un pago en efectivo realizado por un cliente.
+                  {isFromReservation 
+                    ? "Complete el pago para que el usuario pueda finalizar su reservación pendiente."
+                    : "Complete la información para registrar un pago en efectivo realizado por un cliente."
+                  }
                 </AlertDialogDescription>
               </AlertDialogHeader>
               
+              {/* Información del contexto de reservación */}
+              {isFromReservation && reservationContext && (
+                <div className="bg-amber-50 border border-amber-200 rounded-md p-4 mb-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-amber-800 mb-2">Contexto de Reservación</h4>
+                      <div className="space-y-1 text-sm text-amber-700">
+
+                        {reservationContext.userInfo?.email && (
+                          <p><strong>Email:</strong> {reservationContext.userInfo.email}</p>
+                        )}
+                        {reservationContext.pendingReservation && (
+                          <>
+                            <p><strong>Reservación pendiente:</strong></p>
+                            <div className="ml-4 space-y-1">
+                              <p>• Fecha: {reservationContext.pendingReservation.date}</p>
+                              <p>• Hora: {reservationContext.pendingReservation.time}</p>
+                              <p>• Paquete solicitado: {reservationContext.pendingReservation.package}</p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid gap-6 py-4">
                 {/* Búsqueda de usuario */}
                 <div className="space-y-2">
@@ -741,66 +1096,103 @@ export default function PaymentsPage() {
         </div>
       </div>
 
+      {/* Título del historial de pagos */}
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold text-[#4A102A]">Historial de Pagos</h2>
+      </div>
+
+      {/* Barra de búsqueda y filtros */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+          <Input
+            type="search"
+            placeholder="Buscar por cliente, paquete o factura..."
+            className="pl-8 bg-white border-gray-200 text-zinc-900 w-full"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="bg-white border-gray-200 text-zinc-900 w-full sm:w-[180px]">
+            <SelectValue placeholder="Filtrar por estado" />
+          </SelectTrigger>
+          <SelectContent className="bg-white border-gray-200 text-zinc-900">
+            <SelectItem value="all">Todos los estados</SelectItem>
+            <SelectItem value="Completado">Completados</SelectItem>
+            <SelectItem value="Pendiente">Pendientes</SelectItem>
+            <SelectItem value="Fallido">Fallidos</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Tabla de pagos */}
       <Card className="bg-white border-gray-200 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg text-[#4A102A]">Historial de Pagos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="relative flex-1 ">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-              <Input
-                type="search"
-                placeholder="Buscar por cliente, paquete o factura..."
-                className="pl-8 bg-white border-gray-200 text-zinc-900 w-full"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+        <CardContent className="p-0">
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="bg-white border-gray-200 text-zinc-900 w-full sm:w-[180px]">
-                <SelectValue placeholder="Filtrar por estado" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border-gray-200 text-zinc-900">
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="completed">Completados</SelectItem>
-                <SelectItem value="pending">Pendientes</SelectItem>
-                <SelectItem value="failed">Fallidos</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left p-4 font-medium text-gray-600">ID</th>
-                  <th className="text-left p-4 font-medium text-gray-600">Cliente</th>
-                  <th className="text-left p-4 font-medium text-gray-600">Paquete</th>
-                  <th className="text-left p-4 font-medium text-gray-600">Monto</th>
-                  <th className="text-left p-4 font-medium text-gray-600">Fecha</th>
-                  <th className="text-left p-4 font-medium text-gray-600">Método</th>
-                  <th className="text-left p-4 font-medium text-gray-600">Estado</th>
-                  <th className="text-left p-4 font-medium text-gray-600">Factura</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPayments.map((payment) => (
-                  <tr key={payment.id} className="border-b border-gray-200">
-                    <td className="text-left p-4 font-medium text-gray-600">{payment.id}</td>
-                    <td className="text-left p-4 font-medium text-gray-600">{payment.user}</td>
-                    <td className="text-left p-4 font-medium text-gray-600">{payment.package}</td>
-                    <td className="text-left p-4 font-medium text-gray-600">${payment.amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="text-left p-4 font-medium text-gray-600">{payment.date}</td>
-                    <td className="text-left p-4 font-medium text-gray-600">{payment.method}</td>
-                    <td className="text-left p-4 font-medium text-gray-600">{payment.status}</td>
-                    <td className="text-left p-4 font-medium text-gray-600">{payment.invoice}</td>
+          <div className="overflow-x-auto">
+            <div className="max-h-[60vh] overflow-y-auto">
+              <table className="w-full table-fixed">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-gray-200 bg-gray-50/95 backdrop-blur-sm">
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[120px]">ID. del Pago</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[200px]">Cliente</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[150px]">Paquete</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[100px]">Monto</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[110px]">Fecha</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[120px]">Método</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[100px]">Estado</th>
+                    <th className="text-center py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[80px]">Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {filteredPayments.map((payment) => (
+                    <tr key={payment.id} className="hover:bg-gray-50/60 transition-colors duration-150">
+                      <td className="py-2.5 px-3">
+                        <div className="text-sm text-gray-600 font-mono">{payment.invoice}</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="max-w-[190px]">
+                          <div className="font-medium text-gray-900 truncate text-sm">{payment.user}</div>
+                          <div className="text-xs text-gray-500 truncate">{payment.email}</div>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="text-sm text-gray-900 truncate font-medium max-w-[140px]">{payment.package}</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="text-sm font-medium text-gray-900">
+                          ${payment.amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="text-sm text-gray-900">{payment.date}</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {payment.method}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                          payment.status === "Completado" ? "bg-green-100 text-green-800" :
+                          payment.status === "Pendiente" ? "bg-orange-100 text-orange-800" :
+                          "bg-red-100 text-red-800"
+                        }`}>
+                          {payment.status}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex justify-center">
+                          <PaymentDetailsMenu payment={payment} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </CardContent>
       </Card>

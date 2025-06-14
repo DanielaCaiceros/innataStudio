@@ -5,7 +5,7 @@ import { db } from "@/lib/db"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
     // Verificar autenticación del admin
@@ -20,7 +20,8 @@ export async function GET(
       return NextResponse.json({ error: "Acceso denegado" }, { status: 403 })
     }
 
-    const userId = parseInt(params.userId)
+    const resolvedParams = await params
+    const userId = parseInt(resolvedParams.id)
 
     if (isNaN(userId)) {
       return NextResponse.json({ error: "ID de usuario inválido" }, { status: 400 })
@@ -71,7 +72,7 @@ export async function GET(
 // POST - Crear un nuevo paquete para el usuario
 export async function POST(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
     // Verificar autenticación del admin
@@ -86,11 +87,12 @@ export async function POST(
       return NextResponse.json({ error: "Acceso denegado" }, { status: 403 })
     }
 
-    const userId = parseInt(params.userId)
+    const resolvedParams = await params
+    const userId = parseInt(resolvedParams.id)
     const body = await request.json()
     const { packageId } = body
 
-    if (isNaN(userId) || !packageId) {
+    if (isNaN(userId) || packageId === undefined || packageId === null) {
       return NextResponse.json({ error: "Datos inválidos" }, { status: 400 })
     }
 

@@ -158,3 +158,95 @@ export async function POST(
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
 }
+
+// DELETE - Deshacer check-in
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    // Esperar a que se resuelva la promesa params
+    const params = await context.params;
+    const reservationId = parseInt(params.id);
+    
+    // Verificar autenticación (admin)
+    const token = request.cookies.get("auth_token")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    const payload = await verifyToken(token);
+    if (payload.role !== "admin") {
+      return NextResponse.json({ error: "No tiene permisos de administrador" }, { status: 403 });
+    }
+
+    if (isNaN(reservationId)) {
+      return NextResponse.json({ error: "ID de reservación no válido" }, { status: 400 });
+    }
+
+    // Verificar que la reservación existe y está con check-in
+    const reservation = await prisma.reservation.findUnique({
+      where: { id: reservationId },
+      include: {
+        user: true,
+        userPackage: {
+          include: {
+            package: true
+          }
+        }
+      }
+    });
+
+    if (!reservation) {
+      return NextResponse.json({ error: "Reservación no encontrada" }, { status: 404 });
+    }
+
+    if (reservation.status !== "attended") {
+      return NextResponse.json({ 
+        error: "Solo se puede deshacer el check-in de reservaciones que ya tienen check-in" 
+      }, { status: 400 });
+    }
+
+    // Revertir el status de la reservación a "confirmed"
+    const updatedReservation = await prisma.reservation.update({
+      where: { id: reservationId },
+      data: { 
+        status: "confirmed",
+        checked_in_at: null
+      }
+    });
+
+    // Si es necesario, revertir el balance del usuario
+    if (reservation.userPackage) {
+      await prisma.userPackage.update({
+        where: { id: reservation.userPackage.id },
+        data: {
+          classesUsed: { decrement: 1 },
+          classesRemaining: { increment: 1 }
+        }
+      });
+
+      // Revertir el balance general del usuario
+      await prisma.userAccountBalance.update({
+        where: { userId: reservation.user.user_id },
+        data: {
+          classesUsed: { decrement: 1 },
+          classesAvailable: { increment: 1 }
+        }
+      });
+    }
+
+    return NextResponse.json({ 
+      message: "Check-in deshecho exitosamente",
+      reservation: {
+        id: updatedReservation.id,
+        status: updatedReservation.status,
+        checked_in_at: updatedReservation.checked_in_at
+      }
+    });
+
+  } catch (error) {
+    console.error("Error al deshacer check-in:", error);
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+  }
+}

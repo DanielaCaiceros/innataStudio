@@ -21,6 +21,7 @@ import {
   filterClassesByDateAndTime,
   createClassDateTime
 } from "@/lib/utils/date"
+import { isBusinessDay } from "@/lib/utils/business-days"
 
 import { useUnlimitedWeek } from '@/lib/hooks/useUnlimitedWeek'
 import { 
@@ -57,8 +58,7 @@ export default function BookingPage() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const [isLoading, setIsLoading] = useState(true)
 
-  // Estados para Semana Ilimitada
-  const [isUsingUnlimitedWeek, setIsUsingUnlimitedWeek] = useState(false)
+  // Estados para Semana Ilimitada - Activación automática
   const [unlimitedWeekValidation, setUnlimitedWeekValidation] = useState<any>(null)
   const [showUnlimitedWeekConfirmation, setShowUnlimitedWeekConfirmation] = useState(false)
   const [isValidatingUnlimitedWeek, setIsValidatingUnlimitedWeek] = useState(false)
@@ -71,6 +71,9 @@ export default function BookingPage() {
     getWeeklyUsageMessage,
     isLoading: isLoadingWeekly
   } = useUnlimitedWeek()
+
+  // Auto-activar Semana Ilimitada si el usuario tiene paquete activo
+  const isUsingUnlimitedWeek = hasActiveUnlimitedWeek && Boolean(weeklyUsage)
   
   // Estados para la reserva
   const [date, setDate] = useState<Date | undefined>(new Date())
@@ -209,7 +212,8 @@ export default function BookingPage() {
     setScheduledClassId(classId)
     setUnlimitedWeekValidation(null)
     
-    if (hasActiveUnlimitedWeek === true) {
+    // Auto-validar si tiene Semana Ilimitada activa
+    if (isUsingUnlimitedWeek) {
       setIsValidatingUnlimitedWeek(true)
       const validation = await validateUnlimitedWeek(classId)
       setUnlimitedWeekValidation(validation)
@@ -218,14 +222,9 @@ export default function BookingPage() {
   }
 
   const handleUnlimitedWeekToggle = async (enabled: boolean) => {
-    setIsUsingUnlimitedWeek(enabled)
-    
-    if (enabled && selectedClass && !unlimitedWeekValidation) {
-      setIsValidatingUnlimitedWeek(true)
-      const validation = await validateUnlimitedWeek(selectedClass)
-      setUnlimitedWeekValidation(validation)
-      setIsValidatingUnlimitedWeek(false)
-    }
+    // Funcionalidad removida - Semana Ilimitada se activa automáticamente
+    // Esta función se mantiene para compatibilidad pero no hace nada
+    return
   }
 
   const handleConfirmBooking = async () => {
@@ -314,7 +313,6 @@ export default function BookingPage() {
         setSelectedClass(null)
         setSelectedTime(null)
         setSelectedBikeId(null)
-        setIsUsingUnlimitedWeek(false)
         setUnlimitedWeekValidation(null)
         setShowUnlimitedWeekConfirmation(false)
         setIsBikeDialogOpen(false)
@@ -430,12 +428,50 @@ export default function BookingPage() {
     return classesForDate.some(cls => cls.availableSpots > 0 && isClassReservable(cls))
   }
 
-  // Reset isUsingUnlimitedWeek if hasActiveUnlimitedWeek becomes false
+  // Verificar si una fecha está bloqueada por Semana Ilimitada (fines de semana)
+  const isDateBlockedForUnlimitedWeek = (checkDate: Date) => {
+    return isUsingUnlimitedWeek && !isBusinessDay(checkDate)
+  }
+
+  // Verificar si una fecha es pasada (ayer hacia atrás)
+  const isPastDate = (checkDate: Date) => {
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate())
+    yesterday.setHours(0, 0, 0, 0)
+    
+    const checkDateOnly = new Date(checkDate)
+    checkDateOnly.setHours(0, 0, 0, 0)
+    
+    return checkDateOnly < yesterday
+  }
+
+  // Verificar si un día futuro tiene clases pero todas están llenas
+  const hasClassesButAllFull = (checkDate: Date) => {
+    if (isPastDate(checkDate)) return false
+    const classesForDate = availableClasses.filter(cls => 
+      isClassOnSelectedDate(cls.date, checkDate)
+    )
+    
+    // Solo devolver true si hay clases Y todas están llenas (sin cupos disponibles)
+    if (classesForDate.length === 0) return false
+    
+    // Verificar que TODAS las clases no tengan cupos disponibles
+    const allClassesFull = classesForDate.every(cls => cls.availableSpots === 0)
+    
+    return allClassesFull
+  }
+
+  // Reset estados cuando cambia la disponibilidad de Semana Ilimitada
   useEffect(() => {
-    if (!hasActiveUnlimitedWeek) {
-      setIsUsingUnlimitedWeek(false)
+    // Si se activa Semana Ilimitada y la fecha seleccionada es fin de semana, resetear
+    if (isUsingUnlimitedWeek && date && !isBusinessDay(date)) {
+      setDate(undefined)
+      setSelectedTime(null)
+      setSelectedClass(null)
+      setScheduledClassId(null)
     }
-  }, [hasActiveUnlimitedWeek])
+  }, [isUsingUnlimitedWeek, date])
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
@@ -454,7 +490,50 @@ export default function BookingPage() {
       </section>
 
       {/* Sección de Información de Semana Ilimitada */}
-      {hasActiveUnlimitedWeek && weeklyUsage && (
+      {isUsingUnlimitedWeek && weeklyUsage && (
+        <section className="py-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200">
+          <div className="container px-4 md:px-6">
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-blue-200">
+                <div className="flex items-start gap-4">
+                  <div className="bg-blue-400 text-white rounded-full p-3 flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 12l2 2 4-4"/>
+                      <circle cx="12" cy="12" r="10"/>
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-blue-900 mb-2">
+                      Tú Semana Ilimitada esta activada
+                    </h3>
+                    <p className="text-blue-800 mb-3">
+                      Todas tus reservas se realizarán automáticamente con tu paquete Semana Ilimitada. 
+                      Solo puedes reservar de <strong>lunes a viernes</strong>.
+                    </p>
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      <WeeklyUsageDisplay 
+                        usage={weeklyUsage} 
+                        className="flex-1 min-w-64"
+                      />
+                      <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 flex-shrink-0">
+                        <p className="text-blue-700 font-medium text-sm">
+                          Días disponibles para reservar
+                        </p>
+                        <p className="text-blue-600 text-xs mt-1">
+                          Lunes • Martes • Miércoles • Jueves • Viernes
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+      
+      {/* Sección básica de uso semanal (cuando no hay Semana Ilimitada) */}
+      {hasActiveUnlimitedWeek && weeklyUsage && !isUsingUnlimitedWeek && (
         <section className="py-4 bg-blue-50">
           <div className="container px-4 md:px-6">
             <WeeklyUsageDisplay 
@@ -481,7 +560,13 @@ export default function BookingPage() {
                       <Calendar
                         mode="single"
                         selected={date}
-                        onSelect={setDate}
+                        onSelect={(selectedDate) => {
+                          // Bloquear fechas pasadas y fines de semana si tiene Semana Ilimitada activa
+                          if (selectedDate && (isPastDate(selectedDate) || (isUsingUnlimitedWeek && !isBusinessDay(selectedDate)))) {
+                            return // No permitir selección
+                          }
+                          setDate(selectedDate)
+                        }}
                         locale={es}
                         className="bg-white text-zinc-900 w-full rounded-lg"
                         classNames={{
@@ -490,32 +575,43 @@ export default function BookingPage() {
                           day: "text-zinc-900 hover:bg-gray-100 rounded-lg relative",
                         }}
                         modifiers={{
-                          hasAvailability: (day) => hasAvailableClassesOnDate(day),
-                          noAvailability: (day) => {
-                            const classesForDate = availableClasses.filter(cls => 
-                              isClassOnSelectedDate(cls.date, day)
-                            )
-                            return classesForDate.length > 0 && !hasAvailableClassesOnDate(day)
-                          }
+                          pastDate: (day) => isPastDate(day),
+                          fullButFuture: (day) => hasClassesButAllFull(day),
+                          blockedWeekend: (day) => isDateBlockedForUnlimitedWeek(day)
                         }}
                         modifiersClassNames={{
-                          hasAvailability: "before:absolute before:bottom-1 before:left-1/2 before:-translate-x-1/2 before:w-1 before:h-1 before:bg-green-500 before:rounded-full",
-                          noAvailability: "before:absolute before:bottom-1 before:left-1/2 before:-translate-x-1/2 before:w-1 before:h-1 before:bg-green-900 before:rounded-full opacity-60"
+                          pastDate: "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 line-through",
+                          fullButFuture: "bg-blue-50 text-blue-700 font-bold cursor-pointer border border-blue-200 hover:bg-blue-100 before:absolute before:bottom-1 before:left-1/2 before:-translate-x-1/2 before:w-1 before:h-1 before:bg-blue-600 before:rounded-full",
+                          blockedWeekend: "bg-red-100 text-red-400 cursor-not-allowed opacity-50 relative after:absolute after:inset-0 after:bg-red-500/20 after:rounded-lg"
                         }}
+                        disabled={(date) => isPastDate(date) || isDateBlockedForUnlimitedWeek(date)}
                       />
                       
                       {/* Leyenda del calendario */}
                       <div className="mt-3 px-2">
-                        <div className="flex justify-center gap-4 text-xs">
+                        <div className="flex justify-center gap-3 text-xs flex-wrap">
                           <div className="flex items-center gap-1">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <span className="text-gray-600">Con cupos</span>
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span className="text-gray-600 font-bold text-blue-700">Lleno</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <div className="w-2 h-2 bg-green-900 rounded-full"></div>
-                            <span className="text-gray-600">Sin cupos</span>
+                            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                            <span className="text-gray-600 line-through">Pasado</span>
                           </div>
+                          {isUsingUnlimitedWeek && (
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                              <span className="text-gray-600">Bloqueado</span>
+                            </div>
+                          )}
                         </div>
+                        {isUsingUnlimitedWeek && (
+                          <div className="text-center mt-2">
+                            <p className="text-xs text-red-600 font-medium">
+                              Semana Ilimitada: Solo lunes a viernes
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -572,12 +668,19 @@ export default function BookingPage() {
                     ) : (
                       <div className="col-span-3 text-center py-8">
                         <div className="text-gray-500 mb-2">
-                          No hay clases disponibles para la fecha seleccionada
+                          {date && isPastDate(date) 
+                            ? "Esta fecha ya pasó - Selecciona una fecha desde hoy en adelante"
+                            : date && hasClassesButAllFull(date)
+                            ? "¡Ups! Todas las clases están llenas para esta fecha"
+                            : "No hay clases disponibles para la fecha seleccionada"
+                          }
                         </div>
-                        {date && (
+                        {date && !isPastDate(date) && (
                           <div className="text-sm text-gray-400">
                             {availableClasses.filter(cls => isClassOnSelectedDate(cls.date, date)).length > 0 
-                              ? "Todas las clases están llenas o ya pasó el tiempo de reserva"
+                              ? hasClassesButAllFull(date)
+                                ? "Todas las clases de este día están llenas - Sin cupos disponibles"
+                                : "Algunas clases están llenas o ya pasó el tiempo de reserva"
                               : "No hay clases programadas para este día"
                             }
                           </div>
@@ -683,32 +786,49 @@ export default function BookingPage() {
                             <CardContent className="p-6">
                               <h3 className="font-semibold mb-4">Opciones de Reserva</h3>
                               
-                              {/* Toggle para Semana Ilimitada */}
-                              {hasActiveUnlimitedWeek && (
+                              {/* Mensaje informativo de Semana Ilimitada */}
+                              {isUsingUnlimitedWeek && (
                                 <div className="space-y-3 mb-4">
-                                  <div className="flex items-center space-x-3">
-                                    <input
-                                      type="checkbox"
-                                      id="unlimited-week-toggle"
-                                      checked={isUsingUnlimitedWeek}
-                                      onChange={(e) => handleUnlimitedWeekToggle(e.target.checked)}
-                                      className="w-4 h-4 text-brand-sage bg-gray-100 border-gray-300 rounded focus:ring-[#4A102A] focus:ring-2"
-                                      disabled={isValidatingUnlimitedWeek}
-                                    />
-                                    <label htmlFor="unlimited-week-toggle" className="font-medium">
-                                      Usar Semana Ilimitada
-                                    </label>
-                                    {isValidatingUnlimitedWeek && (
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#4A102A]"></div>
-                                    )}
+                                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                    <div className="flex items-start gap-3">
+                                      <div className="bg-blue-500 text-white rounded-full p-1 flex-shrink-0">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M9 12l2 2 4-4"/>
+                                          <circle cx="12" cy="12" r="10"/>
+                                        </svg>
+                                      </div>
+                                      <div className="flex-1">
+                                        <h4 className="font-medium text-blue-900 mb-1">
+                                          Estas usando tu Semana Ilimitada
+                                        </h4>
+                                        <p className="text-sm text-blue-800">
+                                          Esta reserva se realizará automáticamente con tu paquete Semana Ilimitada. 
+                                          Recuerda confirmar por WhatsApp para garantizar tu lugar.
+                                        </p>
+                                        {weeklyUsage && (
+                                          <div className="mt-2 text-xs text-blue-700">
+                                            <span className="bg-blue-100 px-2 py-1 rounded-full">
+                                              {weeklyUsage.used}/{weeklyUsage.limit} clases esta semana
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                   
                                   {/* Mostrar validación de Semana Ilimitada */}
-                                  {isUsingUnlimitedWeek && unlimitedWeekValidation && (
+                                  {unlimitedWeekValidation && (
                                     <UnlimitedWeekAlert 
                                       validation={unlimitedWeekValidation}
                                       className="mt-3"
                                     />
+                                  )}
+                                  
+                                  {isValidatingUnlimitedWeek && (
+                                    <div className="flex items-center gap-2 text-sm text-blue-600">
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                      Validando disponibilidad...
+                                    </div>
                                   )}
                                 </div>
                               )}
@@ -919,53 +1039,11 @@ export default function BookingPage() {
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-brand-burgundy-dark">Lista de espera</h3>
               <p className="text-zinc-600">
-                 Si una persona reservada no llega antes del inicio de la segunda canción, su lugar se cederá a quienes estén en lista de espera.
+                 Si una persona reservada no llega antes del inicio de la segunda canción, su lugar se liberará en la plataforma.
               </p>
             </div>
           </div>
 
-          {/* Guía de indicadores visuales */}
-          <div className="max-w-4xl mx-auto">
-            <h3 className="text-xl font-bold text-center mb-6 text-brand-burgundy-dark">
-              Guía de Disponibilidad
-            </h3>
-            <div className="bg-white p-6 rounded-3xl shadow-sm">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="font-semibold mb-3 text-brand-mint-dark">Indicadores de Horarios</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-6 bg-brand-sage rounded-full flex items-center justify-center text-white text-xs">09:00</div>
-                      <span className="text-sm text-gray-600">Horario con cupos disponibles</span>
-                    </div>                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-500 text-xs relative">
-                        <span className="line-through">09:00</span>
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">✕</span>
-                      </div>
-                      <span className="text-sm text-gray-600">Horario sin cupos disponibles</span>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-semibold mb-3 text-brand-mint-dark">Estados de Clases</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">5 lugares disponibles</span>
-                      <span className="text-sm text-gray-600">Clase con cupos</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">SIN CUPO</span>
-                      <span className="text-sm text-gray-600">Clase completa</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="bg-gray-500 text-white text-xs px-2 py-1 rounded-full">TIEMPO AGOTADO</span>
-                      <span className="text-sm text-gray-600">Reservas cerradas (30 min antes)</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 

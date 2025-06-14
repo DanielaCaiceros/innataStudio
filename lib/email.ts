@@ -50,12 +50,11 @@ export async function sendBookingConfirmationEmail(
 
             <ul style="color: #374151; line-height: 1.6; margin: 0; padding-left: 20px;">
               <li>Envía un WhatsApp confirmando tu asistencia</li>
-              <li>Incluye tu código de confirmación: ${details.confirmationCode}</li>
               <li>Hazlo antes de las 12 horas previas a la clase</li>
             </ul>
 
             <div style="text-align: center; margin: 20px 0;">
-              <a href="https://wa.me/527753571894?text=${encodeURIComponent(`Hola! Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${details.date} Hora: ${details.time} Código: ${details.confirmationCode}`)}" style="background-color: #25D366; color: #ffffff; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: 600; display: inline-block;">
+              <a href="https://wa.me/527753571894?text=${encodeURIComponent(`Hola! Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${details.date} Hora: ${details.time}`)}" style="background-color: #25D366; color: #ffffff; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: 600; display: inline-block;">
                 Confirmar por WhatsApp
               </a>
             </div>
@@ -397,7 +396,7 @@ export async function sendPasswordResetEmail(
 
               <div style="background-color: #fef3c7; border-radius: 8px; padding: 16px; margin: 24px 0;">
                 <p style="color: #92400e; font-size: 14px; margin: 0;">
-                  Este enlace expirará en 1 hora por seguridad.
+                  Este enlace expirará en 1 día por seguridad.
                 </p>
               </div>
 

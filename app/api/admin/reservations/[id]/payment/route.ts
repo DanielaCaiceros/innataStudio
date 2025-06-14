@@ -62,6 +62,15 @@ export async function POST(
       });
     }
 
+    // IMPORTANTE: Actualizar también la reservación misma
+    await prisma.reservation.update({
+      where: { id: reservationId },
+      data: {
+        paymentMethod: paymentMethod === "cash" ? "cash" : paymentMethod,
+        status: "confirmed" // Asegurar que esté confirmada después del pago
+      }
+    });
+
     // Crear un registro de pago para la transacción
     const payment = await prisma.payment.create({
       data: {

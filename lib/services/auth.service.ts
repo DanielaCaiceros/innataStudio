@@ -7,7 +7,7 @@ import { addDays } from 'date-fns';
 import { UserRegistrationData, LoginCredentials, AuthResponse, TokenPayload } from '../types/auth';
 import { signToken, verifyToken } from '../jwt';
 import { sendVerificationEmail } from '../email';
-import { sendPasswordResetEmail } from '../email'; // Asegúrate de tener esta función para enviar emails
+import { sendPasswordResetEmail } from '../email';
 
 const prisma = new PrismaClient();
 
@@ -306,8 +306,8 @@ export async function requestPasswordReset(email: string): Promise<boolean> {
     throw new AuthError('No se encontró una cuenta con este email', 'USER_NOT_FOUND');
   }
 
-  // Verificar que la cuenta esté activa
-  if (user.status !== 'active') {
+  // Verificar que la cuenta esté activa o sea un nuevo usuario pendiente
+  if (user.status !== 'active' && user.status !== 'pending_verification') {
     throw new AuthError('La cuenta debe estar verificada para poder restablecer la contraseña', 'ACCOUNT_NOT_VERIFIED');
   }
 
