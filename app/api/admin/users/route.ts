@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifyToken } from "@/lib/jwt"
 import { db } from "@/lib/db"
 import bcrypt from "bcryptjs"
+import { requestPasswordReset } from "@/lib/services/auth.service"
 
 // GET - Obtener todos los usuarios
 export async function GET(request: NextRequest) {
@@ -91,8 +92,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generar una contraseña temporal
-    const temporaryPassword = Math.random().toString(36).slice(-8)
+    // Generar una contraseña temporal no válida (usuario debe establecer una nueva)
+    const temporaryPassword = "temp_" + Math.random().toString(36).slice(-8)
     const hashedPassword = await bcrypt.hash(temporaryPassword, 12)
 
     // Crear el usuario
@@ -104,8 +105,8 @@ export async function POST(request: NextRequest) {
         phone: phone?.trim() || null,
         passwordHash: hashedPassword,
         role: 'client',
-        status: 'active',
-        emailVerified: false, // Se puede verificar manualmente después
+        status: 'pending_verification', // Usuario debe establecer contraseña primero
+        emailVerified: false,
       },
       select: {
         user_id: true,
@@ -118,14 +119,32 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // TODO: Enviar email con contraseña temporal (opcional)
-    // Aquí podrías integrar con Resend para enviar un email de bienvenida
-    // con la contraseña temporal
+    // Generar token de reset de contraseña automáticamente
+    try {
+      await requestPasswordReset(user.email)
+      console.log('Token de reset enviado automáticamente para nuevo usuario:', user.email)
+    } catch (resetError) {
+      console.error('Error enviando token de reset para nuevo usuario:', resetError)
+      
+      // Si falla el email, eliminar el usuario creado y fallar la operación
+      try {
+        await db.user.delete({
+          where: { user_id: user.user_id }
+        })
+        console.log('Usuario eliminado debido a fallo en envío de email')
+      } catch (deleteError) {
+        console.error('Error eliminando usuario tras fallo de email:', deleteError)
+      }
+      
+      return NextResponse.json({
+        error: "No se pudo enviar el email de bienvenida. Usuario no creado.",
+        details: resetError instanceof Error ? resetError.message : String(resetError)
+      }, { status: 500 })
+    }
 
     return NextResponse.json({
-      message: "Usuario creado exitosamente",
-      user: user,
-      temporaryPassword: temporaryPassword // En producción, enviar por email en lugar de retornar
+      message: "Usuario creado exitosamente. Se ha enviado un email para establecer la contraseña.",
+      user: user
     }, { status: 201 })
 
   } catch (error) {

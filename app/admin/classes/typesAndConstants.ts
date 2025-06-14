@@ -48,6 +48,7 @@ export interface ScheduledClass {
       email: string;
     };
   }>;
+  cancelledReservations?: number; // Añadido campo opcional para las cancelaciones
 }
 
 export const timeSlots = [

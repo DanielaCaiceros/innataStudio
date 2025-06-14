@@ -162,7 +162,10 @@ export async function GET(request: NextRequest) {
         package: res.userPackage?.package.name || ((finalDisplayPaymentMethod === "online" || finalDisplayPaymentMethod === "cash") && !res.userPackage ? "PASE INDIVIDUAL" : "N/A"),
         remainingClasses: remainingClasses,
         paymentStatus: determinedPaymentStatus,
-        paymentMethod: finalDisplayPaymentMethod
+        paymentMethod: finalDisplayPaymentMethod,
+        checkedIn: res.status === "attended",
+        checkedInAt: res.checked_in_at,
+        bikeNumber: res.bikeNumber
       };
     });
 
@@ -291,9 +294,10 @@ export async function POST(request: NextRequest) {
     // Si es un paquete (no un pase individual)
     if (packageType !== "individual") {
       const packageMap = {
-        "5classes": 1,
-        "10classes": 2, 
-        "monthly": 3, // Este debería ser el ID del paquete Semana Ilimitada
+        "individual": 2,        // PASE INDIVIDUAL
+        "primera-vez": 1,       // PRIMERA VEZ  
+        "semana-ilimitada": 3,  // SEMANA ILIMITADA
+        "10classes": 4,         // PAQUETE 10 CLASES
       };
       
       const packageId = packageMap[packageType as keyof typeof packageMap];

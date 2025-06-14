@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -16,8 +15,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Download, UserPlus, Mail, Phone, Package, Calendar, Edit, Trash2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Search, Download, UserPlus, Mail, Phone, Calendar, Edit, Trash2, MoreVertical } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useToast } from "@/components/ui/use-toast"
 
 // Interfaces
@@ -86,18 +90,15 @@ export default function UsersPage() {
   const [isEditUserOpen, setIsEditUserOpen] = useState(false)
   const [isViewUserOpen, setIsViewUserOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isFiltering, setIsFiltering] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Form states
+  // Form states simplificados
   const [newUserForm, setNewUserForm] = useState({
     firstName: "",
     lastName: "",
     email: "",
-    phone: "",
-    package: "",
-    password: "",
-    confirmPassword: "",
-    notes: ""
+    phone: ""
   })
 
   const [editUserForm, setEditUserForm] = useState({
@@ -109,15 +110,16 @@ export default function UsersPage() {
     password: ""
   })
 
-  // Cargar usuarios
-  const loadUsers = async () => {
-    setIsLoading(true)
+  // Cargar usuarios - optimizado para filtros
+  const loadUsers = async (isInitialLoad = false) => {
+    if (isInitialLoad) {
+      setIsLoading(true)
+    } else {
+      setIsFiltering(true)
+    }
+    
     try {
-      const params = new URLSearchParams()
-      if (searchTerm) params.append("search", searchTerm)
-      if (statusFilter !== "all") params.append("status", statusFilter)
-
-      const response = await fetch(`/api/admin/users?${params.toString()}`)
+      const response = await fetch(`/api/admin/users`)
       
       if (!response.ok) {
         throw new Error("Error al cargar usuarios")
@@ -147,6 +149,7 @@ export default function UsersPage() {
       })
     } finally {
       setIsLoading(false)
+      setIsFiltering(false)
     }
   }
 
@@ -205,21 +208,12 @@ export default function UsersPage() {
     }
   }
 
-  // Crear nuevo usuario
+  // Crear nuevo usuario - simplificado
   const handleCreateUser = async () => {
-    if (!newUserForm.firstName || !newUserForm.lastName || !newUserForm.email || !newUserForm.password) {
+    if (!newUserForm.firstName || !newUserForm.lastName || !newUserForm.email) {
       toast({
         title: "Error",
-        description: "Nombre, apellido, email y contraseña son obligatorios",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (newUserForm.password !== newUserForm.confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Las contraseñas no coinciden",
+        description: "Nombre, apellido y email son obligatorios",
         variant: "destructive",
       })
       return
@@ -232,10 +226,7 @@ export default function UsersPage() {
         firstName: newUserForm.firstName,
         lastName: newUserForm.lastName,
         email: newUserForm.email,
-        phone: newUserForm.phone || null,
-        password: newUserForm.password,
-        package: newUserForm.package,
-        notes: newUserForm.notes
+        phone: newUserForm.phone || null
       }
 
       const response = await fetch("/api/admin/users", {
@@ -251,7 +242,8 @@ export default function UsersPage() {
 
       toast({
         title: "Usuario creado",
-        description: "El usuario ha sido creado exitosamente",
+        description: "Se ha enviado un email al usuario para establecer su contraseña",
+        duration: 5000,
       })
 
       setIsNewUserOpen(false)
@@ -259,11 +251,7 @@ export default function UsersPage() {
         firstName: "",
         lastName: "",
         email: "",
-        phone: "",
-        package: "",
-        password: "",
-        confirmPassword: "",
-        notes: ""
+        phone: ""
       })
       await loadUsers()
     } catch (error: any) {
@@ -313,51 +301,12 @@ export default function UsersPage() {
     }
   }
 
-  // Eliminar usuario
-  const handleDeleteUser = async (userId: number) => {
-    if (!confirm("¿Estás seguro de que quieres eliminar este usuario?")) {
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
-        method: "DELETE"
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Error al eliminar usuario")
-      }
-
-      toast({
-        title: "Usuario eliminado",
-        description: "El usuario ha sido eliminado correctamente",
-      })
-
-      await loadUsers()
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      })
-    }
-  }
-
-  // Effects
+  // Effects optimizados
   useEffect(() => {
-    loadUsers()
+    loadUsers(true) // Carga inicial
   }, [])
 
-  useEffect(() => {
-    const delayedSearch = setTimeout(() => {
-      loadUsers()
-    }, 500)
-
-    return () => clearTimeout(delayedSearch)
-  }, [searchTerm, statusFilter])
-
-  // Filtrar usuarios localmente (backup del filtro del servidor)
+  // Filtrado local optimizado - sin delay
   const filteredUsers = users.filter((user) => {
     const matchesSearch = searchTerm === "" || 
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -369,126 +318,147 @@ export default function UsersPage() {
     return matchesSearch && matchesStatus
   })
 
+  // Componente para mostrar detalles del usuario
+  const UserDetailsMenu = ({ user }: { user: User }) => {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-80 p-4">
+          <div className="space-y-3">
+            <div className="border-b pb-2">
+              <h4 className="font-semibold text-sm text-gray-900">Detalles del Usuario</h4>
+              <p className="text-xs text-gray-500">ID: {user.id}</p>
+            </div>
+
+            {/* Información básica */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs">
+                <Mail className="h-3 w-3 text-gray-400" />
+                <span className="text-gray-600">Email:</span>
+                <span className="font-medium">{user.email}</span>
+              </div>
+              
+              <div className="flex items-center gap-2 text-xs">
+                <Phone className="h-3 w-3 text-gray-400" />
+                <span className="text-gray-600">Teléfono:</span>
+                <span className="font-medium">{user.phone}</span>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs">
+                <Calendar className="h-3 w-3 text-gray-400" />
+                <span className="text-gray-600">Registro:</span>
+                <span className="font-medium">{user.joinDate}</span>
+              </div>
+            </div>
+
+            {/* Estado del usuario */}
+            <div className="space-y-2 p-3 bg-gray-50 rounded-md">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-800">Estado</span>
+                <Badge variant={user.status === "active" ? "default" : "secondary"}>
+                  {user.status === "active" ? "Activo" : "Inactivo"}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 bg-white-50 min-h-screen">
+        <div className="text-center text-zinc-900">Cargando...</div>
+      </div>
+    )
+  }
+
   return (
-    <div className="p-6">
+    <div className="p-6 bg-white-50 min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
-          <p className="text-gray-500">Administra todos los usuarios del sistema</p>
+          <h1 className="text-2xl font-bold text-[#4A102A]">Gestión de Usuarios</h1>
+          <p className="text-gray-600">Administra todos los usuarios del sistema</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex gap-4">
+
           <Dialog open={isNewUserOpen} onOpenChange={setIsNewUserOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-[#4A102A] hover:bg-[#85193C]">
-                <UserPlus className="h-4 w-4 mr-2" /> Nuevo Usuario
+              <Button
+                className="bg-[#4A102A] hover:bg-[#85193C] text-white"
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                Nuevo Usuario
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-2xl">
+            <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Crear Nuevo Usuario</DialogTitle>
-                <DialogDescription className="text-gray-500">
-                  Complete los detalles para crear un nuevo usuario
+                <DialogDescription>
+                  Complete los datos básicos. El usuario recibirá un email para establecer su contraseña.
                 </DialogDescription>
               </DialogHeader>
 
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="firstName">Nombre</Label>
+                    <Label htmlFor="firstName">Nombre *</Label>
                     <Input
                       id="firstName"
                       value={newUserForm.firstName}
                       onChange={(e) => setNewUserForm(prev => ({ ...prev, firstName: e.target.value }))}
                       placeholder="Nombre"
-                      className="border-gray-300"
+                      className="bg-white border-gray-200"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="lastName">Apellido</Label>
+                    <Label htmlFor="lastName">Apellido *</Label>
                     <Input
                       id="lastName"
                       value={newUserForm.lastName}
                       onChange={(e) => setNewUserForm(prev => ({ ...prev, lastName: e.target.value }))}
                       placeholder="Apellido"
-                      className="border-gray-300"
+                      className="bg-white border-gray-200"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="email">Correo Electrónico</Label>
+                    <Label htmlFor="email">Correo Electrónico *</Label>
                     <Input
                       type="email"
                       id="email"
                       value={newUserForm.email}
                       onChange={(e) => setNewUserForm(prev => ({ ...prev, email: e.target.value }))}
                       placeholder="correo@ejemplo.com"
-                      className="border-gray-300"
+                      className="bg-white border-gray-200"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Teléfono</Label>
+                    <Label htmlFor="phone">Teléfono (opcional)</Label>
                     <Input
                       type="tel"
                       id="phone"
                       value={newUserForm.phone}
                       onChange={(e) => setNewUserForm(prev => ({ ...prev, phone: e.target.value }))}
                       placeholder="123-456-7890"
-                      className="border-gray-300"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="package">Paquete Inicial</Label>
-                    <Select value={newUserForm.package} onValueChange={(value) => setNewUserForm(prev => ({ ...prev, package: value }))}>
-                      <SelectTrigger className="border-gray-300">
-                        <SelectValue placeholder="Seleccionar paquete" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="individual">PASE INDIVIDUAL</SelectItem>
-                        <SelectItem value="5classes">PAQUETE 5 CLASES</SelectItem>
-                        <SelectItem value="10classes">PAQUETE 10 CLASES</SelectItem>
-                        <SelectItem value="monthly">MEMBRESÍA MENSUAL</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Contraseña</Label>
-                    <Input
-                      type="password"
-                      id="password"
-                      value={newUserForm.password}
-                      onChange={(e) => setNewUserForm(prev => ({ ...prev, password: e.target.value }))}
-                      placeholder="********"
-                      className="border-gray-300"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm-password">Confirmar Contraseña</Label>
-                    <Input
-                      type="password"
-                      id="confirm-password"
-                      value={newUserForm.confirmPassword}
-                      onChange={(e) => setNewUserForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                      placeholder="********"
-                      className="border-gray-300"
+                      className="bg-white border-gray-200"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notas</Label>
-                  <Input
-                    id="notes"
-                    value={newUserForm.notes}
-                    onChange={(e) => setNewUserForm(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Notas adicionales"
-                    className="border-gray-300"
-                  />
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Nota:</strong> Se enviará automáticamente un email al usuario con un enlace para establecer su contraseña. Los paquetes se pueden adquirir desde la sección de Pagos.
+                    <strong>Es recomendable avisar sobre este correo a tu cliente.</strong>
+                  </p>
                 </div>
               </div>
 
@@ -496,13 +466,13 @@ export default function UsersPage() {
                 <Button
                   variant="outline"
                   onClick={() => setIsNewUserOpen(false)}
-                  className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  className="border-gray-200 text-zinc-900 hover:bg-gray-100"
                   disabled={isSubmitting}
                 >
                   Cancelar
                 </Button>
                 <Button 
-                  className="bg-[#4A102A] hover:bg-[#85193C]" 
+                  className="bg-[#4A102A] hover:bg-[#85193C] text-white" 
                   onClick={handleCreateUser}
                   disabled={isSubmitting}
                 >
@@ -511,182 +481,125 @@ export default function UsersPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-
         </div>
       </div>
 
-      <Tabs defaultValue="all" className="w-full">
-        
-        <TabsContent value="all">
-          <Card className="bg-white border-gray-200">
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-2">
-                <CardTitle className="text-xl text-gray-900">Usuarios</CardTitle>
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                  <Input
-                    type="search"
-                    placeholder="Buscar usuarios..."
-                    className="pl-8 border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A] w-full"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">Cargando usuarios...</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto max-h-[65vh] overflow-y-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left p-4 font-medium text-gray-500">Contacto</th>
-                        <th className="text-left p-4 font-medium text-gray-500">Fecha de Registro</th>
-                        <th className="text-left p-4 font-medium text-gray-500">Estado</th>
-                        <th className="text-left p-4 font-medium text-gray-500">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredUsers.length > 0 ? (
-                        filteredUsers.map((user) => (
-                          <tr key={user.id} className="border-b border-gray-200 hover:bg-gray-50">
-                            
-                            <td className="p-4">
-                              <div className="space-y-1">
-                                <div className="flex items-center text-sm text-gray-700">
-                                  <Mail className="h-4 w-4 mr-2 text-gray-400" />
-                                  <span>{user.email}</span>
-                                </div>
-                                <div className="flex items-center text-sm text-gray-700">
-                                  <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                                  <span>{user.phone || "No registrado"}</span>
-                                </div>
-                              </div>
-                            </td>
-                            
-                            <td className="p-4">
-                              <div className="flex items-center text-gray-700">
-                                <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                                <span>{user.joinDate}</span>
-                              </div>
-                            </td>
-                           
-                            <td className="p-4">
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs ${
-                                  user.status === "active" 
-                                    ? "bg-green-100 text-green-800" 
-                                    : "bg-red-100 text-red-800"
-                                }`}
-                              >
-                                {user.status === "active" ? "Activo" : "Inactivo"}
-                              </span>
-                            </td>
-                            <td className="p-4">
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 border-gray-300 text-gray-700 hover:bg-gray-100"
-                                  onClick={async () => {
-                                    await loadUserDetails(user.id)
-                                    setIsViewUserOpen(true)
-                                  }}
-                                >
-                                  Ver
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 border-gray-300 text-gray-700 hover:bg-gray-100"
-                                  onClick={async () => {
-                                    await loadUserDetails(user.id)
-                                    setIsEditUserOpen(true)
-                                  }}
-                                >
-                                  Editar
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 border-red-200 text-red-600 hover:bg-red-50"
-                                  onClick={() => handleDeleteUser(user.id)}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={7} className="p-4 text-center text-gray-500">
-                            {isLoading ? "Cargando..." : "No se encontraron usuarios con los filtros aplicados"}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+      {/* Título del historial de usuarios */}
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold text-[#4A102A]">Lista de Usuarios</h2>
+      </div>
 
-        <TabsContent value="active">
-          <Card className="bg-white border-gray-200">
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <CardTitle className="text-lg text-gray-900">Usuarios Activos</CardTitle>
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                  <Input
-                    type="search"
-                    placeholder="Buscar usuarios..."
-                    className="pl-8 border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A] w-full"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500 text-center py-8">
-                Mostrando solo usuarios activos - {filteredUsers.filter(u => u.status === 'active').length} usuarios
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
+      {/* Barra de búsqueda y filtros optimizada */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+          <Input
+            type="search"
+            placeholder="Buscar por nombre, email o teléfono..."
+            className="pl-8 bg-white border-gray-200 text-zinc-900 w-full"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {isFiltering && (
+            <div className="absolute right-2.5 top-2.5">
+              <div className="animate-spin h-4 w-4 border-2 border-gray-300 border-t-[#4A102A] rounded-full"></div>
+            </div>
+          )}
+        </div>
 
-        <TabsContent value="inactive">
-          <Card className="bg-white border-gray-200">
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <CardTitle className="text-lg text-gray-900">Usuarios Inactivos</CardTitle>
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                  <Input
-                    type="search"
-                    placeholder="Buscar usuarios..."
-                    className="pl-8 border-gray-300 focus:border-[#4A102A] focus:ring-[#4A102A] w-full"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500 text-center py-8">
-                Mostrando solo usuarios inactivos - {filteredUsers.filter(u => u.status === 'inactive').length} usuarios
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="bg-white border-gray-200 text-zinc-900 w-full sm:w-[180px]">
+            <SelectValue placeholder="Filtrar por estado" />
+          </SelectTrigger>
+          <SelectContent className="bg-white border-gray-200 text-zinc-900">
+            <SelectItem value="all">Todos los estados</SelectItem>
+            <SelectItem value="active">Activos</SelectItem>
+            <SelectItem value="inactive">Inactivos</SelectItem>
+            <SelectItem value="pending_verification">Pendientes</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Tabla de usuarios */}
+      <Card className="bg-white border-gray-200 shadow-sm">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <div className="max-h-[60vh] overflow-y-auto">
+              <table className="w-full table-fixed">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-gray-200 bg-gray-50/95 backdrop-blur-sm">
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[250px]">Usuario</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[180px]">Contacto</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[130px]">Registro</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[100px]">Estado</th>
+                    <th className="text-center py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[80px]">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {filteredUsers.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-50/60 transition-colors duration-150">
+                      <td className="py-2.5 px-3">
+                        <div className="max-w-[240px]">
+                          <div className="font-medium text-gray-900 truncate text-sm">{user.name}</div>
+                          <div className="text-xs text-gray-500">ID: {user.id}</div>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="max-w-[170px]">
+                          <div className="text-sm text-gray-900 truncate">{user.email}</div>
+                          <div className="text-xs text-gray-500 truncate">{user.phone}</div>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="text-sm text-gray-900">{user.joinDate}</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                          user.status === "active" ? "bg-green-100 text-green-800" :
+                          user.status === "inactive" ? "bg-red-100 text-red-800" :
+                          user.status === "pending_verification" ? "bg-yellow-100 text-yellow-800" :
+                          "bg-gray-100 text-gray-800"
+                        }`}>
+                          {user.status === "active" ? "Activo" : 
+                           user.status === "inactive" ? "Inactivo" : 
+                           user.status === "pending_verification" ? "Pendiente" : "Desconocido"}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex justify-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs border-gray-200 text-gray-600 hover:bg-gray-100"
+                            onClick={async () => {
+                              await loadUserDetails(user.id)
+                              setIsViewUserOpen(true)
+                            }}
+                          >
+                            Ver
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs border-gray-200 text-gray-600 hover:bg-gray-100"
+                            onClick={async () => {
+                              await loadUserDetails(user.id)
+                              setIsEditUserOpen(true)
+                            }}
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <UserDetailsMenu user={user} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Modal para ver detalles del usuario */}
       <Dialog open={isViewUserOpen} onOpenChange={setIsViewUserOpen}>
@@ -834,7 +747,7 @@ export default function UsersPage() {
               <div className="flex justify-between mt-6">
                 <Button
                   variant="outline"
-                  className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  className="border-gray-200 text-zinc-900 hover:bg-gray-100"
                   onClick={() => setIsViewUserOpen(false)}
                 >
                   Cerrar
@@ -842,7 +755,7 @@ export default function UsersPage() {
                 <div className="flex gap-2">
                   <Button 
                     variant="outline" 
-                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                    className="border-gray-200 text-zinc-900 hover:bg-gray-100"
                     onClick={() => {
                       setIsViewUserOpen(false)
                       setIsEditUserOpen(true)
@@ -850,7 +763,6 @@ export default function UsersPage() {
                   >
                     <Edit className="h-4 w-4 mr-2" /> Editar
                   </Button>
-
                 </div>
               </div>
             </div>
@@ -877,7 +789,7 @@ export default function UsersPage() {
                     id="edit-firstName"
                     value={editUserForm.firstName}
                     onChange={(e) => setEditUserForm(prev => ({ ...prev, firstName: e.target.value }))}
-                    className="border-gray-300"
+                    className="bg-white border-gray-200"
                   />
                 </div>
 
@@ -887,7 +799,7 @@ export default function UsersPage() {
                     id="edit-lastName"
                     value={editUserForm.lastName}
                     onChange={(e) => setEditUserForm(prev => ({ ...prev, lastName: e.target.value }))}
-                    className="border-gray-300"
+                    className="bg-white border-gray-200"
                   />
                 </div>
 
@@ -898,7 +810,7 @@ export default function UsersPage() {
                     id="edit-email"
                     value={editUserForm.email}
                     onChange={(e) => setEditUserForm(prev => ({ ...prev, email: e.target.value }))}
-                    className="border-gray-300"
+                    className="bg-white border-gray-200"
                   />
                 </div>
 
@@ -909,14 +821,14 @@ export default function UsersPage() {
                     id="edit-phone"
                     value={editUserForm.phone}
                     onChange={(e) => setEditUserForm(prev => ({ ...prev, phone: e.target.value }))}
-                    className="border-gray-300"
+                    className="bg-white border-gray-200"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="edit-status">Estado</Label>
                   <Select value={editUserForm.status} onValueChange={(value) => setEditUserForm(prev => ({ ...prev, status: value }))}>
-                    <SelectTrigger className="border-gray-300">
+                    <SelectTrigger className="bg-white border-gray-200">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -927,17 +839,7 @@ export default function UsersPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="edit-password">Nueva Contraseña (opcional)</Label>
-                  <Input
-                    type="password"
-                    id="edit-password"
-                    value={editUserForm.password}
-                    onChange={(e) => setEditUserForm(prev => ({ ...prev, password: e.target.value }))}
-                    placeholder="Dejar vacío para mantener actual"
-                    className="border-gray-300"
-                  />
-                </div>
+              
               </div>
             </div>
           )}
@@ -946,13 +848,13 @@ export default function UsersPage() {
             <Button
               variant="outline"
               onClick={() => setIsEditUserOpen(false)}
-              className="border-gray-300 text-gray-700 hover:bg-gray-100"
+              className="border-gray-200 text-zinc-900 hover:bg-gray-100"
               disabled={isSubmitting}
             >
               Cancelar
             </Button>
             <Button 
-              className="bg-[#4A102A] hover:bg-[#85193C]" 
+              className="bg-[#4A102A] hover:bg-[#85193C] text-white" 
               onClick={handleUpdateUser}
               disabled={isSubmitting}
             >

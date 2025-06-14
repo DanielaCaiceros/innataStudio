@@ -244,13 +244,13 @@ export default function ClassesPage() {
             value="weekly-schedule"
             className="text-lg data-[state=active]:bg-[#4A102A] data-[state=active]:text-white"
           >
-            Horario Semanal
+            Programar Clases
           </TabsTrigger>
           <TabsTrigger
             value="calendar-view"
             className="text-lg data-[state=active]:bg-[#4A102A] data-[state=active]:text-white"
           >
-            Vista Calendario
+            Gestión de Clases
           </TabsTrigger>
         </TabsList>
 
@@ -259,7 +259,7 @@ export default function ClassesPage() {
           <ClassTypesTab classTypes={classTypes} loadClassTypes={loadClassTypes} />
         </TabsContent>
 
-        {/* TAB 2: HORARIO SEMANAL */}
+        {/* TAB 2: PROGRAMAR CLASES */}
         <TabsContent value="weekly-schedule">
           <WeeklyScheduleTab
             selectedWeek={selectedWeek}
@@ -274,7 +274,7 @@ export default function ClassesPage() {
           />
         </TabsContent>
 
-        {/* TAB 3: VISTA CALENDARIO */}
+        {/* TAB 3: GESTIÓN DE CLASES */}
         <TabsContent value="calendar-view">
           <CalendarViewTab
             scheduledClasses={scheduledClasses}

@@ -9,6 +9,7 @@ import {
   getUnlimitedWeekValidityInfo,
   countBusinessDays 
 } from '@/lib/utils/business-days'
+import { convertUTCToLocalDate } from '@/lib/utils/date'
 
 export interface UnlimitedWeekValidation {
   isValid: boolean
@@ -88,7 +89,8 @@ export class UnlimitedWeekService {
       }
 
       // 4. Verificar que la clase esté en días hábiles (lunes a viernes)
-      const classDate = new Date(scheduledClass.date)
+      const classDate = convertUTCToLocalDate(scheduledClass.date.toISOString())
+      
       if (!isBusinessDay(classDate)) {
         return {
           isValid: false,
@@ -140,14 +142,13 @@ export class UnlimitedWeekService {
       }
 
       // 8. Verificar que el usuario no tenga otra reserva para la misma clase
-      const existingReservation = await prisma.reservation.findUnique({
-        where: {
-          userId_scheduledClassId: {
-            userId,
-            scheduledClassId
-          }
-        }
-      })
+const existingReservation = await prisma.reservation.findFirst({
+  where: {
+    userId,
+    scheduledClassId,
+    status: "confirmed"
+  }
+})
 
       if (existingReservation) {
         return {
@@ -211,7 +212,8 @@ export class UnlimitedWeekService {
    * Valida el límite semanal de clases
    */
   private static async validateWeeklyLimit(userId: number, classDate: Date | string) {
-    const targetDate = new Date(classDate)
+    const dateString = classDate instanceof Date ? classDate.toISOString() : classDate
+    const targetDate = convertUTCToLocalDate(dateString)
     const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 }) // Lunes
     const weekEnd = endOfWeek(targetDate, { weekStartsOn: 1 }) // Domingo
 
@@ -244,21 +246,21 @@ export class UnlimitedWeekService {
       canReserve: weeklyReservations < weeklyLimit
     }
   }
-
   /**
    * Valida los requerimientos de tiempo
    */
   private static async validateTimeRequirements(classDate: Date | string, classTime: Date | string) {
     const now = new Date()
     
-    // Combinar fecha y hora de la clase
-    const classDateObj = new Date(classDate)
+    // Combinar fecha y hora de la clase usando manejo correcto de fechas
+    const dateString = classDate instanceof Date ? classDate.toISOString() : classDate
+    const classDateObj = convertUTCToLocalDate(dateString)
     const classTimeObj = new Date(classTime)
     
     const classDateTime = new Date(
-      classDateObj.getUTCFullYear(),
-      classDateObj.getUTCMonth(),
-      classDateObj.getUTCDate(),
+      classDateObj.getFullYear(),
+      classDateObj.getMonth(),
+      classDateObj.getDate(),
       classTimeObj.getUTCHours(),
       classTimeObj.getUTCMinutes(),
       0,

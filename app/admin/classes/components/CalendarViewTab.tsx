@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarIcon, Edit, Trash2, Users, Clock } from "lucide-react";
-import { ScheduledClass, ClassType, Instructor, convertUtcToLocalDateForDisplay, formatTime } from "../typesAndConstants"; 
+import { ScheduledClass, ClassType, Instructor, convertUtcToLocalDateForDisplay, formatTime } from "../typesAndConstants";
+import ClassReservationsModal from "./ClassReservationsModal"; 
 
 // Helper functions are now imported
 
@@ -34,6 +35,8 @@ export default function CalendarViewTab({
   classTypes, 
   instructors 
 }: CalendarViewTabProps) {
+  const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
+  const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
   
   const filteredClasses = scheduledClasses.filter(cls => {
     if (!date) return true; 
@@ -42,7 +45,7 @@ export default function CalendarViewTab({
   });
   
   const noClassesForSelectedDate = date && filteredClasses.length === 0;
-  const noClassesAtAll = scheduledClasses.length === 0 && !date; // This condition might need refinement based on whether scheduledClasses is for "all time" or "current week"
+  const noClassesAtAll = scheduledClasses.length === 0 && !date;
 
   return (
     <Card className="bg-white border-gray-200">
@@ -53,21 +56,20 @@ export default function CalendarViewTab({
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
           {date ? (
-            <div className="text-center px-4 py-2 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500">Fecha seleccionada:</p>
-              <p className="font-medium">{format(date, 'PPP', { locale: es })}</p>
+            <div className="text-center px-2 py-1  rounded-lg">
+              <p className="text-xs text-gray-500">Fecha seleccionada:</p>
+              <p className=" text-xs">{format(date, 'PPP', { locale: es })}</p>
             </div>
           ) : (
             <div className="text-center px-4 py-2 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500">Vista:</p>
-              <p className="font-medium">Todas las clases de la semana</p>
+              <p className="text-xs text-gray-500">Vista:</p>
+              <p className="text-xs">Todas las clases de la semana</p>
             </div>
           )}
-          <Dialog>
+          <Dialog open={isCalendarDialogOpen} onOpenChange={setIsCalendarDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="border-gray-200 text-zinc-900 hover:bg-gray-100 flex justify-between items-center">
                 <span>Cambiar fecha</span>
-                <CalendarIcon className="h-4 w-4 ml-2" />
               </Button>
             </DialogTrigger>
             <DialogContent className="bg-white border-gray-200 p-0 overflow-hidden sm:max-w-[425px]">
@@ -76,24 +78,32 @@ export default function CalendarViewTab({
                 <Calendar
                   mode="single"
                   selected={date}
-                  onSelect={(newDate) => { if (newDate) { setDate(newDate); setSelectedWeek(newDate); } }}
+                  onSelect={(newDate) => { 
+                    if (newDate) { 
+                      setDate(newDate); 
+                      setSelectedWeek(newDate); 
+                    } 
+                  }}
                   locale={es}
                   className="bg-white text-zinc-900"
                   classNames={{ day_selected: "bg-brand-mint text-white", day_today: "bg-gray-100 text-zinc-900", day: "text-zinc-900 hover:bg-gray-100" }}
                 />
               </div>
-              <DialogFooter className="px-6 pb-6">
-                <Button variant="outline" className="border-gray-200 text-zinc-900 hover:bg-gray-100" onClick={() => {
-                    const closeButton = document.querySelector('[data-state="open"][role="dialog"] [data-state="open"]');
-                    if (closeButton instanceof HTMLElement) { closeButton.click(); }
-                  }}>Aceptar</Button>
+              <DialogFooter className="px-6 pb-2">
+                <Button 
+                  variant="outline" 
+                  className="border-gray-200 text-zinc-900 hover:bg-gray-100" 
+                  onClick={() => setIsCalendarDialogOpen(false)}
+                >
+                  Aceptar
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
           <div className="flex gap-2 flex-wrap">
             <Button variant="outline" className="border-gray-200 text-zinc-900 hover:bg-gray-100" onClick={() => { const today = new Date(); setDate(today); setSelectedWeek(today); }}>Hoy</Button>
             <Button variant="outline" className="border-gray-200 text-zinc-900 hover:bg-gray-100" onClick={() => { const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); setDate(tomorrow); setSelectedWeek(tomorrow); }}>Mañana</Button>
-            <Button variant="outline" className="border-gray-200 text-zinc-900 hover:bg-gray-100" onClick={() => { setDate(undefined); }}>Ver todas (semana)</Button>
+            <Button variant="outline" className="border-gray-200 text-zinc-900 hover:bg-gray-100" onClick={() => { setDate(undefined); }}>Ver semana</Button>
           </div>
         </div>
       </CardHeader>
@@ -120,6 +130,15 @@ export default function CalendarViewTab({
                     {cls.waitlist.length > 0 && (<p className="text-sm text-orange-600 mt-1">Lista de espera: {cls.waitlist.length} personas</p>)}
                   </div>
                   <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-gray-200 text-zinc-900 hover:bg-gray-100" 
+                      onClick={() => setSelectedClassId(cls.id)}
+                    >
+                      <Users className="h-4 w-4 mr-1" />
+                      Ver Clientes
+                    </Button>
                     <Button variant="outline" size="sm" className="border-gray-200 text-zinc-900 hover:bg-gray-100" onClick={() => onOpenEditScheduleDialog(cls)}>
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -137,6 +156,15 @@ export default function CalendarViewTab({
           )}
         </div>
       </CardContent>
+
+      {/* Modal para ver reservaciones de la clase */}
+      {selectedClassId && (
+        <ClassReservationsModal
+          scheduledClassId={selectedClassId}
+          isOpen={!!selectedClassId}
+          onOpenChange={(open) => !open && setSelectedClassId(null)}
+        />
+      )}
     </Card>
   );
 }

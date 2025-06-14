@@ -19,11 +19,18 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X, AlertCircle, CheckCircle, XCircle, Clock } from "lucide-react"
+import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X, AlertCircle, CheckCircle, XCircle, Clock, MoreVertical, Edit, Trash, CreditCard, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatAdminDate } from "@/lib/utils/admin-date"
+import { useRouter } from "next/navigation"
 
 // Tipos
 interface Reservation {
@@ -90,6 +97,200 @@ export default function ReservationsPage() {
   const [availableBikes, setAvailableBikes] = useState<BikeOption[]>([])
   const [isLoadingTimes, setIsLoadingTimes] = useState(false)
   const [isLoadingBikes, setIsLoadingBikes] = useState(false)
+
+  // Estados para validación de clases del usuario
+  const [userHasClasses, setUserHasClasses] = useState<boolean | null>(null)
+  const [userClassesInfo, setUserClassesInfo] = useState<{
+    totalAvailableClasses: number
+    activePackages: Array<{
+      name: string
+      classesRemaining: number
+      expiryDate: string
+    }>
+  } | null>(null)
+  const [isCheckingUserClasses, setIsCheckingUserClasses] = useState(false)
+
+  // Router para redirecciones
+  const router = useRouter()
+
+  // Función para verificar paquetes del usuario
+  const checkUserPackages = async (userId: number) => {
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/check-packages`)
+      if (response.ok) {
+        const data = await response.json()
+        return data
+      }
+      throw new Error("Error al verificar paquetes")
+    } catch (error) {
+      console.error("Error checking user packages:", error)
+      return null
+    }
+  }
+
+  // Función para verificar clases disponibles del usuario seleccionado
+  const checkSelectedUserClasses = async (userId: string) => {
+    if (!userId) {
+      setUserHasClasses(null)
+      setUserClassesInfo(null)
+      return
+    }
+
+    setIsCheckingUserClasses(true)
+    try {
+      const packageData = await checkUserPackages(Number(userId))
+      
+      if (packageData) {
+        setUserHasClasses(packageData.hasAvailableClasses)
+        
+        // Guardar información detallada de las clases
+        setUserClassesInfo({
+          totalAvailableClasses: packageData.totalAvailableClasses || 0,
+          activePackages: packageData.activePackages || []
+        })
+      } else {
+        setUserHasClasses(false)
+        setUserClassesInfo(null)
+      }
+    } catch (error) {
+      console.error("Error checking user classes:", error)
+      setUserHasClasses(false)
+      setUserClassesInfo(null)
+    } finally {
+      setIsCheckingUserClasses(false)
+    }
+  }
+
+  // Función mejorada para crear reservación con verificación de paquetes
+  const createReservationWithPackageCheck = async (reservationData: any) => {
+    try {
+      // 1. Verificar paquetes del usuario
+      const packageCheck = await checkUserPackages(Number(reservationData.userId))
+      
+      if (!packageCheck) {
+        alert("Error al verificar los paquetes del usuario")
+        return
+      }
+
+      // 2. Si no tiene clases disponibles, redirigir a pagos con datos de reservación
+      if (!packageCheck.hasAvailableClasses) {
+        // Guardar datos de reservación en localStorage para recuperarlos en la página de pagos
+        localStorage.setItem('pendingReservation', JSON.stringify({
+          ...reservationData,
+          userInfo: packageCheck.user,
+          redirectFrom: 'reservations'
+        }))
+        
+        // Redirigir a la página de pagos
+        router.push(`/admin/payments?userId=${reservationData.userId}&context=reservation`)
+        return
+      }
+
+      // 3. Si tiene clases disponibles, proceder con la reservación normal
+      await createReservationDirectly(reservationData)
+      
+    } catch (error) {
+      console.error("Error in reservation creation process:", error)
+      alert(`Error al crear la reservación: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  // Función para crear reservación directamente
+  const createReservationDirectly = async (reservationData: any) => {
+    const response = await fetch("/api/admin/reservations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(reservationData),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || "Error al crear la reservación")
+    }
+
+    const createdReservation = await response.json()
+    console.log("Reservación creada:", createdReservation)
+    
+    alert("Nueva reservación creada con éxito")
+
+    // Limpiar el formulario
+    setSelectedUser("")
+    setSelectedTime("")
+    setSelectedPackage("")
+    setSelectedPaymentMethod("pending")
+    setSelectedBike(null)
+    setIsNewReservationOpen(false)
+    
+    // Refrescar la lista de reservaciones
+    await refreshReservations()
+  }
+
+  // Función para refrescar reservaciones
+  const refreshReservations = async () => {
+    setIsLoading(true)
+    try {
+      let url = "/api/admin/reservations"
+      const params = new URLSearchParams()
+
+      if (date) {
+        params.append("date", format(date, "yyyy-MM-dd"))
+      }
+
+      if (statusFilter !== "all") {
+        params.append("status", statusFilter)
+      }
+
+      if (params.toString()) {
+        url += `?${params.toString()}`
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setReservations(data)
+      }
+    } catch (error) {
+      console.error("Error al refrescar reservaciones:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Callback cuando se completa un pago y hay que crear la reservación pendiente
+  const handleReturnFromPayments = () => {
+    // Verificar si hay una reservación pendiente en localStorage
+    const pendingReservation = localStorage.getItem('pendingReservation')
+    if (pendingReservation) {
+      try {
+        const reservationData = JSON.parse(pendingReservation)
+        if (reservationData.redirectFrom === 'reservations') {
+          // Proceder con la creación de la reservación
+          createReservationDirectly(reservationData)
+          // Limpiar el localStorage
+          localStorage.removeItem('pendingReservation')
+        }
+      } catch (error) {
+        console.error('Error processing pending reservation:', error)
+      }
+    }
+  }
+
+  // Verificar al cargar si venimos de pagos
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('fromPayments') === 'true') {
+      handleReturnFromPayments()
+    }
+  }, [])
 
   // Cargar reservaciones con mejor debugging
   useEffect(() => {
@@ -174,11 +375,13 @@ export default function ReservationsPage() {
           amount:
             reservation.package === "PASE INDIVIDUAL"
               ? 69
-              : reservation.package === "PAQUETE 5 CLASES"
-                ? 299
-                : reservation.package === "PAQUETE 10 CLASES"
-                  ? 599
-                  : 399,
+              : reservation.package === "PRIMERA VEZ"
+                ? 49
+                : reservation.package === "SEMANA ILIMITADA"
+                  ? 299
+                  : reservation.package === "PAQUETE 10 CLASES"
+                    ? 599
+                    : 69, // default
         }),
       })
 
@@ -593,8 +796,18 @@ export default function ReservationsPage() {
     }
   }, [selectedTime, availableTimes, date, isNewReservationOpen])
 
+  // Verificar clases disponibles cuando cambia el usuario seleccionado
+  useEffect(() => {
+    if (selectedUser && isNewReservationOpen) {
+      checkSelectedUserClasses(selectedUser)
+    } else {
+      setUserHasClasses(null)
+      setUserClassesInfo(null)
+    }
+  }, [selectedUser, isNewReservationOpen])
+
   return (
-    <div className="p-6">
+    <div className="p-4">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
@@ -694,26 +907,57 @@ export default function ReservationsPage() {
                         <SelectValue placeholder="Seleccionar paquete" />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-gray-200 text-zinc-900">
-                        <SelectItem value="individual">PASE INDIVIDUAL</SelectItem>
-                        <SelectItem value="5classes">PAQUETE 5 CLASES</SelectItem>
-                        <SelectItem value="10classes">PAQUETE 10 CLASES</SelectItem>
-                        <SelectItem value="monthly">MEMBRESÍA MENSUAL</SelectItem>
+                        <SelectItem value="individual">PASE INDIVIDUAL - $69</SelectItem>
+                        <SelectItem value="primera-vez">PRIMERA VEZ - $49</SelectItem>
+                        <SelectItem value="semana-ilimitada">SEMANA ILIMITADA - $299</SelectItem>
+                        <SelectItem value="10classes">PAQUETE 10 CLASES - $599</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="payment">Método de Pago</Label>
-                    <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
-                      <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
-                        <SelectValue placeholder="Seleccionar método" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-gray-200 text-zinc-900">
-                        <SelectItem value="cash">Efectivo</SelectItem>
-                        <SelectItem value="pending">Pendiente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {/* Validación de clases disponibles */}
+                  {selectedUser && (
+                    <div className="space-y-2">
+                      <Label>Estado del Usuario</Label>
+                      {isCheckingUserClasses ? (
+                        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-md">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#4A102A]"></div>
+                          <span className="text-sm text-gray-600">Verificando clases disponibles...</span>
+                        </div>
+                      ) : userHasClasses === true ? (
+                        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <div className="flex-1">
+                            <span className="text-sm text-green-700 font-medium">
+                              ✓ El usuario tiene {userClassesInfo?.totalAvailableClasses || 0} clases disponibles
+                            </span>
+                            {userClassesInfo && userClassesInfo.activePackages.length > 0 && (
+                              <div className="text-xs text-green-600 mt-1">
+                                Paquetes activos: {userClassesInfo.activePackages.map(pkg => 
+                                  `${pkg.name} (${pkg.classesRemaining} clases)`
+                                ).join(', ')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : userHasClasses === false ? (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                          <div className="flex items-start gap-2 mb-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-sm font-medium text-amber-800">
+                                El usuario no tiene clases registradas
+                              </p>
+                              <p className="text-xs text-amber-700 mt-1">
+                                Solo podrás hacer esta reservación si el usuario tiene clases registradas a su nombre.
+                                Debes ir a la sección de Pagos para registrar un pago y asignar clases primero.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="bike">Bicicleta (Opcional)</Label>
@@ -763,120 +1007,109 @@ export default function ReservationsPage() {
               <DialogFooter>
                 <Button
                   variant="outline"
-                  onClick={() => setIsNewReservationOpen(false)}
+                  onClick={() => {
+                    setIsNewReservationOpen(false)
+                    // Limpiar estado de validación de usuario
+                    setUserHasClasses(null)
+                    setUserClassesInfo(null)
+                    setSelectedUser("")
+                    setSelectedTime("")
+                    setSelectedPackage("")
+                    setSelectedBike(null)
+                  }}
                   className="border-gray-200 text-zinc-900 hover:bg-gray-100"
                 >
                   Cancelar
                 </Button>
-                <Button
-                  className="bg-[#4A102A] hover:bg-[#85193C] text-white"
-                  onClick={async () => {
-                    try {
-                      if (!selectedUser || !date || !selectedTime || !selectedPackage) {
-                        const camposFaltantes = []
-                        if (!selectedUser) camposFaltantes.push("Cliente")
-                        if (!date) camposFaltantes.push("Fecha")
-                        if (!selectedTime) camposFaltantes.push("Hora")
-                        if (!selectedPackage) camposFaltantes.push("Paquete")
-
-                        alert(
-                          `Por favor complete todos los campos requeridos. Campos faltantes: ${camposFaltantes.join(", ")}`,
-                        )
-                        return
+                
+                {/* Botón dinámico según el estado del usuario */}
+                {selectedUser && userHasClasses === false ? (
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => {
+                      // Redirigir a pagos con el usuario seleccionado
+                      const userData = users.find(u => u.id.toString() === selectedUser)
+                      if (userData) {
+                        window.location.href = `/admin/payments?userId=${selectedUser}&context=reservation`
                       }
-
-                      // Encontrar la clase programada específica basada en el horario seleccionado
-                      const selectedAvailableTime = availableTimes.find(time => time.time === selectedTime)
-                      
-                      if (!selectedAvailableTime) {
-                        alert("Por favor seleccione un horario válido")
-                        return
-                      }
-
-                      const newReservationData = {
-                        userId: Number.parseInt(selectedUser),
-                        classId: selectedAvailableTime.typeId, // Usar el tipo de clase del horario seleccionado
-                        date: date ? formatAdminDate(date) : formatAdminDate(new Date()),
-                        time: selectedTime,
-                        package: selectedPackage,
-                        paymentMethod: selectedPaymentMethod,
-                        bikeNumber: selectedBike, // Agregar número de bicicleta
-                      }
-
-                      const response = await fetch("/api/admin/reservations", {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(newReservationData),
-                      })
-
-                      if (!response.ok) {
-                        const errorData = await response.json()
-                        throw new Error(errorData.error || "Error al crear la reservación")
-                      }
-
-                      const createdReservation = await response.json()
-                      console.log("Reservación creada:", createdReservation)
-                      
-                      alert("Nueva reservación creada con éxito")
-
-                      // Limpiar el formulario
-                      setSelectedUser("")
-                      setSelectedTime("")
-                      setSelectedPackage("")
-                      setSelectedPaymentMethod("pending")
-                      setSelectedBike(null)
-                      setIsNewReservationOpen(false)
-                      
-                      // Refrescar la lista de reservaciones para asegurar que se muestre la nueva
-                      const fetchReservations = async () => {
-                        setIsLoading(true)
-                        try {
-                          let url = "/api/admin/reservations"
-                          const params = new URLSearchParams()
-
-                          if (date) {
-                            params.append("date", format(date, "yyyy-MM-dd"))
-                          }
-
-                          if (statusFilter !== "all") {
-                            params.append("status", statusFilter)
-                          }
-
-                          if (params.toString()) {
-                            url += `?${params.toString()}`
-                          }
-
-                          const response = await fetch(url, {
-                            method: 'GET',
-                            credentials: 'include',
-                            headers: {
-                              'Content-Type': 'application/json',
-                            }
-                          })
-
-                          if (response.ok) {
-                            const data = await response.json()
-                            setReservations(data)
-                          }
-                        } catch (error) {
-                          console.error("Error al refrescar reservaciones:", error)
-                        } finally {
-                          setIsLoading(false)
-                        }
-                      }
-                      
-                      // Ejecutar el refresh
-                      fetchReservations()
-                    } catch (error) {
-                      console.error("Error al crear la reservación:", error)
-                      alert(`Error al crear la reservación: ${error instanceof Error ? error.message : String(error)}`)
+                    }}
+                  >
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Ir a Pagos
+                  </Button>
+                ) : (
+                  <Button
+                    className="bg-[#4A102A] hover:bg-[#85193C] text-white"
+                    disabled={
+                      !selectedUser || 
+                      !date || 
+                      !selectedTime || 
+                      !selectedPackage ||
+                      userHasClasses === false ||
+                      isCheckingUserClasses
                     }
-                  }}
-                >
-                  Crear Reservación
-                </Button>
+                    onClick={async () => {
+                      try {
+                        if (!selectedUser || !date || !selectedTime || !selectedPackage) {
+                          const camposFaltantes = []
+                          if (!selectedUser) camposFaltantes.push("Cliente")
+                          if (!date) camposFaltantes.push("Fecha")
+                          if (!selectedTime) camposFaltantes.push("Hora")
+                          if (!selectedPackage) camposFaltantes.push("Paquete")
+
+                          alert(
+                            `Por favor complete todos los campos requeridos. Campos faltantes: ${camposFaltantes.join(", ")}`,
+                          )
+                          return
+                        }
+
+                        // Encontrar la clase programada específica basada en el horario seleccionado
+                        const selectedAvailableTime = availableTimes.find(time => time.time === selectedTime)
+                        
+                        if (!selectedAvailableTime) {
+                          alert("Por favor seleccione un horario válido")
+                          return
+                        }
+
+                        const newReservationData = {
+                          userId: Number.parseInt(selectedUser),
+                          classId: selectedAvailableTime.typeId, // Usar el tipo de clase del horario seleccionado
+                          date: date ? formatAdminDate(date) : formatAdminDate(new Date()),
+                          time: selectedTime,
+                          package: selectedPackage,
+                          paymentMethod: "paid", // Asumir que ya está pagado si tiene clases
+                          bikeNumber: selectedBike, // Agregar número de bicicleta
+                        }
+
+                        // Crear directamente la reservación (ya sabemos que tiene clases)
+                        await createReservationDirectly(newReservationData)
+                        
+                        // Limpiar formulario después de éxito
+                        setSelectedUser("")
+                        setSelectedTime("")
+                        setSelectedPackage("")
+                        setSelectedBike(null)
+                        setUserHasClasses(null)
+                        setUserClassesInfo(null)
+                        setIsNewReservationOpen(false)
+                      } catch (error) {
+                        console.error("Error al crear la reservación:", error)
+                        alert(`Error al crear la reservación: ${error instanceof Error ? error.message : String(error)}`)
+                      }
+                    }}
+                  >
+                    {isCheckingUserClasses ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Verificando...
+                      </>
+                    ) : userHasClasses === false ? (
+                      "Usuario sin clases"
+                    ) : (
+                      "Crear Reservación"
+                    )}
+                  </Button>
+                )}
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -888,7 +1121,7 @@ export default function ReservationsPage() {
       </div>
 
       {/* Filtros */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
         <div className="space-y-2">
           <Label>Buscar</Label>
           <Input
@@ -933,7 +1166,18 @@ export default function ReservationsPage() {
         </div>
 
 
+
       </div>
+      <div className="flex items-center gap-4 text-sm py-2">
+                <span className="text-gray-500">
+                  Mostrando {filteredReservations.length} de {reservations.length}
+                </span>
+                {date && (
+                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                    {format(date, "dd MMM yyyy", { locale: es })}
+                  </span>
+                )}
+              </div>
 
       {/* Error Display */}
       {error && (
@@ -978,46 +1222,117 @@ export default function ReservationsPage() {
 
       {/* Reservations Table */}
       {!isLoading && !error && filteredReservations.length > 0 && (
+        
         <Card>
-          <CardHeader>
-            <CardTitle>Reservaciones ({filteredReservations.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto ">
-              <div className="max-h-[55vh] overflow-y-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-2">Usuario</th>
-                    <th className="text-left py-3 px-2">Clase</th>
-                    <th className="text-left py-3 px-2">Fecha</th>
-                    <th className="text-left py-3 px-2">Hora</th>
-                    <th className="text-left py-3 px-2">Estado</th>
-                    <th className="text-left py-3 px-2">Paquete</th>
-                    <th className="text-left py-3 px-2">Check-in</th>
-                    <th className="text-left py-3 px-2">Pago</th>
-                    <th className="text-left py-3 px-2">Acciones</th>
+
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <div className="max-h-[60vh] overflow-y-auto">
+              <table className="w-full table-fixed">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-gray-200 bg-gray-50/95 backdrop-blur-sm">
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[180px]">Cliente</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[120px]">Clase</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[115px]">Fecha & Hora</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[110px]">Paquete</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[70px]">Bici</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[130px]">Check-in</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[90px]">Estado</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[80px]">Pago</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[50px]">Ops</th>
                   </tr>
                 </thead>
-                <tbody className="text-sm">
+                <tbody className="bg-white divide-y divide-gray-100">
                   {filteredReservations.map((reservation) => (
-                    <tr key={reservation.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-2">
-                        <div>
-                          <div className="font-medium">{reservation.user}</div>
-                          <div className="text-sm text-gray-500">{reservation.email}</div>
+                    <tr key={reservation.id} className="hover:bg-gray-50/60 transition-colors duration-150">
+                      <td className="py-2.5 px-3">
+                        <div className="max-w-[170px]">
+                          <div className="font-medium text-gray-900 truncate text-sm">{reservation.user}</div>
+                          <div className="text-xs text-gray-500 truncate">{reservation.email}</div>
                           {reservation.phone && (
-                            <div className="text-sm text-gray-500">{reservation.phone}</div>
+                            <div className="text-xs text-gray-400">{reservation.phone}</div>
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-2 font-medium">{reservation.class}</td>
-                      <td className="py-3 px-2">{reservation.date}</td>
-                      <td className="py-3 px-2">{reservation.time}</td>
-                      <td className="py-3 px-2">
+                      <td className="py-2.5 px-3">
+                        <div className="font-medium text-gray-900 truncate max-w-[110px] text-sm">{reservation.class}</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="max-w-[120px]">
+                          <div className="text-sm font-medium text-gray-900">{reservation.date}</div>
+                          <div className="text-xs text-gray-500">{reservation.time}</div>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="max-w-[100px]">
+                          <div className="text-sm text-gray-900 truncate font-medium">{reservation.package}</div>
+                          {typeof reservation.remainingClasses === 'number' && (
+                            <div className="text-xs text-gray-500">
+                              {reservation.remainingClasses} restantes
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="text-sm">
+                          {reservation.bikeNumber ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              #{reservation.bikeNumber}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-xs">Sin asignar</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center">
+                          {reservation.checkedIn ? (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                                <div className="min-w-0">
+                                  <div className="text-xs font-medium text-green-700">Presente</div>
+                                  <div className="text-xs text-gray-500">
+                                    {reservation.checkedInAt ? new Date(reservation.checkedInAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''}
+                                  </div>
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-3 px-2 text-xs text-gray-600 hover:bg-gray-100 w-fit"
+                                onClick={() => handleUndoCheckIn(reservation.id)}
+                              >
+                                Deshacer
+                              </Button>
+                            </div>
+                          ) : canCheckIn(reservation) ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-3 text-xs border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400"
+                              onClick={() => handleCheckIn(reservation.id)}
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Check-in
+                            </Button>
+                          ) : reservation.status === 'confirmed' ? (
+                            <div className="flex items-center gap-1 text-gray-400">
+                              <Clock className="h-3 w-3" />
+                              <span className="text-xs">Fuera de horario</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-gray-400">
+                              <XCircle className="h-3 w-3" />
+                              <span className="text-xs">No disponible</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
                         <span
                           className={cn(
-                            "px-2 py-1 rounded-full text-xs font-medium",
+                            "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium",
                             reservation.status === "confirmed" && "bg-green-100 text-green-800",
                             reservation.status === "pending" && "bg-yellow-100 text-yellow-800",
                             reservation.status === "cancelled" && "bg-red-100 text-red-800",
@@ -1028,98 +1343,62 @@ export default function ReservationsPage() {
                           {reservation.status === "cancelled" && "Cancelada"}
                         </span>
                       </td>
-                      <td className="py-3 px-2">
-                        <div>
-                          <div className="text-sm">{reservation.package}</div>
-                          {typeof reservation.remainingClasses === 'number' && (
-                            <div className="text-xs text-gray-500">
-                              {reservation.remainingClasses} clases restantes
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-2">
-                        <div className="flex items-center gap-2">
-                          {reservation.checkedIn ? (
-                            <div className="flex items-center gap-2">
-                              <CheckCircle className="h-5 w-5 text-green-600" />
-                              <div>
-                                <div className="text-sm font-medium text-green-700">Presente</div>
-                                <div className="text-xs text-gray-500">
-                                  {reservation.checkedInAt ? new Date(reservation.checkedInAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''}
-                                </div>
-                              </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-6 px-2 text-xs border-red-200 text-red-600 hover:bg-red-50"
-                                onClick={() => handleUndoCheckIn(reservation.id)}
-                              >
-                                Deshacer
-                              </Button>
-                            </div>
-                          ) : canCheckIn(reservation) ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 border-green-200 text-green-600 hover:bg-green-50"
-                              onClick={() => handleCheckIn(reservation.id)}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Check-in
-                            </Button>
-                          ) : reservation.status === 'confirmed' ? (
-                            <div className="flex items-center gap-1 text-gray-500">
-                              <Clock className="h-4 w-4" />
-                              <span className="text-xs">Fuera de horario</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1 text-gray-400">
-                              <XCircle className="h-4 w-4" />
-                              <span className="text-xs">No disponible</span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-2">
-                        <span
-                          className={cn(
-                            "px-2 py-1 rounded-full text-xs font-medium",
-                            reservation.paymentStatus === "paid" && "bg-green-100 text-green-800",
-                            reservation.paymentStatus === "pending" && "bg-yellow-100 text-yellow-800",
-                          )}
-                        >
-                          {reservation.paymentStatus === "paid" && "Pagado"}
-                          {reservation.paymentStatus === "pending" && "Pendiente"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2">
-                        <div className="flex gap-2">
+                      <td className="py-2.5 px-3">
+                        <div className="flex flex-col gap-1">
+                          <span
+                            className={cn(
+                              "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium w-fit",
+                              reservation.paymentStatus === "paid" && "bg-green-100 text-green-800",
+                              reservation.paymentStatus === "pending" && "bg-orange-100 text-orange-800",
+                            )}
+                          >
+                            {reservation.paymentStatus === "paid" && "Pagado"}
+                            {reservation.paymentStatus === "pending" && "Pendiente"}
+                          </span>
                           {reservation.paymentStatus === "pending" && (
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="ghost"
+                              className="h-3 px-2 text-xs border-gray-300 text-gray-600 hover:bg-gray-100 w-fit"
                               onClick={() => handlePayment(reservation.id)}
+                              title="Registrar pago"
                             >
-                              <DollarSign className="h-4 w-4" />
+                           
+                             Añadir pago
                             </Button>
                           )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEditReservation(reservation.id)}
-                          >
-                            Editar
-                          </Button>
-                          {reservation.status !== "cancelled" && (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleCancelReservation(reservation.id)}
-                            >
-                              Cancelar
-                            </Button>
-                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                className="h-7 w-7 p-0 hover:bg-gray-100"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuItem
+                                onClick={() => handleEditReservation(reservation.id)}
+                                className="flex items-center gap-2 cursor-pointer"
+                              >
+                                <Edit className="h-4 w-4" />
+                                Editar
+                              </DropdownMenuItem>
+                              {reservation.status !== "cancelled" && (
+                                <DropdownMenuItem
+                                  onClick={() => handleCancelReservation(reservation.id)}
+                                  className="flex items-center gap-2 cursor-pointer text-red-600 focus:text-red-600"
+                                >
+                                  <Trash className="h-4 w-4" />
+                                  Cancelar
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
                     </tr>
@@ -1261,6 +1540,7 @@ export default function ReservationsPage() {
               </Select>
             </div>
           </div>
+          
 
           <DialogFooter>
             <Button
@@ -1279,6 +1559,9 @@ export default function ReservationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Package Assignment Modal */}
+      {/* Removido - se usa redirección a página de pagos en su lugar */}
     </div>
   )
 }
