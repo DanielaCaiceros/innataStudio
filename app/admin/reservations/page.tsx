@@ -23,6 +23,7 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X, AlertCircle, CheckCircle, XCircle, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatAdminDate } from "@/lib/utils/admin-date"
 
 // Tipos
 interface Reservation {
@@ -43,20 +44,20 @@ interface Reservation {
   bikeNumber: number | null
 }
 
-const timeSlots = [
-  "07:00",
-  "08:00",
-  "09:00",
-  "10:00",
-  "11:00",
-  "12:00",
-  "13:00",
-  "16:00",
-  "17:00",
-  "18:00",
-  "19:00",
-  "20:00",
-]
+interface AvailableTime {
+  time: string
+  classId: number
+  className: string
+  instructorName: string
+  availableSpots: number
+  maxCapacity: number
+  typeId: number
+}
+
+interface BikeOption {
+  id: number
+  available: boolean
+}
 
 export default function ReservationsPage() {
   const [date, setDate] = useState<Date | undefined>(new Date())
@@ -78,12 +79,17 @@ export default function ReservationsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [users, setUsers] = useState<Array<{ id: number; name: string; email: string }>>([])
-  const [classTypes, setClassTypes] = useState<Array<{ id: number; name: string; duration: number }>>([])
   const [selectedUser, setSelectedUser] = useState<string>("")
-  const [selectedClass, setSelectedClass] = useState<string>("")
   const [selectedTime, setSelectedTime] = useState<string>("")
   const [selectedPackage, setSelectedPackage] = useState<string>("")
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("pending")
+  const [selectedBike, setSelectedBike] = useState<number | null>(null)
+
+  // Estados para horarios disponibles dinámicos
+  const [availableTimes, setAvailableTimes] = useState<AvailableTime[]>([])
+  const [availableBikes, setAvailableBikes] = useState<BikeOption[]>([])
+  const [isLoadingTimes, setIsLoadingTimes] = useState(false)
+  const [isLoadingBikes, setIsLoadingBikes] = useState(false)
 
   // Cargar reservaciones con mejor debugging
   useEffect(() => {
@@ -500,24 +506,92 @@ export default function ReservationsPage() {
     }
   }, [isNewReservationOpen])
 
-  // Cargar tipos de clases para el selector
+  // Cargar horarios disponibles cuando cambia la fecha
   useEffect(() => {
-    const fetchClassTypes = async () => {
+    const loadAvailableTimes = async () => {
+      if (!date) {
+        setAvailableTimes([])
+        return
+      }
+
+      setIsLoadingTimes(true)
       try {
-        const response = await fetch("/api/admin/reservations/class-types")
+        const formattedDate = formatAdminDate(date)
+        const response = await fetch(
+          `/api/admin/reservations/available-times?date=${formattedDate}`
+        )
+        
         if (response.ok) {
           const data = await response.json()
-          setClassTypes(data)
+          setAvailableTimes(data)
+        } else {
+          console.error("Error al cargar horarios disponibles")
+          setAvailableTimes([])
         }
       } catch (error) {
-        console.error("Error al cargar tipos de clases:", error)
+        console.error("Error al cargar horarios disponibles:", error)
+        setAvailableTimes([])
+      } finally {
+        setIsLoadingTimes(false)
       }
     }
 
     if (isNewReservationOpen) {
-      fetchClassTypes()
+      loadAvailableTimes()
     }
-  }, [isNewReservationOpen])
+  }, [date, isNewReservationOpen])
+
+  // Cargar bicicletas disponibles cuando cambia la hora seleccionada
+  useEffect(() => {
+    const loadAvailableBikes = async () => {
+      if (!selectedTime || !date) {
+        setAvailableBikes([])
+        setSelectedBike(null)
+        return
+      }
+
+      // Encontrar la clase programada específica
+      const selectedAvailableTime = availableTimes.find(time => time.time === selectedTime)
+      if (!selectedAvailableTime) {
+        setAvailableBikes([])
+        setSelectedBike(null)
+        return
+      }
+
+      setIsLoadingBikes(true)
+      try {
+        const response = await fetch(
+          `/api/reservations/available-bikes?scheduledClassId=${selectedAvailableTime.classId}`
+        )
+        
+        if (response.ok) {
+          const data = await response.json()
+          // Generar opciones de bicicleta (1-10)
+          const bikeOptions: BikeOption[] = Array.from({length: 10}, (_, i) => {
+            const bikeId = i + 1
+            const bikeInfo = data.bikes?.find((b: any) => b.id === bikeId)
+            return {
+              id: bikeId,
+              available: bikeInfo ? bikeInfo.available : true
+            }
+          })
+          setAvailableBikes(bikeOptions)
+        } else {
+          console.error("Error al cargar bicicletas disponibles")
+          setAvailableBikes([])
+        }
+      } catch (error) {
+        console.error("Error al cargar bicicletas disponibles:", error)
+        setAvailableBikes([])
+      } finally {
+        setIsLoadingBikes(false)
+      }
+    }
+
+    if (isNewReservationOpen && selectedTime) {
+      loadAvailableBikes()
+    }
+  }, [selectedTime, availableTimes, date, isNewReservationOpen])
 
   return (
     <div className="p-6">
@@ -568,28 +642,6 @@ export default function ReservationsPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="class">Clase</Label>
-                    <Select value={selectedClass} onValueChange={setSelectedClass}>
-                      <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
-                        <SelectValue placeholder="Seleccionar clase" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-gray-200 text-zinc-900">
-                        {classTypes.length > 0 ? (
-                          classTypes.map((classItem) => (
-                            <SelectItem key={classItem.id} value={classItem.id.toString()}>
-                              {classItem.name} - {classItem.duration} min
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="loading" disabled>
-                            Cargando clases...
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
                     <Label htmlFor="date">Fecha</Label>
                     <Input
                       type="date"
@@ -602,6 +654,8 @@ export default function ReservationsPage() {
                           const [year, month, day] = e.target.value.split("-").map(Number)
                           const localDate = new Date(year, month - 1, day)
                           setDate(localDate)
+                          // Limpiar horario seleccionado cuando cambia la fecha
+                          setSelectedTime("")
                         }
                       }}
                     />
@@ -614,11 +668,21 @@ export default function ReservationsPage() {
                         <SelectValue placeholder="Seleccionar hora" />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-gray-200 text-zinc-900">
-                        {timeSlots.map((time) => (
-                          <SelectItem key={time} value={time}>
-                            {time}
+                        {isLoadingTimes ? (
+                          <SelectItem value="loading" disabled>
+                            Cargando horarios...
                           </SelectItem>
-                        ))}
+                        ) : availableTimes.length > 0 ? (
+                          availableTimes.map((availableTime) => (
+                            <SelectItem key={availableTime.time} value={availableTime.time}>
+                              {availableTime.time} - {availableTime.className} ({availableTime.instructorName}) - {availableTime.availableSpots} cupos
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-classes" disabled>
+                            No hay clases programadas para esta fecha
+                          </SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -646,10 +710,52 @@ export default function ReservationsPage() {
                       </SelectTrigger>
                       <SelectContent className="bg-white border-gray-200 text-zinc-900">
                         <SelectItem value="cash">Efectivo</SelectItem>
-                        <SelectItem value="online">Pago en línea (Stripe)</SelectItem>
                         <SelectItem value="pending">Pendiente</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bike">Bicicleta (Opcional)</Label>
+                    <Select 
+                      value={selectedBike?.toString() || "none"} 
+                      onValueChange={(value) => setSelectedBike(value === "none" ? null : Number(value))}
+                    >
+                      <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                        <SelectValue placeholder="Seleccionar bicicleta" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                        <SelectItem value="none">Sin bicicleta específica</SelectItem>
+                        {isLoadingBikes ? (
+                          <SelectItem value="loading" disabled>
+                            Cargando bicicletas...
+                          </SelectItem>
+                        ) : availableBikes.length > 0 ? (
+                          availableBikes.map((bike) => (
+                            <SelectItem 
+                              key={bike.id} 
+                              value={bike.id.toString()}
+                              disabled={!bike.available}
+                            >
+                              Bicicleta {bike.id} {!bike.available ? "(Ocupada)" : ""}
+                            </SelectItem>
+                          ))
+                        ) : selectedTime ? (
+                          <SelectItem value="no-bikes" disabled>
+                            No se pueden cargar las bicicletas
+                          </SelectItem>
+                        ) : (
+                          <SelectItem value="select-time" disabled>
+                            Selecciona primero una hora
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {selectedTime && (
+                      <p className="text-xs text-gray-500">
+                        Las bicicletas se cargan después de seleccionar la hora de clase
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -666,10 +772,9 @@ export default function ReservationsPage() {
                   className="bg-[#4A102A] hover:bg-[#85193C] text-white"
                   onClick={async () => {
                     try {
-                      if (!selectedUser || !selectedClass || !date || !selectedTime || !selectedPackage) {
+                      if (!selectedUser || !date || !selectedTime || !selectedPackage) {
                         const camposFaltantes = []
                         if (!selectedUser) camposFaltantes.push("Cliente")
-                        if (!selectedClass) camposFaltantes.push("Clase")
                         if (!date) camposFaltantes.push("Fecha")
                         if (!selectedTime) camposFaltantes.push("Hora")
                         if (!selectedPackage) camposFaltantes.push("Paquete")
@@ -680,13 +785,22 @@ export default function ReservationsPage() {
                         return
                       }
 
+                      // Encontrar la clase programada específica basada en el horario seleccionado
+                      const selectedAvailableTime = availableTimes.find(time => time.time === selectedTime)
+                      
+                      if (!selectedAvailableTime) {
+                        alert("Por favor seleccione un horario válido")
+                        return
+                      }
+
                       const newReservationData = {
                         userId: Number.parseInt(selectedUser),
-                        classId: Number.parseInt(selectedClass),
-                        date: date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+                        classId: selectedAvailableTime.typeId, // Usar el tipo de clase del horario seleccionado
+                        date: date ? formatAdminDate(date) : formatAdminDate(new Date()),
                         time: selectedTime,
                         package: selectedPackage,
                         paymentMethod: selectedPaymentMethod,
+                        bikeNumber: selectedBike, // Agregar número de bicicleta
                       }
 
                       const response = await fetch("/api/admin/reservations", {
@@ -703,15 +817,58 @@ export default function ReservationsPage() {
                       }
 
                       const createdReservation = await response.json()
-                      setReservations([...reservations, createdReservation])
+                      console.log("Reservación creada:", createdReservation)
+                      
                       alert("Nueva reservación creada con éxito")
 
+                      // Limpiar el formulario
                       setSelectedUser("")
-                      setSelectedClass("")
                       setSelectedTime("")
                       setSelectedPackage("")
                       setSelectedPaymentMethod("pending")
+                      setSelectedBike(null)
                       setIsNewReservationOpen(false)
+                      
+                      // Refrescar la lista de reservaciones para asegurar que se muestre la nueva
+                      const fetchReservations = async () => {
+                        setIsLoading(true)
+                        try {
+                          let url = "/api/admin/reservations"
+                          const params = new URLSearchParams()
+
+                          if (date) {
+                            params.append("date", format(date, "yyyy-MM-dd"))
+                          }
+
+                          if (statusFilter !== "all") {
+                            params.append("status", statusFilter)
+                          }
+
+                          if (params.toString()) {
+                            url += `?${params.toString()}`
+                          }
+
+                          const response = await fetch(url, {
+                            method: 'GET',
+                            credentials: 'include',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            }
+                          })
+
+                          if (response.ok) {
+                            const data = await response.json()
+                            setReservations(data)
+                          }
+                        } catch (error) {
+                          console.error("Error al refrescar reservaciones:", error)
+                        } finally {
+                          setIsLoading(false)
+                        }
+                      }
+                      
+                      // Ejecutar el refresh
+                      fetchReservations()
                     } catch (error) {
                       console.error("Error al crear la reservación:", error)
                       alert(`Error al crear la reservación: ${error instanceof Error ? error.message : String(error)}`)
@@ -1075,21 +1232,16 @@ export default function ReservationsPage() {
 
             <div className="space-y-2">
               <Label htmlFor="edit-time">Hora</Label>
-              <Select
+              <Input
+                type="time"
+                id="edit-time"
                 value={editFormData.time}
-                onValueChange={(value) => setEditFormData({ ...editFormData, time: value })}
-              >
-                <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-white border-gray-200 text-zinc-900">
-                  {timeSlots.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(e) => setEditFormData({ ...editFormData, time: e.target.value })}
+                className="bg-white border-gray-200 text-zinc-900"
+              />
+              <p className="text-xs text-gray-500">
+                Nota: Asegúrate de que la hora corresponda a una clase programada
+              </p>
             </div>
 
             <div className="space-y-2">

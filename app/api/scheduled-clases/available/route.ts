@@ -56,9 +56,6 @@ export async function GET(request: NextRequest) {
       where: {
         ...dateFilter,
         status: "scheduled",
-        availableSpots: {
-          gt: 0,
-        },
       },
       include: {
         classType: true,
