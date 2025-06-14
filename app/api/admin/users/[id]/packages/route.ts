@@ -92,15 +92,7 @@ export async function POST(
     const body = await request.json()
     const { packageId } = body
 
-    console.log("POST /api/admin/users/[id]/packages - Debug:", {
-      userId,
-      packageId,
-      packageIdType: typeof packageId,
-      body
-    })
-
     if (isNaN(userId) || packageId === undefined || packageId === null) {
-      console.log("Validation failed:", { userId: isNaN(userId), packageId: packageId === undefined || packageId === null })
       return NextResponse.json({ error: "Datos inválidos" }, { status: 400 })
     }
 

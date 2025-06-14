@@ -26,8 +26,6 @@ export async function GET(
     const resolvedParams = await params
     const userId = parseInt(resolvedParams.id)
 
-    console.log("🔍 check-packages API - userId:", userId)
-
     if (isNaN(userId)) {
       return NextResponse.json({ error: "ID de usuario inválido" }, { status: 400 })
     }
@@ -43,16 +41,11 @@ export async function GET(
       }
     })
 
-    console.log("🔍 check-packages API - Usuario encontrado:", user)
-
     if (!user) {
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
     }
 
-    // Debug: log del userId que estamos consultando
-    console.log("🔍 DEBUG check-packages - Consultando usuario ID:", userId)
-
-    // Obtener TODOS los paquetes del usuario primero para debug
+    // Obtener TODOS los paquetes del usuario
     const allUserPackages = await prisma.userPackage.findMany({
       where: {
         userId: userId
@@ -68,15 +61,6 @@ export async function GET(
       },
       orderBy: { createdAt: 'desc' }
     })
-
-    console.log("🔍 DEBUG - Todos los paquetes del usuario:", allUserPackages.map(pkg => ({
-      id: pkg.id,
-      packageName: pkg.package.name,
-      classesRemaining: pkg.classesRemaining,
-      isActive: pkg.isActive,
-      expiryDate: pkg.expiryDate,
-      paymentStatus: pkg.paymentStatus
-    })))
 
     // Obtener paquetes activos del usuario con clases disponibles
     const activePackages = await prisma.userPackage.findMany({
@@ -98,13 +82,6 @@ export async function GET(
       },
       orderBy: { expiryDate: 'asc' }
     })
-
-    console.log("🔍 DEBUG - Paquetes activos filtrados:", activePackages.map(pkg => ({
-      id: pkg.id,
-      packageName: pkg.package.name,
-      classesRemaining: pkg.classesRemaining,
-      paymentStatus: pkg.paymentStatus
-    })))
 
     // Calcular total de clases disponibles
 const totalAvailableClasses = activePackages.reduce((total, pkg) => total + (pkg.classesRemaining ?? 0), 0)
