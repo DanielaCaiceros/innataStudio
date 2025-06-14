@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -11,8 +11,10 @@ import { useAuth } from "@/lib/hooks/useAuth"
 import { useToast } from "@/components/ui/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle, Loader2, Eye, EyeOff } from "lucide-react"
+import { ForgotPasswordModal } from "@/components/ui/forgot-password-modal"
+import { ResetPasswordModal } from "@/components/ui/reset-password-modal"
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
   const { login } = useAuth()
   const { toast } = useToast()
@@ -22,6 +24,9 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false)
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
+  const [resetToken, setResetToken] = useState("")
   
   const [formData, setFormData] = useState({
     email: "",
@@ -38,6 +43,11 @@ export default function LoginPage() {
     const registered = searchParams.get("registered")
     const verified = searchParams.get("verified")
     const error = searchParams.get("error")
+    const resetTokenParam = searchParams.get("reset-token")
+
+    console.log("Login page useEffect triggered")
+    console.log("Reset token from URL:", resetTokenParam)
+    console.log("All search params:", Object.fromEntries(searchParams.entries()))
 
     if (registered === "true") {
       setSuccessMessage("Registro exitoso. Revisa tu email para verificar tu cuenta.")
@@ -50,7 +60,23 @@ export default function LoginPage() {
     if (error) {
       setErrorMessage(decodeURIComponent(error))
     }
+
+    // Si hay un token de reset en la URL, abrir el modal de reset
+    if (resetTokenParam) {
+      console.log("Found reset token, setting up modal:", resetTokenParam)
+      setResetToken(resetTokenParam)
+      setShowResetPasswordModal(true)
+    }
   }, [searchParams])
+
+  // Efecto adicional para depuración
+  useEffect(() => {
+    console.log("Modal states:", { 
+      showResetPasswordModal, 
+      resetToken, 
+      showForgotPasswordModal 
+    })
+  }, [showResetPasswordModal, resetToken, showForgotPasswordModal])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -310,9 +336,14 @@ export default function LoginPage() {
             </div>
             
             <div className="flex justify-between items-center text-sm">
-              <Link href="/reset-password" className="text-brand-gray hover:underline">
+              <button 
+                type="button"
+                onClick={() => setShowForgotPasswordModal(true)}
+                className="text-brand-gray hover:underline"
+                disabled={isLoading}
+              >
                 ¿Olvidaste tu contraseña?
-              </Link>
+              </button>
             </div>
             
             <Button 
@@ -349,7 +380,51 @@ export default function LoginPage() {
             </Link>
           </div>
         </div>
+
+        {/* Modales */}
+        <ForgotPasswordModal
+          isOpen={showForgotPasswordModal}
+          onClose={() => setShowForgotPasswordModal(false)}
+          initialEmail={formData.email}
+        />
+
+        <ResetPasswordModal
+          isOpen={showResetPasswordModal}
+          onClose={() => {
+            setShowResetPasswordModal(false)
+            setResetToken("")
+            // Limpiar el token de la URL
+            const newUrl = new URL(window.location.href)
+            newUrl.searchParams.delete('reset-token')
+            window.history.replaceState({}, '', newUrl.toString())
+          }}
+          onSuccess={() => {
+            setShowResetPasswordModal(false)
+            setResetToken("")
+            setSuccessMessage("Contraseña restablecida exitosamente. Ahora puedes iniciar sesión.")
+            // Limpiar el token de la URL
+            const newUrl = new URL(window.location.href)
+            newUrl.searchParams.delete('reset-token')
+            window.history.replaceState({}, '', newUrl.toString())
+          }}
+          token={resetToken}
+        />
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-sage mx-auto"></div>
+          <p className="mt-2 text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }

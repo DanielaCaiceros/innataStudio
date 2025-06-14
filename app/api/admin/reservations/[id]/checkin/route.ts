@@ -1,15 +1,20 @@
+// app/api/admin/reservations/[id]/checkin/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { verifyToken } from "@/lib/jwt";
+import { formatInTimeZone } from 'date-fns-tz';
 
 const prisma = new PrismaClient();
 
-// POST - Realizar check-in de una reservación
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Esperar a que se resuelva la promesa params
+    const params = await context.params;
+    const reservationId = parseInt(params.id);
+    
     // Verificar autenticación (admin)
     const token = request.cookies.get("auth_token")?.value;
     if (!token) {
@@ -21,16 +26,30 @@ export async function POST(
       return NextResponse.json({ error: "No tiene permisos de administrador" }, { status: 403 });
     }
 
-    const reservationId = parseInt(params.id);
     if (isNaN(reservationId)) {
       return NextResponse.json({ error: "ID de reservación no válido" }, { status: 400 });
     }
 
-    // Obtener la reservación
+    // Verificar que la reservación existe y está confirmada
     const reservation = await prisma.reservation.findUnique({
       where: { id: reservationId },
       include: {
-        scheduledClass: true
+        user: true,
+        scheduledClass: {
+          include: {
+            classType: true,
+            instructor: {
+              include: {
+                user: true
+              }
+            }
+          }
+        },
+        userPackage: {
+          include: {
+            package: true
+          }
+        }
       }
     });
 
@@ -39,111 +58,103 @@ export async function POST(
     }
 
     if (reservation.status !== "confirmed") {
-      return NextResponse.json({ error: "Solo se puede hacer check-in de reservaciones confirmadas" }, { status: 400 });
+      return NextResponse.json({ 
+        error: "Solo se puede hacer check-in de reservaciones confirmadas" 
+      }, { status: 400 });
     }
 
-    if (reservation.checked_in) {
-      return NextResponse.json({ error: "Esta reservación ya tiene check-in" }, { status: 400 });
-    }
+    // Verificar que la clase no ha pasado (manejar zona horaria correctamente)
+    // PROBLEMA IDENTIFICADO: Las fechas están almacenadas incorrectamente en UTC
+    // Necesitamos convertir la hora almacenada de UTC a hora local de México
+    
+    const mexicoCityTimeZone = 'America/Mexico_City';
+    
+    // La fecha y hora están almacenadas en UTC en la BD, pero representan hora local
+    const classDateUTC = new Date(reservation.scheduledClass.date);
+    const classTimeUTC = new Date(reservation.scheduledClass.time);
+    
+    // Crear la fecha y hora completa en UTC (como está almacenada)
+    const classDateTimeStoredUTC = new Date(Date.UTC(
+      classDateUTC.getUTCFullYear(),
+      classDateUTC.getUTCMonth(),
+      classDateUTC.getUTCDate(),
+      classTimeUTC.getUTCHours(),
+      classTimeUTC.getUTCMinutes()
+    ));
+    
+    // Convertir a hora local de México (agregar 6 horas para convertir de UTC almacenado a hora real de México)
+    const classDateTimeMexico = new Date(classDateTimeStoredUTC.getTime() + (6 * 60 * 60 * 1000));
 
-    // Verificar el horario de check-in (20 minutos antes hasta 1 hora después del inicio de la clase)
+    // Obtener el tiempo actual
     const now = new Date();
-    const classDateTime = new Date(reservation.scheduledClass.date);
-    classDateTime.setHours(
-      reservation.scheduledClass.time.getHours(),
-      reservation.scheduledClass.time.getMinutes(),
-      0,
-      0
-    );
-
-    const twentyMinutesBefore = new Date(classDateTime.getTime() - 20 * 60 * 1000);
-    const oneHourAfter = new Date(classDateTime.getTime() + 60 * 60 * 1000);
-
-    if (now < twentyMinutesBefore || now > oneHourAfter) {
-      return NextResponse.json(
-        { error: "Solo se puede hacer check-in desde 20 minutos antes hasta 1 hora después del inicio de la clase" },
-        { status: 400 }
-      );
+    
+    // Calcular la diferencia en minutos usando la hora corregida
+    const timeDiff = now.getTime() - classDateTimeMexico.getTime();
+    const minutesDiff = timeDiff / (1000 * 60);
+    
+    console.log("=== DEBUG CHECK-IN CORREGIDO ===");
+    console.log("Clase:", reservation.scheduledClass.classType.name);
+    console.log("Fecha clase almacenada (UTC):", classDateTimeStoredUTC.toISOString());
+    console.log("Fecha clase corregida (México):", classDateTimeMexico.toISOString());
+    console.log("Fecha clase corregida (México local):", formatInTimeZone(classDateTimeMexico, mexicoCityTimeZone, 'yyyy-MM-dd HH:mm:ss'));
+    console.log("Fecha actual (UTC):", now.toISOString());
+    console.log("Fecha actual (México):", formatInTimeZone(now, mexicoCityTimeZone, 'yyyy-MM-dd HH:mm:ss'));
+    console.log("Diferencia en minutos:", minutesDiff);
+    console.log("=== FIN DEBUG ===");
+    
+    // Permitir check-in desde 20 minutos antes hasta 1 hora después de la clase
+    if (minutesDiff > 60) { // 1 hora después
+      return NextResponse.json({ 
+        error: "El tiempo para hacer check-in ha expirado (más de 1 hora después de la clase)" 
+      }, { status: 400 });
+    }
+    
+    if (minutesDiff < -20) { // 20 minutos antes
+      return NextResponse.json({ 
+        error: "Aún no es tiempo de hacer check-in. Puedes hacerlo 20 minutos antes de la clase." 
+      }, { status: 400 });
     }
 
-    // Realizar el check-in
+    // Actualizar el status de la reservación a "attended"
     const updatedReservation = await prisma.reservation.update({
       where: { id: reservationId },
-      data: {
-        checked_in: true,
-        checked_in_at: new Date(),
-        checked_in_by: Number(payload.userId)
+      data: { 
+        status: "attended",
+        checked_in_at: new Date()
       }
     });
 
-    return NextResponse.json({
-      message: "Check-in realizado con éxito",
-      checkedInAt: updatedReservation.checked_in_at
+    // Si es necesario, actualizar el balance del usuario
+    if (reservation.userPackage) {
+      await prisma.userPackage.update({
+        where: { id: reservation.userPackage.id },
+        data: {
+          classesUsed: { increment: 1 },
+          classesRemaining: { decrement: 1 }
+        }
+      });
+
+      // Actualizar el balance general del usuario
+      await prisma.userAccountBalance.update({
+        where: { userId: reservation.user.user_id },
+        data: {
+          classesUsed: { increment: 1 },
+          classesAvailable: { decrement: 1 }
+        }
+      });
+    }
+
+    return NextResponse.json({ 
+      message: "Check-in realizado exitosamente",
+      reservation: {
+        id: updatedReservation.id,
+        status: updatedReservation.status,
+        checked_in_at: updatedReservation.checked_in_at
+      }
     });
 
   } catch (error) {
-    console.error("Error al realizar check-in:", error);
-    return NextResponse.json(
-      { error: "Error al realizar check-in" },
-      { status: 500 }
-    );
+    console.error("Error en check-in:", error);
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
 }
-
-// DELETE - Deshacer check-in de una reservación
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    // Verificar autenticación (admin)
-    const token = request.cookies.get("auth_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    const payload = await verifyToken(token);
-    if (payload.role !== "admin") {
-      return NextResponse.json({ error: "No tiene permisos de administrador" }, { status: 403 });
-    }
-
-    const reservationId = parseInt(params.id);
-    if (isNaN(reservationId)) {
-      return NextResponse.json({ error: "ID de reservación no válido" }, { status: 400 });
-    }
-
-    // Obtener la reservación
-    const reservation = await prisma.reservation.findUnique({
-      where: { id: reservationId }
-    });
-
-    if (!reservation) {
-      return NextResponse.json({ error: "Reservación no encontrada" }, { status: 404 });
-    }
-
-    if (!reservation.checked_in) {
-      return NextResponse.json({ error: "Esta reservación no tiene check-in" }, { status: 400 });
-    }
-
-    // Deshacer el check-in
-    await prisma.reservation.update({
-      where: { id: reservationId },
-      data: {
-        checked_in: false,
-        checked_in_at: null,
-        checked_in_by: null
-      }
-    });
-
-    return NextResponse.json({
-      message: "Check-in deshecho con éxito"
-    });
-
-  } catch (error) {
-    console.error("Error al deshacer check-in:", error);
-    return NextResponse.json(
-      { error: "Error al deshacer check-in" },
-      { status: 500 }
-    );
-  }
-} 
