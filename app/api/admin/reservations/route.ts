@@ -398,6 +398,9 @@ export async function POST(request: NextRequest) {
       remainingClasses: reservation.userPackage?.classesRemaining || 0,
       paymentStatus: reservation.userPackage?.paymentStatus || (paymentMethod === "pending" ? "pending" : "paid"),
       paymentMethod: reservation.userPackage?.paymentMethod || paymentMethod,
+      checkedIn: false, // Nueva reserva, no ha hecho check-in
+      checkedInAt: null, // Nueva reserva, no ha hecho check-in
+      bikeNumber: null // Se asignará cuando se haga la reserva con bicicleta específica
     };
 
     return NextResponse.json(formattedReservation);
