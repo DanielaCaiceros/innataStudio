@@ -362,17 +362,11 @@ export default function SchedulePage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="capacity">Capacidad Máxima</Label>
-                  <Input
-                    type="number"
-                    value={newClassForm.maxCapacity}
-                    onChange={(e) => setNewClassForm((prev) => ({ ...prev, maxCapacity: e.target.value }))}
-                    className="bg-white border-gray-200 text-zinc-900"
-                    min="1"
-                    max="20"
-                  />
-                </div>
+              </div>
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Nota:</strong> La capacidad máxima se establece automáticamente en 10 personas por clase.
+                </p>
               </div>
             </div>
 

@@ -105,8 +105,8 @@ export async function POST(request: NextRequest) {
         phone: phone?.trim() || null,
         passwordHash: hashedPassword,
         role: 'client',
-        status: 'pending_verification', // Usuario debe establecer contraseña primero
-        emailVerified: false,
+        status: 'active', // Usuario creado por admin está activo directamente
+        emailVerified: true, // Usuario creado por admin se considera verificado
       },
       select: {
         user_id: true,

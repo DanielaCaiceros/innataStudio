@@ -16,12 +16,22 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Search, Download, UserPlus, Mail, Phone, Calendar, Edit, Trash2, MoreVertical } from "lucide-react"
+import { Search, Download, UserPlus, Mail, Phone, Calendar, Edit, Trash2, MoreVertical, AlertTriangle } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useToast } from "@/components/ui/use-toast"
 
 // Interfaces
@@ -89,6 +99,8 @@ export default function UsersPage() {
   const [isNewUserOpen, setIsNewUserOpen] = useState(false)
   const [isEditUserOpen, setIsEditUserOpen] = useState(false)
   const [isViewUserOpen, setIsViewUserOpen] = useState(false)
+  const [isDeleteUserOpen, setIsDeleteUserOpen] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isFiltering, setIsFiltering] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -99,6 +111,11 @@ export default function UsersPage() {
     lastName: "",
     email: "",
     phone: ""
+  })
+
+  const [emailValidation, setEmailValidation] = useState({
+    isValid: true,
+    message: ""
   })
 
   const [editUserForm, setEditUserForm] = useState({
@@ -219,14 +236,25 @@ export default function UsersPage() {
       return
     }
 
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(newUserForm.email)) {
+      toast({
+        title: "Error",
+        description: "El formato del email no es válido",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSubmitting(true)
     try {
       // Preparar los datos para enviar al API
       const userData = {
-        firstName: newUserForm.firstName,
-        lastName: newUserForm.lastName,
-        email: newUserForm.email,
-        phone: newUserForm.phone || null
+        firstName: newUserForm.firstName.trim(),
+        lastName: newUserForm.lastName.trim(),
+        email: newUserForm.email.toLowerCase().trim(),
+        phone: newUserForm.phone?.trim() || null
       }
 
       const response = await fetch("/api/admin/users", {
@@ -235,14 +263,25 @@ export default function UsersPage() {
         body: JSON.stringify(userData)
       })
 
+      const responseData = await response.json()
+
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Error al crear usuario")
+        // Manejar específicamente el error de email duplicado
+        if (response.status === 409) {
+          toast({
+            title: "Email ya existe",
+            description: "Ya existe un usuario registrado con este correo electrónico. Por favor, usa un email diferente.",
+            variant: "destructive",
+          })
+        } else {
+          throw new Error(responseData.error || "Error al crear usuario")
+        }
+        return
       }
 
       toast({
         title: "Usuario creado",
-        description: "Se ha enviado un email al usuario para establecer su contraseña",
+        description: "Se ha enviado un email al usuario para que establezca su contraseña. Una vez que la configure, podrá iniciar sesión normalmente.",
         duration: 5000,
       })
 
@@ -253,11 +292,12 @@ export default function UsersPage() {
         email: "",
         phone: ""
       })
+      setEmailValidation({ isValid: true, message: "" })
       await loadUsers()
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Error interno del servidor",
         variant: "destructive",
       })
     } finally {
@@ -300,6 +340,63 @@ export default function UsersPage() {
       setIsSubmitting(false)
     }
   }
+
+  // Eliminar usuario
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch(`/api/admin/users/${userToDelete.id}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error al eliminar usuario")
+      }
+
+      toast({
+        title: "Usuario eliminado",
+        description: "El usuario ha sido eliminado correctamente",
+      })
+
+      setIsDeleteUserOpen(false)
+      setUserToDelete(null)
+      await loadUsers()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Validar email en tiempo real
+  const validateEmail = (email: string) => {
+    if (!email) {
+      setEmailValidation({ isValid: true, message: "" })
+      return
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      setEmailValidation({ 
+        isValid: false, 
+        message: "Formato de email inválido" 
+      })
+    } else {
+      setEmailValidation({ isValid: true, message: "" })
+    }
+  }
+
+  // Effects optimizados
+  useEffect(() => {
+    loadUsers(true) // Carga inicial
+  }, [])
 
   // Effects optimizados
   useEffect(() => {
@@ -435,10 +532,19 @@ export default function UsersPage() {
                       type="email"
                       id="email"
                       value={newUserForm.email}
-                      onChange={(e) => setNewUserForm(prev => ({ ...prev, email: e.target.value }))}
+                      onChange={(e) => {
+                        const email = e.target.value
+                        setNewUserForm(prev => ({ ...prev, email }))
+                        validateEmail(email)
+                      }}
                       placeholder="correo@ejemplo.com"
-                      className="bg-white border-gray-200"
+                      className={`bg-white border-gray-200 ${
+                        !emailValidation.isValid ? 'border-red-300 focus:border-red-500' : ''
+                      }`}
                     />
+                    {!emailValidation.isValid && (
+                      <p className="text-sm text-red-600">{emailValidation.message}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -474,7 +580,7 @@ export default function UsersPage() {
                 <Button 
                   className="bg-[#4A102A] hover:bg-[#85193C] text-white" 
                   onClick={handleCreateUser}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !emailValidation.isValid || !newUserForm.firstName || !newUserForm.lastName || !newUserForm.email}
                 >
                   {isSubmitting ? "Creando..." : "Crear Usuario"}
                 </Button>
@@ -588,6 +694,17 @@ export default function UsersPage() {
                             }}
                           >
                             <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs border-red-200 text-red-600 hover:bg-red-50"
+                            onClick={() => {
+                              setUserToDelete(user)
+                              setIsDeleteUserOpen(true)
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                           <UserDetailsMenu user={user} />
                         </div>
@@ -863,6 +980,57 @@ export default function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* AlertDialog para confirmar eliminación */}
+      <AlertDialog open={isDeleteUserOpen} onOpenChange={setIsDeleteUserOpen}>
+        <AlertDialogContent className="bg-white border-gray-200 text-gray-900">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <AlertDialogTitle>Eliminar Usuario</AlertDialogTitle>
+                <AlertDialogDescription>
+                  ¿Estás seguro de que deseas eliminar a{" "}
+                  <span className="font-semibold">{userToDelete?.name}</span>?
+                </AlertDialogDescription>
+              </div>
+            </div>
+          </AlertDialogHeader>
+          
+          <div className="my-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+              <div className="text-sm text-yellow-800">
+                <p className="font-medium mb-1">Esta acción:</p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>Desactivará la cuenta del usuario</li>
+                  <li>Modificará su email para evitar conflictos</li>
+                  <li>No elimina el historial de reservaciones</li>
+                  <li>No se puede deshacer fácilmente</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              disabled={isSubmitting}
+              className="border-gray-200 text-gray-900 hover:bg-gray-100"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              disabled={isSubmitting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isSubmitting ? "Eliminando..." : "Eliminar Usuario"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
