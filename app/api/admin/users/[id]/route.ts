@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 // GET - Obtener detalles de un usuario específico
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verificar autenticación (admin)
@@ -23,7 +23,8 @@ export async function GET(
       return NextResponse.json({ error: "No tiene permisos de administrador" }, { status: 403 });
     }
 
-    const userId = parseInt(params.id);
+    const resolvedParams = await params;
+    const userId = parseInt(resolvedParams.id);
     if (isNaN(userId)) {
       return NextResponse.json({ error: "ID de usuario no válido" }, { status: 400 });
     }
@@ -102,7 +103,7 @@ export async function GET(
 // PUT - Actualizar usuario
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verificar autenticación (admin)
@@ -116,7 +117,8 @@ export async function PUT(
       return NextResponse.json({ error: "No tiene permisos de administrador" }, { status: 403 });
     }
 
-    const userId = parseInt(params.id);
+    const resolvedParams = await params;
+    const userId = parseInt(resolvedParams.id);
     if (isNaN(userId)) {
       return NextResponse.json({ error: "ID de usuario no válido" }, { status: 400 });
     }
@@ -185,7 +187,7 @@ export async function PUT(
 // DELETE - Eliminar usuario (soft delete)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verificar autenticación (admin)
@@ -199,7 +201,8 @@ export async function DELETE(
       return NextResponse.json({ error: "No tiene permisos de administrador" }, { status: 403 });
     }
 
-    const userId = parseInt(params.id);
+    const resolvedParams = await params;
+    const userId = parseInt(resolvedParams.id);
     if (isNaN(userId)) {
       return NextResponse.json({ error: "ID de usuario no válido" }, { status: 400 });
     }

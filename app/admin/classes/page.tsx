@@ -55,7 +55,6 @@ export default function ClassesPage() {
     instructorId: "",
     date: "",
     time: "",
-    maxCapacity: "10",
   });
   const [isEditScheduleOpen, setIsEditScheduleOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduledClass | null>(null);
@@ -64,7 +63,6 @@ export default function ClassesPage() {
     instructorId: "",
     date: "",
     time: "",
-    maxCapacity: "10",
   });
 
   // Cargar datos iniciales
@@ -86,7 +84,6 @@ export default function ClassesPage() {
         instructorId: selectedSchedule.instructor.id.toString(),
         date: format(convertUtcToLocalDateForDisplay(selectedSchedule.date), "yyyy-MM-dd"),
         time: formatTime(selectedSchedule.time),
-        maxCapacity: selectedSchedule.maxCapacity.toString(),
       });
     }
   }, [selectedSchedule]);
@@ -152,12 +149,15 @@ export default function ClassesPage() {
       const response = await fetch("/api/admin/scheduled-classes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newScheduleForm),
+        body: JSON.stringify({
+          ...newScheduleForm,
+          maxCapacity: "10" // Capacidad fija en 10
+        }),
       });
       if (response.ok) {
         toast({ title: "Éxito", description: "Clase programada exitosamente" });
         setIsNewScheduleOpen(false);
-        setNewScheduleForm({ classTypeId: "", instructorId: "", date: "", time: "", maxCapacity: "10" });
+        setNewScheduleForm({ classTypeId: "", instructorId: "", date: "", time: "" });
         await loadScheduledClasses();
       } else {
         const errorData = await response.json();
@@ -181,7 +181,10 @@ export default function ClassesPage() {
       const response = await fetch(`/api/admin/scheduled-classes/${selectedSchedule.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editScheduleForm),
+        body: JSON.stringify({
+          ...editScheduleForm,
+          maxCapacity: "10" // Capacidad fija en 10
+        }),
       });
       if (response.ok) {
         toast({ title: "Éxito", description: "Clase actualizada exitosamente" });
@@ -331,10 +334,11 @@ export default function ClassesPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="newCapacity">Capacidad Máxima</Label>
-                <Input type="number" id="newCapacity" value={newScheduleForm.maxCapacity} onChange={(e) => setNewScheduleForm((prev) => ({ ...prev, maxCapacity: e.target.value }))} className="bg-white border-gray-200 text-zinc-900" min="1" max="20"/>
-              </div>
+            </div>
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Nota:</strong> La capacidad máxima se establece automáticamente en 10 personas por clase.
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -383,10 +387,11 @@ export default function ClassesPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="editFormCapacity">Capacidad Máxima</Label>
-                <Input type="number" id="editFormCapacity" value={editScheduleForm.maxCapacity} onChange={(e) => setEditScheduleForm((prev) => ({ ...prev, maxCapacity: e.target.value }))} className="bg-white border-gray-200 text-zinc-900" min="1" max="20"/>
-              </div>
+            </div>
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Nota:</strong> La capacidad máxima se mantiene en 10 personas por clase.
+              </p>
             </div>
           </div>
           <DialogFooter>
