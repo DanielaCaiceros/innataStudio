@@ -1,6 +1,7 @@
 // lib/email.ts - Versión actualizada para Resend
 
 import { Resend } from 'resend';
+import { formatTimeFromDB } from '@/lib/utils/date';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
