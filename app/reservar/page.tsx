@@ -94,6 +94,7 @@ export default function BookingPage() {
   const [userAvailableClasses, setUserAvailableClasses] = useState<number>(0)
   const [isLoadingUserClasses, setIsLoadingUserClasses] = useState(false)
   const [selectedScheduledClassForBooking, setSelectedScheduledClassForBooking] = useState<ScheduledClass | null>(null)
+  const [isProcessingBooking, setIsProcessingBooking] = useState(false)
 
   // Obtener clases disponibles del usuario
   useEffect(() => {
@@ -280,6 +281,13 @@ export default function BookingPage() {
 
     setSelectedScheduledClassForBooking(classToBook)
 
+    // Toast inmediato para feedback
+    toast({
+      title: "Procesando reserva...",
+      description: "Por favor espera mientras confirmamos tu reserva.",
+      duration: 2000,
+    })
+
     // 1. Handle Unlimited Week reservation - needs confirmation first
     if (hasActiveUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
       console.log("Using Unlimited Week, showing confirmation")
@@ -302,7 +310,7 @@ export default function BookingPage() {
     if (!selectedClass) return
 
     try {
-      setIsLoading(true)
+      setIsProcessingBooking(true)
       
       const requestBody: any = {
         scheduledClassId: selectedClass,
@@ -357,7 +365,7 @@ export default function BookingPage() {
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setIsProcessingBooking(false)
     }
   }
 
@@ -682,7 +690,7 @@ export default function BookingPage() {
                                         Ya no se puede reservar
                                       </span>
                                       <p className="text-xs text-red-600 mt-1">
-                                        La clase inicia en menos de 30 minutos
+                                        La clase inicia en menos de 30 minutos o ya paso.
                                       </p>
                                     </div>
                                   ) : (
@@ -944,22 +952,33 @@ export default function BookingPage() {
                     !selectedBikeId ||
                     (selectedClass ? !isClassReservable(availableClasses.find(c => c.id === selectedClass)!) : false) ||
                     (hasActiveUnlimitedWeek && date && !isBusinessDay(date)) || // Bloquear fines de semana
-                    (hasActiveUnlimitedWeek && !unlimitedWeekValidation?.canUseUnlimitedWeek)
+                    (hasActiveUnlimitedWeek && !unlimitedWeekValidation?.canUseUnlimitedWeek) ||
+                    isProcessingBooking // Deshabilitar durante el procesamiento
                   }
                   onClick={handleConfirmBooking}
                 >
-                  <span className="flex items-center gap-1">
-                    {hasActiveUnlimitedWeek
-                      ? (date && !isBusinessDay(date))
+                  <span className="flex items-center gap-2 justify-center">
+                    {/* Mostrar spinner cuando está procesando */}
+                    {isProcessingBooking && (
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    )}
+                    
+                    {isProcessingBooking ? (
+                      "PROCESANDO RESERVA..."
+                    ) : hasActiveUnlimitedWeek ? (
+                      (date && !isBusinessDay(date))
                         ? "SEMANA ILIMITADA NO VÁLIDA EN FINES DE SEMANA"
                         : unlimitedWeekValidation?.canUseUnlimitedWeek
                           ? "RESERVAR CON SEMANA ILIMITADA"
                           : "VALIDANDO SEMANA ILIMITADA..."
-                      : isAuthenticated && userAvailableClasses > 0 
-                        ? "USAR PAQUETE - RESERVAR" 
-                        : "CONFIRMAR RESERVA"
-                    } 
-                    <ChevronRight className="h-4 w-4" />
+                    ) : isAuthenticated && userAvailableClasses > 0 ? (
+                      "USAR PAQUETE - RESERVAR" 
+                    ) : (
+                      "CONFIRMAR RESERVA"
+                    )}
+
+                    {/* Solo mostrar flecha cuando NO está procesando */}
+                    {!isProcessingBooking && <ChevronRight className="h-4 w-4" />}
                   </span>
                 </Button>
               </CardContent>

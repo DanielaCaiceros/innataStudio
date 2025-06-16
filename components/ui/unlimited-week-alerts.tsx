@@ -84,21 +84,12 @@ export function UnlimitedWeekAlert({ validation, className }: UnlimitedWeekAlert
               <Hourglass className="h-4 w-4" />
               <span>Paquete:</span>
               {validation.packageValidity.isValid ? (
-                <div className="flex flex-col">
-                  <Badge variant="outline" className="text-green-700 border-green-300 mb-1">
-                    Válido hasta {validation.packageValidity.expiryDate.toLocaleDateString('es-ES', {
-                      weekday: 'short',
-                      day: 'numeric',
-                      month: 'short'
-                    })}
-                  </Badge>
-                  <span className="text-xs text-gray-600">
-                    {validation.packageValidity.businessDaysRemaining} días hábiles restantes
-                  </span>
-                </div>
+                <Badge variant="outline" className="text-green-700 border-green-300">
+                  {validation.packageValidity.businessDaysRemaining} días hábiles restantes
+                </Badge>
               ) : (
                 <Badge variant="destructive">
-                  Expirado el {validation.packageValidity.expiryDate.toLocaleDateString('es-ES')}
+                  Paquete expirado
                 </Badge>
               )}
             </div>
@@ -203,11 +194,7 @@ export function WeeklyUsageDisplay({ usage, className }: WeeklyUsageDisplayProps
             <span className="text-gray-600">Validez:</span>
             <span className={`font-medium ${getPackageValidityColor()}`}>
               {usage.activePackageInfo.isValid 
-                ? `Hasta ${usage.activePackageInfo.expiryDate.toLocaleDateString('es-ES', {
-                    weekday: 'short',
-                    day: 'numeric', 
-                    month: 'short'
-                  })} (${usage.activePackageInfo.businessDaysRemaining} días)`
+                ? `${usage.activePackageInfo.businessDaysRemaining} días hábiles restantes`
                 : 'Expirado'
               }
             </span>
