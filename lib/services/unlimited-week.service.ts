@@ -98,6 +98,17 @@ export class UnlimitedWeekService {
         }
       }
 
+      // 4.5. Verificar que la clase esté dentro del rango de vigencia del paquete
+      if (classDate > packageValidityInfo.expiryDate) {
+        return {
+          isValid: false,
+          canUseUnlimitedWeek: false,
+          reason: 'DATE_BEYOND_EXPIRY',
+          message: `No puedes reservar para esa fecha. Tu paquete Semana Ilimitada expira el ${packageValidityInfo.expiryDate.toLocaleDateString('es-ES')}`,
+          packageValidity: packageValidityInfo
+        }
+      }
+
       // 5. Verificar límite semanal de clases
       const weeklyValidation = await this.validateWeeklyLimit(userId, scheduledClass.date)
       if (!weeklyValidation.canReserve) {
@@ -140,12 +151,11 @@ export class UnlimitedWeekService {
       }
 
       // 8. Verificar que el usuario no tenga otra reserva para la misma clase
-      const existingReservation = await prisma.reservation.findUnique({
+      const existingReservation = await prisma.reservation.findFirst({
         where: {
-          userId_scheduledClassId: {
-            userId,
-            scheduledClassId
-          }
+          userId,
+          scheduledClassId,
+          status: 'confirmed'
         }
       })
 

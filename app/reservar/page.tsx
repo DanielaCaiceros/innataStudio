@@ -13,7 +13,7 @@ import { StripeCheckout } from "@/components/stripe-checkout"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { useRouter } from "next/navigation"
-import { BikeSelectionDialog } from "@/components/bike-selection-dialog"
+import { BikeSelectionInline } from "@/components/bike-selection-inline"
 import { 
   formatTimeFromDB, 
   isClassOnSelectedDate, 
@@ -21,6 +21,11 @@ import {
   filterClassesByDateAndTime,
   createClassDateTime
 } from "@/lib/utils/date"
+
+import { 
+  isBusinessDay, 
+  addBusinessDays 
+} from "@/lib/utils/business-days"
 
 import { useUnlimitedWeek } from '@/lib/hooks/useUnlimitedWeek'
 import { 
@@ -78,7 +83,6 @@ export default function BookingPage() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [scheduledClassId, setScheduledClassId] = useState<number | null>(null)
   const [selectedBikeId, setSelectedBikeId] = useState<number | null>(null)
-  const [isBikeDialogOpen, setIsBikeDialogOpen] = useState(false)
   
   // Estados para modales
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
@@ -89,7 +93,6 @@ export default function BookingPage() {
   const [availableClasses, setAvailableClasses] = useState<ScheduledClass[]>([])
   const [userAvailableClasses, setUserAvailableClasses] = useState<number>(0)
   const [isLoadingUserClasses, setIsLoadingUserClasses] = useState(false)
-  const [showBikeSelection, setShowBikeSelection] = useState(false)
   const [selectedScheduledClassForBooking, setSelectedScheduledClassForBooking] = useState<ScheduledClass | null>(null)
 
   // Obtener clases disponibles del usuario
@@ -218,6 +221,16 @@ export default function BookingPage() {
   }
 
   const handleUnlimitedWeekToggle = async (enabled: boolean) => {
+    // Verificar si es día hábil antes de permitir activar
+    if (enabled && date && !isBusinessDay(date)) {
+      toast({
+        title: "Día no válido",
+        description: "La Semana Ilimitada solo está disponible de lunes a viernes.",
+        variant: "destructive",
+      })
+      return
+    }
+    
     setIsUsingUnlimitedWeek(enabled)
     
     if (enabled && selectedClass && !unlimitedWeekValidation) {
@@ -230,10 +243,22 @@ export default function BookingPage() {
 
   const handleConfirmBooking = async () => {
     console.log("handleConfirmBooking called")
+    console.log("isAuthenticated:", isAuthenticated)
     console.log("isUsingUnlimitedWeek:", isUsingUnlimitedWeek)
     console.log("selectedBikeId:", selectedBikeId)
-    if (!selectedClass) {
-      console.log("No class selected, returning")
+    
+    // Verificar autenticación primero
+    if (!isAuthenticated) {
+      setIsAuthModalOpen(true)
+      return
+    }
+    
+    if (!selectedClass || !selectedBikeId) {
+      toast({
+        title: "Información incompleta",
+        description: "Por favor selecciona una clase y una bicicleta antes de continuar.",
+        variant: "destructive",
+      })
       return
     }
 
@@ -243,28 +268,31 @@ export default function BookingPage() {
       return
     }
 
+    // Verificar si la clase aún es reservable
+    if (!isClassReservable(classToBook)) {
+      toast({
+        title: "Clase no disponible",
+        description: "Esta clase ya no se puede reservar (inicia en menos de 30 minutos).",
+        variant: "destructive",
+      })
+      return
+    }
+
     setSelectedScheduledClassForBooking(classToBook)
 
-    // 1. Handle Unlimited Week reservation first
-    if (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
+    // 1. Handle Unlimited Week reservation - needs confirmation first
+    if (hasActiveUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
       console.log("Using Unlimited Week, showing confirmation")
       setShowUnlimitedWeekConfirmation(true)
       return
     }
 
-    // 2. For regular bookings (package or payment), check if bike selection is needed
-    if (!selectedBikeId) {
-      console.log("No bike selected, showing bike selection dialog")
-      setShowBikeSelection(true)
-      return
-    }
-
-    // 3. If a bike is already selected, proceed with booking/payment decision
+    // 2. For regular bookings, proceed directly since bike is already selected
     console.log("Bike already selected. User available classes:", userAvailableClasses)
-    if (userAvailableClasses > 0) {
+    if (!hasActiveUnlimitedWeek && userAvailableClasses > 0) {
       console.log("User has available classes, proceeding with booking")
       await proceedWithBooking()
-    } else {
+    } else if (!hasActiveUnlimitedWeek) {
       console.log("User has no available classes, opening payment dialog")
       setIsPaymentOpen(true)
     }
@@ -281,7 +309,7 @@ export default function BookingPage() {
         bikeNumber: selectedBikeId,
       }
 
-      if (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
+      if (hasActiveUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
         requestBody.useUnlimitedWeek = true
       }
 
@@ -299,7 +327,7 @@ export default function BookingPage() {
         
         toast({
           title: "¡Reserva confirmada!",
-          description: isUsingUnlimitedWeek 
+          description: hasActiveUnlimitedWeek 
             ? "Reserva creada con Semana Ilimitada. Recuerda confirmar por WhatsApp."
             : "Se ha enviado un correo de confirmación.",
         })
@@ -310,7 +338,6 @@ export default function BookingPage() {
         setIsUsingUnlimitedWeek(false)
         setUnlimitedWeekValidation(null)
         setShowUnlimitedWeekConfirmation(false)
-        setIsBikeDialogOpen(false)
         
         loadAvailableClasses()
         
@@ -337,22 +364,7 @@ export default function BookingPage() {
   const handleBikeSelected = async (bikeId: number) => {
     console.log("handleBikeSelected called with bikeId:", bikeId)
     setSelectedBikeId(bikeId)
-    
-    if (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
-      console.log("Using Unlimited Week, showing confirmation from handleBikeSelected")
-      setShowUnlimitedWeekConfirmation(true)
-      return
-    }
-
-    console.log("Bike selected. User available classes:", userAvailableClasses)
-    if (userAvailableClasses > 0) {
-      console.log("User has available classes, proceeding with booking from handleBikeSelected")
-      await proceedWithBooking()
-    } else {
-      console.log("User has no available classes, opening payment dialog from handleBikeSelected")
-      setShowBikeSelection(false)
-      setIsPaymentOpen(true)
-    }
+    // Note: No longer auto-proceeding with booking, user must click the main button
   }
 
   // Obtener clases para fecha seleccionada
@@ -400,10 +412,69 @@ export default function BookingPage() {
     }
   }
 
+  // Función para verificar si una fecha es pasada
+  const isPastDate = (date: Date) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return date < today
+  }
+
+  // Función para verificar si una fecha está bloqueada para semana ilimitada
+  const isDateBlockedForUnlimitedWeek = (date: Date) => {
+    if (!hasActiveUnlimitedWeek) return false
+    
+    // Bloquear TODOS los fines de semana (sábados y domingos)
+    if (!isBusinessDay(date)) {
+      return true
+    }
+    
+    // Usar la fecha de expiración real del paquete en lugar de un límite fijo
+    if (weeklyUsage?.activePackageInfo?.expiryDate) {
+      const expiryDate = new Date(weeklyUsage.activePackageInfo.expiryDate)
+      // Normalizar las fechas para comparar solo el día (sin hora)
+      const targetDate = new Date(date)
+      targetDate.setHours(0, 0, 0, 0)
+      expiryDate.setHours(23, 59, 59, 999)
+      
+      return targetDate > expiryDate
+    }
+    
+    // Fallback: si no hay información del paquete, usar límite de 7 días hábiles
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const maxDate = addBusinessDays(today, 5)
+    
+    return date > maxDate
+  }
+
+  // Función para verificar si una fecha tiene clases pero todas están llenas
+  const hasClassesButAllFull = (date: Date) => {
+    const dayClasses = availableClasses.filter(cls => 
+      isClassOnSelectedDate(cls.date, date)
+    )
+    
+    if (dayClasses.length === 0) return false
+    
+    // Verificar si todas las clases están llenas (availableSpots <= 0)
+    return dayClasses.every(cls => cls.availableSpots <= 0)
+  }
+
+  // Función para deshabilitar fechas en el calendario
+  const isDateDisabled = (date: Date) => {
+    return isPastDate(date) || isDateBlockedForUnlimitedWeek(date)
+  }
+
   // Reset isUsingUnlimitedWeek if hasActiveUnlimitedWeek becomes false
   useEffect(() => {
     if (!hasActiveUnlimitedWeek) {
       setIsUsingUnlimitedWeek(false)
+    }
+  }, [hasActiveUnlimitedWeek])
+
+  // Auto-forzar uso de Semana Ilimitada cuando está activa
+  useEffect(() => {
+    if (hasActiveUnlimitedWeek) {
+      setIsUsingUnlimitedWeek(true) // Forzar automáticamente
     }
   }, [hasActiveUnlimitedWeek])
 
@@ -416,7 +487,7 @@ export default function BookingPage() {
             RESERVA TU <span className="text-brand-sage">CLASE</span>
           </h1>
           <p className="text-xl max-w-3xl mx-auto text-zinc-700">
-            Selecciona fecha, clase y horario para asegurar tu lugar
+            Selecciona fecha, horario, clase y bicicleta para asegurar tu lugar
           </p>
         </div>
       </section>
@@ -437,7 +508,7 @@ export default function BookingPage() {
       <section className="py-16 bg-white">
         <div className="container px-4 md:px-6">
           <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
@@ -451,13 +522,65 @@ export default function BookingPage() {
                         selected={date}
                         onSelect={setDate}
                         locale={es}
+                        disabled={isDateDisabled}
+                        modifiers={{
+                          fullDate: (date) => hasClassesButAllFull(date),
+                          pastDate: (date) => isPastDate(date),
+                          blockedDate: (date) => isDateBlockedForUnlimitedWeek(date)
+                        }}
+                        modifiersStyles={{
+                          fullDate: { 
+                            position: 'relative',
+                            backgroundColor: '#e0f2fe',
+                            border: '2px solid #0284c7',
+                          },
+                          pastDate: {
+                            opacity: 0.5,
+                            textDecoration: 'line-through'
+                          },
+                          blockedDate: {
+                            opacity: 0.3,
+                            background: '#f3f4f6'
+                          }
+                        }}
                         className="bg-white text-zinc-900 w-full rounded-lg"
                         classNames={{
                           day_selected: "bg-brand-mint text-white rounded-lg",
                           day_today: "bg-gray-100 text-zinc-900 rounded-lg",
                           day: "text-zinc-900 hover:bg-gray-100 rounded-lg",
+                          day_disabled: "text-gray-400 opacity-50 cursor-not-allowed",
                         }}
                       />
+                      
+                      {/* Leyenda del calendario */}
+                      <div className="mt-4 space-y-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-brand-mint rounded"></div>
+                          <span>Fecha seleccionada</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-blue-100 rounded border-2 border-blue-500"></div>
+                          <span>Todas las clases llenas</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-gray-200 rounded opacity-50 line-through"></div>
+                          <span>Fechas pasadas</span>
+                        </div>
+                        {hasActiveUnlimitedWeek && (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 bg-gray-100 rounded opacity-30"></div>
+                              <span>Fines de semana (Semana Ilimitada)</span>
+                            </div>
+                            {weeklyUsage?.activePackageInfo?.expiryDate && (
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-red-100 rounded opacity-50"></div>
+                                <span>Después del {new Date(weeklyUsage.activePackageInfo.expiryDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -485,6 +608,7 @@ export default function BookingPage() {
                           onClick={() => {
                             setSelectedTime(time);
                             setSelectedClass(null);
+                            setSelectedBikeId(null); // Reset bike selection when time changes
                           }}
                         >
                           {time}
@@ -492,7 +616,25 @@ export default function BookingPage() {
                       ))
                     ) : (
                       <div className="col-span-3 text-center py-8 text-gray-500">
-                        No hay clases disponibles para la fecha seleccionada
+                        {date ? (
+                          <>
+                            <div className="text-sm">No hay clases disponibles para:</div>
+                            <div className="font-medium mt-1">{format(date, "EEEE, d 'de' MMMM", { locale: es })}</div>
+                            <div className="text-xs mt-2 text-gray-400">
+                              {hasClassesButAllFull(date) 
+                                ? "Todas las clases están llenas para este día"
+                                : "No hay clases programadas para esta fecha"
+                              }
+                            </div>
+                            {hasClassesButAllFull(date) && (
+                              <div className="text-xs mt-1 text-blue-600">
+                                💡 Puedes unirte a la lista de espera cuando selecciones una clase
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          "Selecciona una fecha para ver los horarios disponibles"
+                        )}
                       </div>
                     )}
                   </div>
@@ -513,95 +655,120 @@ export default function BookingPage() {
                         {getClassesForSelectedTime(selectedTime).map((cls) => (
                           <Card 
                             key={cls.id} 
-                            className={`cursor-pointer transition-all ${
-                              selectedClass === cls.id ? 'ring-2 ring-[#4A102A] bg-gray-50' : 'hover:shadow-md'
+                            className={`transition-all ${
+                              !isClassReservable(cls) 
+                                ? 'opacity-60 cursor-not-allowed bg-gray-50 border-gray-200' 
+                                : selectedClass === cls.id 
+                                  ? 'ring-2 ring-[#4A102A] bg-gray-50 cursor-pointer' 
+                                  : 'hover:shadow-md cursor-pointer'
                             }`}
-                            onClick={() => handleClassSelection(cls.id)}
+                            onClick={() => {
+                              if (isClassReservable(cls)) {
+                                handleClassSelection(cls.id)
+                                setSelectedBikeId(null) // Reset bike selection when class changes
+                              }
+                            }}
                           >
                             <CardContent className="p-4">
-                              <div className="flex justify-between items-center">
-                                <div>
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
                                   <h4 className="font-medium">{cls.classType.name}</h4>
                                   <p className="text-sm text-gray-500">{cls.instructor.name}</p>
+                                  
+                                  {/* Verificar si la clase es reservable */}
+                                  {!isClassReservable(cls) ? (
+                                    <div className="mt-2">
+                                      <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs">
+                                        Ya no se puede reservar
+                                      </span>
+                                      <p className="text-xs text-red-600 mt-1">
+                                        La clase inicia en menos de 30 minutos
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    /* Información de disponibilidad */
+                                    <div className="flex items-center gap-3 mt-2 text-xs">
+                                      <span className={`px-2 py-1 rounded-full ${
+                                        cls.availableSpots <= 2 
+                                          ? 'bg-red-100 text-red-700' 
+                                          : cls.availableSpots <= 5 
+                                            ? 'bg-yellow-100 text-yellow-700'
+                                            : 'bg-green-100 text-green-700'
+                                      }`}>
+                                        {cls.availableSpots} {cls.availableSpots === 1 ? 'lugar' : 'lugares'} disponible{cls.availableSpots === 1 ? '' : 's'}
+                                      </span>
+                                      
+                                      {cls.availableSpots <= 2 && (
+                                        <span className="text-red-600 font-medium">¡Últimos lugares!</span>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
-                                <span className="text-sm text-gray-500">{cls.classType.duration} min</span>
+                                <div className="text-right ml-3">
+                                  <span className="text-sm text-gray-500">{cls.classType.duration} min</span>
+                                </div>
                               </div>
                             </CardContent>
                           </Card>
                         ))}
 
-                        {/* Opciones de reserva */}
-                        {selectedClass && (
+                        {/* Opciones de reserva - Solo mostrar cuando hay opciones reales disponibles */}
+                        {selectedClass && (hasActiveUnlimitedWeek || (isAuthenticated && userAvailableClasses > 0)) && (
                           <Card className="bg-gray-50 border-2 border-dashed border-gray-300">
                             <CardContent className="p-6">
                               <h3 className="font-semibold mb-4">Opciones de Reserva</h3>
                               
-                              {/* Toggle para Semana Ilimitada */}
+                              {/* Información cuando tiene Semana Ilimitada activa */}
                               {hasActiveUnlimitedWeek && (
                                 <div className="space-y-3 mb-4">
-                                  <div className="flex items-center space-x-3">
-                                    <input
-                                      type="checkbox"
-                                      id="unlimited-week-toggle"
-                                      checked={isUsingUnlimitedWeek}
-                                      onChange={(e) => handleUnlimitedWeekToggle(e.target.checked)}
-                                      className="w-4 h-4 text-brand-sage bg-gray-100 border-gray-300 rounded focus:ring-[#4A102A] focus:ring-2"
-                                      disabled={isValidatingUnlimitedWeek}
-                                    />
-                                    <label htmlFor="unlimited-week-toggle" className="font-medium">
-                                      Usar Semana Ilimitada
-                                    </label>
-                                    {isValidatingUnlimitedWeek && (
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#4A102A]"></div>
-                                    )}
+                                  {/* Mensaje informativo para Semana Ilimitada forzada */}
+                                  <div className="bg-blue-50 p-3 rounded-md border border-blue-200">
+                                    <p className="text-sm text-blue-800 font-medium">
+                                      ¡Felicidades por comprar Semana Ilimitada! Ahora, estas usando Semana Ilimitada
+                                    </p>
+                                    <p className="text-xs text-blue-600 mt-1">
+                                      Recuerda que es solo válida de lunes a viernes. No puedes usar otros paquetes mientras esté activa.Y deberás mandar confirmar por WhatsApp para garantizar tu lugar.
+                                    </p>
                                   </div>
                                   
+                                  {/* Mensaje informativo para fines de semana */}
+                                  {date && !isBusinessDay(date) && (
+                                    <div className="bg-orange-50 p-3 rounded-md border border-orange-200">
+                                      <p className="text-sm text-orange-800 font-medium">
+                                        ¡Ups! la Semana Ilimitada no es válida en fines de semana
+                                      </p>
+                                      <p className="text-xs text-orange-600 mt-1">
+                                        Selecciona un día hábil (lunes a viernes) o espera a que termine tu Semana Ilimitada.
+                                      </p>
+                                    </div>
+                                  )}
+                                  
                                   {/* Mostrar validación de Semana Ilimitada */}
-                                  {isUsingUnlimitedWeek && unlimitedWeekValidation && (
+                                  {unlimitedWeekValidation && (
                                     <UnlimitedWeekAlert 
                                       validation={unlimitedWeekValidation}
                                       className="mt-3"
                                     />
                                   )}
+                                  
+                                  {/* Mensaje de información adicional para semana ilimitada */}
+                                  {unlimitedWeekValidation?.canUseUnlimitedWeek && date && isBusinessDay(date) && (
+                                    <div className="bg-blue-50 p-3 rounded-md border border-blue-200">
+                                      <p className="text-xs text-blue-800 text-center">
+                                        ℹ️ Deberás confirmar por WhatsApp para garantizar tu lugar
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               )}
 
-                              {/* Información de paquetes normales */}
-                              {!isUsingUnlimitedWeek && isAuthenticated && userAvailableClasses > 0 && (
+                              {/* Información de paquetes normales - SOLO cuando NO tiene Semana Ilimitada */}
+                              {!hasActiveUnlimitedWeek && isAuthenticated && userAvailableClasses > 0 && (
                                 <div className="bg-green-50 p-3 rounded-md border border-green-200 mb-4">
                                   <p className="text-sm text-green-800">
                                     ✅ Tienes {userAvailableClasses} clase(s) disponible(s) en tus paquetes
                                   </p>
                                 </div>
-                              )}
-
-                              {/* Botón de reserva */}
-                              <Button
-                                className="w-full bg-brand-sage hover:bg-brand-sage text-white font-semibold py-3"
-                                disabled={
-                                  isLoading || 
-                                  !selectedClass || 
-                                  (isUsingUnlimitedWeek && !unlimitedWeekValidation?.canUseUnlimitedWeek) ||
-                                  !isClassReservable(availableClasses.find(c => c.id === selectedClass)!)
-                                }
-                                onClick={handleConfirmBooking}
-                              >
-                                <span className="flex items-center gap-1">
-                                  {isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek
-                                    ? "RESERVAR CON SEMANA ILIMITADA"
-                                    : isAuthenticated && userAvailableClasses > 0 
-                                    ? "USAR PAQUETE - RESERVAR" 
-                                    : "CONFIRMAR RESERVA"
-                                  } 
-                                  <ChevronRight className="h-4 w-4" />
-                                </span>
-                              </Button>
-
-                              {/* Mensaje de información adicional */}
-                              {isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek && (
-                                <p className="text-xs text-gray-600 mt-2 text-center">
-                                  Deberás confirmar por WhatsApp para garantizar tu lugar
-                                </p>
                               )}
                             </CardContent>
                           </Card>
@@ -609,8 +776,42 @@ export default function BookingPage() {
                       </div>
                     ) : (
                       <div className="text-center py-8 text-gray-500">
-                        Selecciona un horario para ver las clases disponibles
+                        {selectedTime ? (
+                          <>
+                            <div className="text-sm">No hay clases disponibles para:</div>
+                            <div className="font-medium mt-1">{selectedTime} hrs</div>
+                            <div className="text-xs mt-2 text-gray-400">
+                              Las clases pueden estar llenas o no hay cupo disponible
+                            </div>
+                          </>
+                        ) : (
+                          "Selecciona un horario para ver las clases disponibles"
+                        )}
                       </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Selección de Bicicleta - Siempre visible estructuralmente */}
+              <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
+                <CardContent className="p-0">
+                  <div className="p-6 border-b border-gray-100 flex items-center">
+                    <Bike className="mr-2 h-5 w-5 text-brand-burgundy" />
+                    <h3 className="text-xl font-bold text-brand-burgundy-dark">Selecciona Bicicleta</h3>
+                  </div>
+                  
+                  <div className="p-4">
+                    {!selectedClass ? (
+                      <div className="text-center py-8 text-gray-500">
+                        Selecciona una clase para ver las bicicletas disponibles
+                      </div>
+                    ) : (
+                      <BikeSelectionInline
+                        scheduledClassId={scheduledClassId}
+                        selectedBikeId={selectedBikeId}
+                        onBikeSelected={setSelectedBikeId}
+                      />
                     )}
                   </div>
                 </CardContent>
@@ -619,7 +820,7 @@ export default function BookingPage() {
 
             <Card className="bg-brand-yellow/10 border-none rounded-3xl shadow-sm">
               <CardContent className="p-6">
-                <h3 className="text-xl font-bold mb-4 text-brand-mint-dark">Resumen de Reserva</h3>
+                <h3 className="text-lg font-bold mb-4 text-brand-mint-dark">Resumen de Reserva</h3>
 
                 <div className="space-y-4">
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
@@ -659,18 +860,16 @@ export default function BookingPage() {
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Duración:</span>
                     <span className="font-medium text-brand-burgundy">
-                      {selectedClass ? `${availableClasses.find((c) => c.id === selectedClass)?.classType.duration} minutos` : ""}
+                      {selectedClass ? `${availableClasses.find((c) => c.id === selectedClass)?.classType.duration} minutos` : "No seleccionada"}
                     </span>
                   </div>
                   
-                  {selectedBikeId && (
-                    <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                      <span className="text-zinc-700">Bicicleta:</span>
-                      <span className="font-medium text-brand-burgundy">
-                        🚲 Bicicleta #{selectedBikeId}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
+                    <span className="text-zinc-700">Bicicleta:</span>
+                    <span className="font-medium text-brand-burgundy">
+                      {selectedBikeId ? `🚲 Bicicleta #${selectedBikeId}` : "No seleccionada"}
+                    </span>
+                  </div>
                   
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Cupo disponible:</span>
@@ -685,29 +884,52 @@ export default function BookingPage() {
                   {/* Mostrar clases disponibles del usuario si está autenticado */}
                   {isAuthenticated && (
                     <div className="bg-brand-mint/10 rounded-lg p-3 mt-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-zinc-700 font-medium">Tus clases disponibles:</span>
-                        <span className="font-bold text-xl text-brand-sage">
-                          {isLoadingUserClasses ? "..." : userAvailableClasses}
-                        </span>
-                      </div>
-                      {userAvailableClasses > 0 ? (
-                        <p className="text-sm text-green-700 mt-1">
-                          ✓ Puedes reservar esta clase usando tu paquete
-                        </p>
-                      ) : (
-                        <>
-                          <p className="text-sm text-orange-700 mt-1">
-                            ⚠ Necesitarás pagar para reservar esta clase
+                      {hasActiveUnlimitedWeek ? (
+                        /* Usuario con Semana Ilimitada */
+                        <div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-zinc-700 font-medium">Semana Ilimitada:</span>
+                            <span className="font-bold text-xl text-blue-600">
+                              ACTIVA
+                            </span>
+                          </div>
+                          <p className="text-sm text-blue-700 mt-1">
+                            🔒 Tus otros paquetes estarán disponibles cuando termine la Semana Ilimitada
                           </p>
-                          <Button
-                            variant="outline"
-                            className="mt-3 w-full border-brand-sage text-brand-sage hover:bg-brand-sage/10"
-                            onClick={() => router.push('/paquetes')}
-                          >
-                            Comprar Paquetes
-                          </Button>
-                        </>
+                          {date && !isBusinessDay(date) && (
+                            <p className="text-sm text-orange-700 mt-1">
+                              ⚠️ Solo válida de lunes a viernes
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        /* Usuario sin Semana Ilimitada */
+                        <div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-zinc-700 font-medium">Tus clases disponibles:</span>
+                            <span className="font-bold text-xl text-brand-sage">
+                              {isLoadingUserClasses ? "..." : userAvailableClasses}
+                            </span>
+                          </div>
+                          {userAvailableClasses > 0 ? (
+                            <p className="text-sm text-green-700 mt-1">
+                              ✓ Puedes reservar esta clase usando tu paquete
+                            </p>
+                          ) : (
+                            <>
+                              <p className="text-sm text-orange-700 mt-1">
+                                ⚠ Necesitarás pagar para reservar esta clase
+                              </p>
+                              <Button
+                                variant="outline"
+                                className="mt-3 w-full border-brand-sage text-brand-sage hover:bg-brand-sage/10"
+                                onClick={() => router.push('/paquetes')}
+                              >
+                                Comprar Paquetes
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
@@ -715,13 +937,27 @@ export default function BookingPage() {
 
                 <Button
                   className="w-full mt-6 bg-brand-mint hover:bg-brand-mint/90 font-bold text-lg py-6 rounded-full text-white"
-                  disabled={!date || !selectedClass || !selectedTime || (selectedClass ? !isClassReservable(availableClasses.find(c => c.id === selectedClass)!) : false)}
+                  disabled={
+                    !date || 
+                    !selectedClass || 
+                    !selectedTime || 
+                    !selectedBikeId ||
+                    (selectedClass ? !isClassReservable(availableClasses.find(c => c.id === selectedClass)!) : false) ||
+                    (hasActiveUnlimitedWeek && date && !isBusinessDay(date)) || // Bloquear fines de semana
+                    (hasActiveUnlimitedWeek && !unlimitedWeekValidation?.canUseUnlimitedWeek)
+                  }
                   onClick={handleConfirmBooking}
                 >
                   <span className="flex items-center gap-1">
-                    {isAuthenticated && userAvailableClasses > 0 
-                      ? "USAR PAQUETE - RESERVAR" 
-                      : "CONFIRMAR RESERVA"
+                    {hasActiveUnlimitedWeek
+                      ? (date && !isBusinessDay(date))
+                        ? "SEMANA ILIMITADA NO VÁLIDA EN FINES DE SEMANA"
+                        : unlimitedWeekValidation?.canUseUnlimitedWeek
+                          ? "RESERVAR CON SEMANA ILIMITADA"
+                          : "VALIDANDO SEMANA ILIMITADA..."
+                      : isAuthenticated && userAvailableClasses > 0 
+                        ? "USAR PAQUETE - RESERVAR" 
+                        : "CONFIRMAR RESERVA"
                     } 
                     <ChevronRight className="h-4 w-4" />
                   </span>
@@ -881,17 +1117,6 @@ export default function BookingPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Bike Selection Dialog */}
-      <BikeSelectionDialog
-        open={showBikeSelection}
-        onOpenChange={setShowBikeSelection}
-        selectedBikeId={selectedBikeId}
-        onBikeSelected={setSelectedBikeId}
-        onConfirm={() => handleBikeSelected(selectedBikeId || 0)}
-        scheduledClassId={scheduledClassId || 0}
-        
-      />
-
       {/* Dialog de confirmación de Semana Ilimitada */}
       <Dialog open={showUnlimitedWeekConfirmation} onOpenChange={setShowUnlimitedWeekConfirmation}>
         <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-md">
@@ -903,11 +1128,7 @@ export default function BookingPage() {
               graceTimeHours={12}
               onConfirm={() => {
                 setShowUnlimitedWeekConfirmation(false)
-                if (!selectedBikeId) {
-                  setShowBikeSelection(true)
-                } else {
-                  proceedWithBooking()
-                }
+                proceedWithBooking()
               }}
               onCancel={() => {
                 setShowUnlimitedWeekConfirmation(false)

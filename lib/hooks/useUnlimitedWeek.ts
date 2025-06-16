@@ -25,6 +25,11 @@ interface WeeklyUsage {
   remaining: number
   weekStart: Date
   weekEnd: Date
+  activePackageInfo?: {
+    isValid: boolean
+    businessDaysRemaining: number
+    expiryDate: Date
+  }
 }
 
 export function useUnlimitedWeek() {

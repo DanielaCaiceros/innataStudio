@@ -53,6 +53,8 @@ export function UnlimitedWeekAlert({ validation, className }: UnlimitedWeekAlert
         return <AlertTriangle className="h-4 w-4" />
       case 'NON_BUSINESS_DAY':
         return <Hourglass className="h-4 w-4" />
+      case 'DATE_BEYOND_EXPIRY':
+        return <AlertTriangle className="h-4 w-4" />
       default:
         return validation.canUseUnlimitedWeek ? 
           <MessageCircle className="h-4 w-4" /> : 
@@ -82,9 +84,18 @@ export function UnlimitedWeekAlert({ validation, className }: UnlimitedWeekAlert
               <Hourglass className="h-4 w-4" />
               <span>Paquete:</span>
               {validation.packageValidity.isValid ? (
-                <Badge variant="outline" className="text-green-700 border-green-300">
-                  {validation.packageValidity.businessDaysRemaining} días hábiles restantes
-                </Badge>
+                <div className="flex flex-col">
+                  <Badge variant="outline" className="text-green-700 border-green-300 mb-1">
+                    Válido hasta {validation.packageValidity.expiryDate.toLocaleDateString('es-ES', {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short'
+                    })}
+                  </Badge>
+                  <span className="text-xs text-gray-600">
+                    {validation.packageValidity.businessDaysRemaining} días hábiles restantes
+                  </span>
+                </div>
               ) : (
                 <Badge variant="destructive">
                   Expirado el {validation.packageValidity.expiryDate.toLocaleDateString('es-ES')}
@@ -142,6 +153,29 @@ export function WeeklyUsageDisplay({ usage, className }: WeeklyUsageDisplayProps
     return 'text-green-600'
   }
 
+  const getProgressBarColor = () => {
+    if (usage.remaining <= 0) return 'bg-red-500'
+    if (usage.remaining <= 2) return 'bg-yellow-500'
+    return 'bg-green-500'
+  }
+
+  const getProgressWidth = () => {
+    const percentage = Math.min((usage.used / usage.limit) * 100, 100)
+    if (percentage >= 100) return 'w-full'
+    if (percentage >= 90) return 'w-11/12'
+    if (percentage >= 80) return 'w-4/5'
+    if (percentage >= 75) return 'w-3/4'
+    if (percentage >= 66) return 'w-2/3'
+    if (percentage >= 60) return 'w-3/5'
+    if (percentage >= 50) return 'w-1/2'
+    if (percentage >= 40) return 'w-2/5'
+    if (percentage >= 33) return 'w-1/3'
+    if (percentage >= 25) return 'w-1/4'
+    if (percentage >= 20) return 'w-1/5'
+    if (percentage > 0) return 'w-1/12'
+    return 'w-0'
+  }
+
   return (
     <div className={`bg-gray-50 p-4 rounded-lg ${className}`}>
       <div className="flex items-center justify-between mb-2">
@@ -150,14 +184,8 @@ export function WeeklyUsageDisplay({ usage, className }: WeeklyUsageDisplayProps
       </div>
       
       {/* Barra de progreso semanal */}
-      <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-        <div 
-          className={`h-2 rounded-full transition-all duration-300 ${
-            usage.remaining <= 0 ? 'bg-red-500' :
-            usage.remaining <= 2 ? 'bg-yellow-500' : 'bg-green-500'
-          }`}
-          style={{ width: `${Math.min((usage.used / usage.limit) * 100, 100)}%` }}
-        />
+      <div className="w-full bg-gray-200 rounded-full h-2 mb-2 relative overflow-hidden">
+        <div className={`h-2 rounded-full transition-all duration-300 ${getProgressWidth()} ${getProgressBarColor()}`} />
       </div>
       
       <p className={`text-xs ${getUsageColor()}`}>
@@ -175,14 +203,23 @@ export function WeeklyUsageDisplay({ usage, className }: WeeklyUsageDisplayProps
             <span className="text-gray-600">Validez:</span>
             <span className={`font-medium ${getPackageValidityColor()}`}>
               {usage.activePackageInfo.isValid 
-                ? `${usage.activePackageInfo.businessDaysRemaining} días hábiles`
+                ? `Hasta ${usage.activePackageInfo.expiryDate.toLocaleDateString('es-ES', {
+                    weekday: 'short',
+                    day: 'numeric', 
+                    month: 'short'
+                  })} (${usage.activePackageInfo.businessDaysRemaining} días)`
                 : 'Expirado'
               }
             </span>
           </div>
           {usage.activePackageInfo.isValid && usage.activePackageInfo.businessDaysRemaining <= 2 && (
             <p className="text-xs text-yellow-700 mt-1">
-              ⚠️ Tu paquete expira pronto
+              Tu paquete expira pronto
+            </p>
+          )}
+          {usage.activePackageInfo.isValid && usage.activePackageInfo.businessDaysRemaining <= 0 && (
+            <p className="text-xs text-red-700 mt-1">
+              Tu paquete expira hoy
             </p>
           )}
         </div>
