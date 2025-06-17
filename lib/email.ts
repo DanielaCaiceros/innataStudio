@@ -2,6 +2,7 @@
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+import { formatTimeFromDB } from '@/lib/utils/date';
 
 // Interface for booking email details
 interface BookingEmailDetails {
@@ -54,7 +55,7 @@ export async function sendBookingConfirmationEmail(
             </ul>
 
             <div style="text-align: center; margin: 20px 0;">
-              <a href="https://wa.me/527753571894?text=${encodeURIComponent(`Hola! Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${details.date} Hora: ${details.time}`)}" style="background-color: #25D366; color: #ffffff; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: 600; display: inline-block;">
+              <a href="https://wa.me/527753571894?text=${encodeURIComponent(`Hola! Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${details.date} Hora: ${formatTimeFromDB(details.time)}`)}" style="background-color: #25D366; color: #ffffff; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: 600; display: inline-block;">
                 Confirmar por WhatsApp
               </a>
             </div>
@@ -146,7 +147,7 @@ export async function sendBookingConfirmationEmail(
 
                   <div style="margin: 8px 0;">
                     <span style="color: #6b7280; font-size: 14px;">Hora:</span>
-                    <span style="color: #111827; font-weight: 500; margin-left: 8px;">${details.time}</span>
+                    <span style="color: #111827; font-weight: 500; margin-left: 8px;">${formatTimeFromDB(details.time)}</span>
                   </div>
 
                   <div style="margin: 8px 0;">
@@ -157,7 +158,6 @@ export async function sendBookingConfirmationEmail(
                   ${bikeInfo}
 
                   <div style="margin: 8px 0;">
-                    <span style="color: #6b7280; font-size: 14px;">Código de confirmación:</span>
                     <span style="color: #111827; font-weight: 500; margin-left: 8px;">${details.confirmationCode}</span>
                   </div>
                 </div>
@@ -194,10 +194,9 @@ export async function sendBookingConfirmationEmail(
 
         Clase: ${details.className}
         Fecha: ${details.date}
-        Hora: ${details.time}
+        Hora: ${formatTimeFromDB(details.time)}
         Instructor: ${details.instructor}
         ${details.bikeNumber ? `Bicicleta: #${details.bikeNumber}` : ""}
-        Código de confirmación: ${details.confirmationCode}
 
         Recuerda llegar 15 minutos antes de tu clase.
 
@@ -542,9 +541,6 @@ export async function sendPackagePurchaseConfirmationEmail(
             © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
           </p>
 
-          <p style="color: #6b7280; font-size: 12px; margin: 0;">
-            Calle Prada 23, Local 103, Colonia Residencial El Refugio, Querétaro, Qro. CP 76146
-          </p>
         </div>
       </div>
     </body>
@@ -571,7 +567,6 @@ Ir a Mi Cuenta: ${appUrl}/mi-cuenta
 ¡Prepárate para sudar, sonreír y superar tus límites!
 
 © ${new Date().getFullYear()} Innata Studio. Todos los derechos reservados.
-Calle Prada 23, Local 103, Colonia Residencial El Refugio, Querétaro, Qro. CP 76146
   `;
 
   try {
@@ -648,7 +643,7 @@ export async function sendCancellationConfirmationEmail(
           </p>
 
           <p style="color: #374151; line-height: 1.6; margin: 0 0 24px 0;">
-            Hemos procesado la cancelación de tu clase: ${details.className} programada para el ${details.date} a las ${details.time} hrs.
+            Hemos procesado la cancelación de tu clase: ${details.className} programada para el ${details.date} a las ${formatTimeFromDB(details.time)} hrs.
           </p>
 
           <p style="color: #374151; line-height: 1.6; margin: 0 0 24px 0;">
@@ -662,7 +657,7 @@ export async function sendCancellationConfirmationEmail(
 
             <p style="color: #374151; margin: 8px 0;"><strong>Clase:</strong> ${details.className}</p>
             <p style="color: #374151; margin: 8px 0;"><strong>Fecha:</strong> ${details.date}</p>
-            <p style="color: #374151; margin: 8px 0;"><strong>Hora:</strong> ${details.time} hrs</p>
+            <p style="color: #374151; margin: 8px 0;"><strong>Hora:</strong> ${formatTimeFromDB(details.time)} hrs</p>
           </div>
 
           <div style="text-align: center; margin: 32px 0;">
@@ -704,7 +699,7 @@ export async function sendCancellationConfirmationEmail(
           </p>
 
           <p style="color: #374151; line-height: 1.6; margin: 0 0 24px 0;">
-            Hemos procesado la cancelación de tu clase: ${details.className} programada para el ${details.date} a las ${details.time} hrs.
+            Hemos procesado la cancelación de tu clase: ${details.className} programada para el ${details.date} a las ${formatTimeFromDB(details.time)} hrs.
           </p>
 
           <p style="color: #374151; line-height: 1.6; margin: 0 0 24px 0;">
@@ -718,7 +713,7 @@ export async function sendCancellationConfirmationEmail(
 
             <p style="color: #374151; margin: 8px 0;"><strong>Clase:</strong> ${details.className}</p>
             <p style="color: #374151; margin: 8px 0;"><strong>Fecha:</strong> ${details.date}</p>
-            <p style="color: #374151; margin: 8px 0;"><strong>Hora:</strong> ${details.time} hrs</p>
+            <p style="color: #374151; margin: 8px 0;"><strong>Hora:</strong> ${formatTimeFromDB(details.time)} hrs</p>
           </div>
 
           <p style="color: #374151; text-align: center; margin: 24px 0;">
@@ -739,14 +734,14 @@ export async function sendCancellationConfirmationEmail(
   const refundableBodyText = `
 Hola ${name},
 
-Hemos procesado la cancelación de tu clase: ${details.className} programada para el ${details.date} a las ${details.time} hrs.
+Hemos procesado la cancelación de tu clase: ${details.className} programada para el ${details.date} a las ${formatTimeFromDB(details.time)} hrs.
 
 Como cancelaste con más de 12 horas de anticipación, hemos devuelto el crédito de esta clase a tu saldo${details.packageName ? ` en tu paquete (${details.packageName})` : ""}. Puedes usarlo para reservar otra clase cuando quieras.
 
 Detalles de la clase cancelada:
 Clase: ${details.className}
 Fecha: ${details.date}
-Hora: ${details.time} hrs
+Hora: ${formatTimeFromDB(details.time)} hrs
 
 Puedes reservar otra clase aquí: ${process.env.NEXT_PUBLIC_APP_URL}/reservar
 
@@ -758,14 +753,14 @@ Si tienes alguna pregunta, no dudes en contactarnos.
   const nonRefundableBodyText = `
 Hola ${name},
 
-Hemos procesado la cancelación de tu clase: ${details.className} programada para el ${details.date} a las ${details.time} hrs.
+Hemos procesado la cancelación de tu clase: ${details.className} programada para el ${details.date} a las ${formatTimeFromDB(details.time)} hrs.
 
 De acuerdo con nuestra política de cancelación, las cancelaciones realizadas con menos de 12 horas de anticipación no son elegibles para reembolso. Por lo tanto, el crédito de esta clase no ha sido devuelto a tu saldo.
 
 Detalles de la clase cancelada:
 Clase: ${details.className}
 Fecha: ${details.date}
-Hora: ${details.time} hrs
+Hora: ${formatTimeFromDB(details.time)} hrs
 
 Entendemos que pueden surgir imprevistos. Si tienes alguna pregunta o situación especial, por favor contáctanos.
 
