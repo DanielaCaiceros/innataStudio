@@ -138,6 +138,20 @@ export const AuthProvider: FC<AuthProviderProps> = ({
         method: 'POST',
         credentials: 'include',
       })
+      
+      // Limpiar cookies del lado cliente también
+      if (typeof document !== 'undefined') {
+        // Eliminar cookie de autenticación del cliente
+        document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+        
+        // Limpiar localStorage si tienes datos ahí
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('user_data')
+        
+        // Limpiar sessionStorage
+        sessionStorage.clear()
+      }
+      
     } catch (error) {
       console.error('Error during logout:', error)
     } finally {
@@ -148,6 +162,11 @@ export const AuthProvider: FC<AuthProviderProps> = ({
         isAuthenticated: false,
         error: null,
       })
+      
+      // Forzar redirección completa (no SPA routing) para limpiar todo
+      if (typeof window !== 'undefined') {
+        window.location.href = '/'
+      }
     }
   }
 

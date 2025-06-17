@@ -340,15 +340,15 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     setIsLoggingOut(true)
     try {
-      await logout()
       toast({
-        title: "Sesión cerrada",
-        description: "Has cerrado sesión exitosamente.",
+        title: "Cerrando sesión...",
+        description: "Por favor espera.",
         variant: "default",
       })
-      router.push("/")
-      router.refresh()
+      await logout()
+      // No necesitamos redirección manual, el hook ya lo maneja
     } catch (error) {
+      console.error("Error durante logout:", error)
       toast({
         title: "Error",
         description: "Hubo un problema al cerrar sesión.",
