@@ -7,6 +7,8 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { CalendarDays, CreditCard, BarChart3, Users, Settings, Menu, X, LogOut } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/hooks/useAuth"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function AdminLayout({
   children,
@@ -15,24 +17,25 @@ export default function AdminLayout({
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const router = useRouter()
+  const { logout } = useAuth()
+  const { toast } = useToast()
 
   const handleLogout = async () => {
     try {
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+      toast({
+        title: "Cerrando sesión...",
+        description: "Por favor espera.",
+        variant: "default",
       })
-
-      if (response.ok) {
-        // Redirigir al login después del logout exitoso
-        router.push("/login")
-      } else {
-        console.error("Error al cerrar sesión")
-      }
+      await logout()
+      // No necesitamos redirección manual, el hook ya lo maneja
     } catch (error) {
-      console.error("Error al cerrar sesión:", error)
+      console.error("Error durante logout:", error)
+      toast({
+        title: "Error",
+        description: "Hubo un problema al cerrar sesión.",
+        variant: "destructive",
+      })
     }
   }
 

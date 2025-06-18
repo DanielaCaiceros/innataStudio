@@ -13,7 +13,7 @@ import { StripeCheckout } from "@/components/stripe-checkout"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { useRouter } from "next/navigation"
-import { BikeSelectionDialog } from "@/components/bike-selection-dialog"
+import { BikeSelectionInline } from "@/components/bike-selection-inline"
 import { 
   formatTimeFromDB, 
   isClassOnSelectedDate, 
@@ -81,7 +81,7 @@ export default function BookingPage() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [scheduledClassId, setScheduledClassId] = useState<number | null>(null)
   const [selectedBikeId, setSelectedBikeId] = useState<number | null>(null)
-  const [isBikeDialogOpen, setIsBikeDialogOpen] = useState(false)
+  const [isProcessingBooking, setIsProcessingBooking] = useState(false)
   
   // Estados para modales
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
@@ -92,7 +92,6 @@ export default function BookingPage() {
   const [availableClasses, setAvailableClasses] = useState<ScheduledClass[]>([])
   const [userAvailableClasses, setUserAvailableClasses] = useState<number>(0)
   const [isLoadingUserClasses, setIsLoadingUserClasses] = useState(false)
-  const [showBikeSelection, setShowBikeSelection] = useState(false)
   const [selectedScheduledClassForBooking, setSelectedScheduledClassForBooking] = useState<ScheduledClass | null>(null)
 
   // Obtener clases disponibles del usuario
@@ -228,51 +227,56 @@ export default function BookingPage() {
   }
 
   const handleConfirmBooking = async () => {
-    console.log("handleConfirmBooking called")
-    console.log("isUsingUnlimitedWeek:", isUsingUnlimitedWeek)
-    console.log("selectedBikeId:", selectedBikeId)
-    if (!selectedClass) {
-      console.log("No class selected, returning")
+    if (!selectedScheduledClassForBooking || !selectedBikeId) {
+      console.log('handleConfirmBooking: Faltan datos necesarios')
       return
     }
 
-    const classToBook = availableClasses.find(c => c.id === selectedClass)
-    if (!classToBook) {
-      console.log("Class not found in availableClasses, returning")
-      return
-    }
+    setIsProcessingBooking(true)
+    
+    try {
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scheduledClassId: selectedScheduledClassForBooking.id,
+          bikeId: selectedBikeId
+        })
+      })
 
-    setSelectedScheduledClassForBooking(classToBook)
-
-    // Check if user is authenticated first
-    if (!isAuthenticated) {
-      console.log("User not authenticated, showing auth modal")
-      setIsAuthModalOpen(true)
-      return
-    }
-
-    // 1. Handle Unlimited Week reservation first
-    if (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
-      console.log("Using Unlimited Week, showing confirmation")
-      setShowUnlimitedWeekConfirmation(true)
-      return
-    }
-
-    // 2. For regular bookings (package or payment), check if bike selection is needed
-    if (!selectedBikeId) {
-      console.log("No bike selected, showing bike selection dialog")
-      setShowBikeSelection(true)
-      return
-    }
-
-    // 3. If a bike is already selected, proceed with booking/payment decision
-    console.log("Bike already selected. User available classes:", userAvailableClasses)
-    if (userAvailableClasses > 0) {
-      console.log("User has available classes, proceeding with booking")
-      await proceedWithBooking()
-    } else {
-      console.log("User has no available classes, opening payment dialog")
-      setIsPaymentOpen(true)
+      if (response.ok) {
+        await loadAvailableClasses()
+        setIsConfirmationOpen(true)
+        
+        // Actualizar clases disponibles del usuario
+        if (isAuthenticated && user) {
+          try {
+            const packagesResponse = await fetch("/api/user/packages", {
+              method: "GET",
+              credentials: "include",
+            });
+            
+            if (packagesResponse.ok) {
+              const packages = await packagesResponse.json();
+              const totalClasses = packages.reduce((total: number, pkg: any) => total + pkg.classesRemaining, 0);
+              setUserAvailableClasses(totalClasses);
+            }
+          } catch (error) {
+            console.error("Error al actualizar clases disponibles del usuario:", error);
+          }
+        }
+        
+        // Limpiar estados
+        setSelectedScheduledClassForBooking(null)
+        setSelectedBikeId(null)
+      } else {
+        const errorData = await response.text()
+        console.error('Error al crear reserva:', errorData)
+      }
+    } catch (error) {
+      console.error('Error en la solicitud:', error)
+    } finally {
+      setIsProcessingBooking(false)
     }
   }
 
@@ -315,7 +319,6 @@ export default function BookingPage() {
         setSelectedBikeId(null)
         setUnlimitedWeekValidation(null)
         setShowUnlimitedWeekConfirmation(false)
-        setIsBikeDialogOpen(false)
         
         loadAvailableClasses()
         
@@ -336,27 +339,6 @@ export default function BookingPage() {
       })
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const handleBikeSelected = async (bikeId: number) => {
-    console.log("handleBikeSelected called with bikeId:", bikeId)
-    setSelectedBikeId(bikeId)
-    setShowBikeSelection(false) // Cerrar el diálogo de selección de bicicleta
-    
-    if (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
-      console.log("Using Unlimited Week, showing final confirmation with WhatsApp button")
-      setShowUnlimitedWeekConfirmation(true)
-      return
-    }
-
-    console.log("Bike selected. User available classes:", userAvailableClasses)
-    if (userAvailableClasses > 0) {
-      console.log("User has available classes, proceeding with booking from handleBikeSelected")
-      await proceedWithBooking()
-    } else {
-      console.log("User has no available classes, opening payment dialog from handleBikeSelected")
-      setIsPaymentOpen(true)
     }
   }
 
@@ -548,7 +530,7 @@ export default function BookingPage() {
       <section className="py-16 bg-white">
         <div className="container px-4 md:px-6">
           <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
@@ -855,23 +837,48 @@ export default function BookingPage() {
                               <Button
                                 className="w-full bg-brand-sage hover:bg-brand-sage text-white font-semibold py-3"
                                 disabled={
-                                  isLoading || 
+                                  isProcessingBooking || 
                                   !selectedClass || 
+                                  !selectedBikeId ||
                                   (isUsingUnlimitedWeek && !unlimitedWeekValidation?.canUseUnlimitedWeek) ||
                                   !isClassReservable(availableClasses.find(c => c.id === selectedClass))
                                 }
-                                onClick={handleConfirmBooking}
+                                onClick={() => {
+                                  if (!isAuthenticated) {
+                                    setIsAuthModalOpen(true)
+                                    return
+                                  }
+                                  
+                                  const classToBook = availableClasses.find(c => c.id === selectedClass)
+                                  if (classToBook) {
+                                    setSelectedScheduledClassForBooking(classToBook)
+                                    
+                                    if (userAvailableClasses > 0 || (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek)) {
+                                      handleConfirmBooking()
+                                    } else {
+                                      setIsPaymentOpen(true)
+                                    }
+                                  }
+                                }}
                               >
                                 <span className="flex items-center gap-1">
-                                  {!isAuthenticated 
-                                    ? "INICIAR SESIÓN PARA RESERVAR"
-                                    : isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek
-                                    ? "RESERVAR CON SEMANA ILIMITADA"
-                                    : isAuthenticated && userAvailableClasses > 0 
-                                    ? "USAR PAQUETE - RESERVAR" 
-                                    : "CONFIRMAR RESERVA"
-                                  } 
-                                  <ChevronRight className="h-4 w-4" />
+                                  {isProcessingBooking ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                      PROCESANDO...
+                                    </>
+                                  ) : !isAuthenticated ? (
+                                    "INICIAR SESIÓN PARA RESERVAR"
+                                  ) : !selectedBikeId ? (
+                                    "SELECCIONA BICICLETA PRIMERO"
+                                  ) : isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek ? (
+                                    "RESERVAR CON SEMANA ILIMITADA"
+                                  ) : isAuthenticated && userAvailableClasses > 0 ? (
+                                    "USAR PAQUETE - RESERVAR" 
+                                  ) : (
+                                    "CONFIRMAR RESERVA"
+                                  )} 
+                                  {!isProcessingBooking && <ChevronRight className="h-4 w-4" />}
                                 </span>
                               </Button>
 
@@ -888,6 +895,28 @@ export default function BookingPage() {
                     ) : (
                       <div className="text-center py-8 text-gray-500">
                         Selecciona un horario para ver las clases disponibles
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
+                <CardContent className="p-0">
+                  <div className="p-6 border-b border-gray-100 flex items-center">
+                    <Bike className="mr-2 h-5 w-5 text-brand-burgundy" />
+                    <h3 className="text-xl font-bold text-brand-burgundy-dark">Selecciona Bicicleta</h3>
+                  </div>
+                  <div className="p-4">
+                    {selectedClass ? (
+                      <BikeSelectionInline
+                        scheduledClassId={selectedClass}
+                        selectedBikeId={selectedBikeId}
+                        onBikeSelected={setSelectedBikeId}
+                      />
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        Selecciona una clase para ver las bicicletas disponibles
                       </div>
                     )}
                   </div>
@@ -993,17 +1022,41 @@ export default function BookingPage() {
 
                 <Button
                   className="w-full mt-6 bg-brand-mint hover:bg-brand-mint/90 font-bold text-lg py-6 rounded-full text-white"
-                  disabled={!date || !selectedClass || !selectedTime || !isClassReservable(availableClasses.find(c => c.id === selectedClass))}
-                  onClick={handleConfirmBooking}
+                  disabled={!date || !selectedClass || !selectedTime || !selectedBikeId || isProcessingBooking || !isClassReservable(availableClasses.find(c => c.id === selectedClass))}
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      setIsAuthModalOpen(true)
+                      return
+                    }
+                    
+                    const classToBook = availableClasses.find(c => c.id === selectedClass)
+                    if (classToBook) {
+                      setSelectedScheduledClassForBooking(classToBook)
+                      
+                      if (userAvailableClasses > 0 || (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek)) {
+                        handleConfirmBooking()
+                      } else {
+                        setIsPaymentOpen(true)
+                      }
+                    }
+                  }}
                 >
                   <span className="flex items-center gap-1">
-                    {!isAuthenticated 
-                      ? "INICIAR SESIÓN PARA RESERVAR"
-                      : isAuthenticated && userAvailableClasses > 0 
-                      ? "USAR PAQUETE - RESERVAR" 
-                      : "CONFIRMAR RESERVA"
-                    } 
-                    <ChevronRight className="h-4 w-4" />
+                    {isProcessingBooking ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        PROCESANDO...
+                      </>
+                    ) : !isAuthenticated ? (
+                      "INICIAR SESIÓN PARA RESERVAR"
+                    ) : !selectedBikeId ? (
+                      "SELECCIONA BICICLETA PRIMERO"
+                    ) : isAuthenticated && userAvailableClasses > 0 ? (
+                      "USAR PAQUETE - RESERVAR" 
+                    ) : (
+                      "CONFIRMAR RESERVA"
+                    )} 
+                    {!isProcessingBooking && <ChevronRight className="h-4 w-4" />}
                   </span>
                 </Button>
               </CardContent>
@@ -1177,17 +1230,6 @@ export default function BookingPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Bike Selection Dialog */}
-      <BikeSelectionDialog
-        open={showBikeSelection}
-        onOpenChange={setShowBikeSelection}
-        selectedBikeId={selectedBikeId}
-        onBikeSelected={setSelectedBikeId}
-        onConfirm={() => handleBikeSelected(selectedBikeId || 0)}
-        scheduledClassId={scheduledClassId || 0}
-        
-      />
-
       {/* Dialog de confirmación de Semana Ilimitada */}
       <Dialog open={showUnlimitedWeekConfirmation} onOpenChange={setShowUnlimitedWeekConfirmation}>
         <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-md">
@@ -1199,10 +1241,15 @@ export default function BookingPage() {
               graceTimeHours={12}
               onConfirm={() => {
                 setShowUnlimitedWeekConfirmation(false)
-                if (!selectedBikeId) {
-                  setShowBikeSelection(true)
-                } else {
+                if (selectedBikeId) {
                   proceedWithBooking()
+                } else {
+                  // Si no hay bicicleta seleccionada, mostrar un mensaje
+                  toast({
+                    title: "Selecciona una bicicleta",
+                    description: "Por favor, selecciona una bicicleta antes de confirmar la reserva.",
+                    variant: "destructive",
+                  })
                 }
               }}
               onCancel={() => {

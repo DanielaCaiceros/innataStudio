@@ -6,7 +6,18 @@ export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies();
     
-    // Eliminar la cookie de autenticación
+    // Eliminar la cookie de autenticación de manera más completa
+    cookieStore.set({
+      name: 'auth_token',
+      value: '',
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 0, // Expira inmediatamente
+    });
+    
+    // También intentar eliminar con delete por compatibilidad
     cookieStore.delete({
       name: 'auth_token',
       path: '/',
