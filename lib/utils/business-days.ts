@@ -1,4 +1,5 @@
 // lib/utils/business-days.ts
+import { startOfWeek, addDays, startOfDay, isEqual } from 'date-fns';
 
 /**
  * Utilidades para cálculos de días hábiles
@@ -65,80 +66,133 @@ export function isBusinessDay(date: Date): boolean {
    * @param purchaseDate - Fecha de compra
    * @returns Fecha de expiración (final del último día hábil)
    */
-  export function getUnlimitedWeekExpiryDate(purchaseDate: Date = new Date()): Date {
-    // Si la compra es en fin de semana, empezar desde el lunes siguiente
-    const startDate = new Date(purchaseDate)
-    
-    // Si es sábado (6) o domingo (0), mover al lunes siguiente
-    if (startDate.getDay() === 0) { // Domingo
-      startDate.setDate(startDate.getDate() + 1) // Mover a lunes
-    } else if (startDate.getDay() === 6) { // Sábado
-      startDate.setDate(startDate.getDate() + 2) // Mover a lunes
+  export function getUnlimitedWeekExpiryDate(baseDate: Date, selectedStartDate?: Date | null): Date {
+    let expiry: Date;
+
+    if (selectedStartDate) {
+      // selectedStartDate is expected to be a Monday
+      const startDateNormalized = startOfDay(new Date(selectedStartDate));
+      expiry = addDays(startDateNormalized, 4); // Monday + 4 days = Friday
+    } else {
+      // Fallback logic: Expiry is Friday of the week of purchase (or next week if purchased on weekend)
+      const purchaseD = startOfDay(new Date(baseDate));
+      let effectiveMonday: Date;
+      const dayOfWeek = purchaseD.getDay(); // Sunday = 0, Monday = 1, ..., Saturday = 6
+
+      if (dayOfWeek === 0) { // Sunday
+        effectiveMonday = addDays(purchaseD, 1);
+      } else if (dayOfWeek === 6) { // Saturday
+        effectiveMonday = addDays(purchaseD, 2);
+      } else {
+        // If Mon-Fri, use the Monday of that week
+        effectiveMonday = startOfWeek(purchaseD, { weekStartsOn: 1 });
+      }
+      expiry = addDays(effectiveMonday, 4); // Friday
     }
-    
-    // Agregar 5 días hábiles desde la fecha de inicio
-    const expiryDate = addBusinessDays(startDate, 5)
-    
-    // Establecer al final del día (23:59:59)
-    expiryDate.setHours(23, 59, 59, 999)
-    
-    return expiryDate
+
+    expiry.setHours(23, 59, 59, 999); // Set to end of day
+    return expiry;
   }
   
   /**
    * Verifica si un paquete Semana Ilimitada está vigente
-   * @param purchaseDate - Fecha de compra del paquete
+   * @param baseDate - Fecha de compra del paquete (o base para cálculo sin selectedStartDate)
    * @param currentDate - Fecha actual (por defecto: ahora)
+   * @param selectedStartDate - Fecha de inicio seleccionada (Lunes)
    * @returns true si el paquete está vigente
    */
-  export function isUnlimitedWeekValid(purchaseDate: Date, currentDate: Date = new Date()): boolean {
-    const expiryDate = getUnlimitedWeekExpiryDate(purchaseDate)
-    return currentDate <= expiryDate
+  export function isUnlimitedWeekValid(baseDate: Date, currentDate: Date = new Date(), selectedStartDate?: Date | null): boolean {
+    const normalizedCurrentDate = startOfDay(new Date(currentDate));
+    const expiryDate = getUnlimitedWeekExpiryDate(baseDate, selectedStartDate);
+
+    let actualStartDate: Date;
+    if (selectedStartDate) {
+      actualStartDate = startOfDay(new Date(selectedStartDate));
+    } else {
+      // Fallback: determine effective start Monday based on baseDate (purchase date)
+      const purchaseD = startOfDay(new Date(baseDate));
+      const dayOfWeek = purchaseD.getDay();
+      if (dayOfWeek === 0) { actualStartDate = addDays(purchaseD, 1); }
+      else if (dayOfWeek === 6) { actualStartDate = addDays(purchaseD, 2); }
+      else { actualStartDate = startOfWeek(purchaseD, { weekStartsOn: 1 }); }
+    }
+    return normalizedCurrentDate >= actualStartDate && normalizedCurrentDate <= expiryDate;
   }
   
   /**
    * Obtiene información detallada sobre la vigencia del paquete
-   * @param purchaseDate - Fecha de compra
+   * @param baseDate - Fecha de compra (o base para cálculo sin selectedStartDate)
    * @param currentDate - Fecha actual (por defecto: ahora)
+   * @param selectedStartDate - Fecha de inicio seleccionada (Lunes)
    */
-  export function getUnlimitedWeekValidityInfo(purchaseDate: Date, currentDate: Date = new Date()) {
-    const expiryDate = getUnlimitedWeekExpiryDate(purchaseDate)
-    const isValid = currentDate <= expiryDate
+  export function getUnlimitedWeekValidityInfo(baseDate: Date, currentDate: Date = new Date(), selectedStartDate?: Date | null) {
+    const normalizedCurrentDate = startOfDay(new Date(currentDate));
+    const expiryDate = getUnlimitedWeekExpiryDate(baseDate, selectedStartDate);
     
-    // Calcular días hábiles restantes
-    let businessDaysRemaining = 0
+    let actualStartDate: Date;
+    if (selectedStartDate) {
+      actualStartDate = startOfDay(new Date(selectedStartDate));
+    } else {
+      const purchaseD = startOfDay(new Date(baseDate));
+      const dayOfWeek = purchaseD.getDay();
+      if (dayOfWeek === 0) { actualStartDate = addDays(purchaseD, 1); }
+      else if (dayOfWeek === 6) { actualStartDate = addDays(purchaseD, 2); }
+      else { actualStartDate = startOfWeek(purchaseD, { weekStartsOn: 1 }); }
+    }
+
+    const isValid = normalizedCurrentDate >= actualStartDate && normalizedCurrentDate <= expiryDate;
+    
+    let businessDaysRemaining = 0;
     if (isValid) {
-      businessDaysRemaining = countBusinessDays(currentDate, expiryDate)
+      // If current date is before actual start, count all days from actual start. Otherwise, from current.
+      const countFrom = normalizedCurrentDate < actualStartDate ? actualStartDate : normalizedCurrentDate;
+      businessDaysRemaining = countBusinessDays(countFrom, expiryDate);
+    } else if (normalizedCurrentDate < actualStartDate) {
+      // Package hasn't started yet, show total days it will have
+      businessDaysRemaining = countBusinessDays(actualStartDate, expiryDate);
     }
     
+    // Total business days for a standard week (Mon-Fri) is 5
+    // If selectedStartDate is used, the package is always for 1 week (Mon-Fri).
+    // If fallback is used, it's also for 1 week (Mon-Fri of purchase/next week).
+    const totalBusinessDays = 5; 
+
     return {
       isValid,
+      startDate: actualStartDate, // Added for clarity
       expiryDate,
       businessDaysRemaining,
-      totalBusinessDays: 5,
-      businessDaysUsed: Math.max(0, 5 - businessDaysRemaining)
-    }
+      totalBusinessDays, // This is always 5 for a weekly package
+      businessDaysUsed: Math.max(0, totalBusinessDays - businessDaysRemaining)
+    };
   }
   
   /**
    * Formatea un mensaje legible sobre la vigencia del paquete
-   * @param purchaseDate - Fecha de compra
+   * @param baseDate - Fecha de compra (o base para cálculo sin selectedStartDate)
    * @param currentDate - Fecha actual (por defecto: ahora)
+   * @param selectedStartDate - Fecha de inicio seleccionada (Lunes)
    */
-  export function formatUnlimitedWeekValidity(purchaseDate: Date, currentDate: Date = new Date()): string {
-    const info = getUnlimitedWeekValidityInfo(purchaseDate, currentDate)
+  export function formatUnlimitedWeekValidity(baseDate: Date, currentDate: Date = new Date(), selectedStartDate?: Date | null): string {
+    const info = getUnlimitedWeekValidityInfo(baseDate, currentDate, selectedStartDate);
     
-    if (!info.isValid) {
-      return `Paquete expirado el ${info.expiryDate.toLocaleDateString('es-ES')}`
+    const currentDayStart = startOfDay(new Date(currentDate));
+    if (currentDayStart < info.startDate && !info.isValid) { // Not yet active
+        return `Paquete inicia el ${info.startDate.toLocaleDateString('es-ES')} y expira el ${info.expiryDate.toLocaleDateString('es-ES')}. Días hábiles: ${info.businessDaysRemaining}/${info.totalBusinessDays}.`;
     }
     
-    if (info.businessDaysRemaining === 0) {
-      return `Último día hábil - expira hoy`
+    if (!info.isValid) { // Expired
+      return `Paquete expiró el ${info.expiryDate.toLocaleDateString('es-ES')}`;
     }
     
-    if (info.businessDaysRemaining === 1) {
-      return `1 día hábil restante`
+    // Special handling for today if it's the expiryDate
+    if (isEqual(startOfDay(info.expiryDate), startOfDay(currentDate))) {
+         if (info.businessDaysRemaining > 0) { // Should be 1 if it's the last day and still valid
+            return `Último día hábil - expira hoy. Días restantes: ${info.businessDaysRemaining}/${info.totalBusinessDays}.`;
+         } else { // Should not happen if isValid is true and on expiry date
+            return `Paquete expira hoy. Días restantes: ${info.businessDaysRemaining}/${info.totalBusinessDays}.`;
+         }
     }
-    
-    return `${info.businessDaysRemaining} días hábiles restantes`
+        
+    return `Paquete válido hasta ${info.expiryDate.toLocaleDateString('es-ES')}. Días hábiles restantes: ${info.businessDaysRemaining}/${info.totalBusinessDays}.`;
   }

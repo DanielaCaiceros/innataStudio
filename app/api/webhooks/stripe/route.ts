@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import { PrismaClient } from '@prisma/client'
+import { parseISO, startOfWeek, addDays, startOfDay } from 'date-fns'; // Added date-fns
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-05-28.basil',
@@ -9,6 +10,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 const prisma = new PrismaClient()
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!
+const UNLIMITED_WEEK_PACKAGE_ID = 3; // Define package ID
 
 export async function POST(request: NextRequest) {
   try {
@@ -142,29 +144,57 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
         })
 
         if (packageData) {
-          // Determinar fecha de expiración según el tipo de paquete
-          let expirationDate = new Date()
-          
-          if (packageData.name.toLowerCase().includes('semana ilimitada')) {
-            // Para semana ilimitada: usar validityDays (que debería ser configurado para días hábiles)
-            expirationDate.setDate(expirationDate.getDate() + packageData.validityDays)
+          let userPackageData: any = { // Use 'any' for flexibility, or define a proper type
+            userId: userId,
+            packageId: packageId,
+            purchaseDate: new Date(),
+            classesRemaining: packageData.classCount,
+            isActive: true,
+            paymentStatus: 'paid',
+            paymentMethod: 'stripe',
+            // selectedStartDate and expiryDate will be set conditionally
+          };
+
+          if (Number(packageId) === UNLIMITED_WEEK_PACKAGE_ID && metadata.selectedStartDate && typeof metadata.selectedStartDate === 'string') {
+            try {
+              const parsedSelectedStartDate = parseISO(metadata.selectedStartDate);
+              
+              // Ensure selectedStartDate is stored as date only, at start of day UTC
+              userPackageData.selectedStartDate = startOfDay(parsedSelectedStartDate);
+
+              // Calculate expiryDate: Friday of the week of parsedSelectedStartDate
+              const mondayOfSelectedWeek = startOfWeek(parsedSelectedStartDate, { weekStartsOn: 1 });
+              const fridayOfSelectedWeek = addDays(mondayOfSelectedWeek, 4);
+              // Set expiry to end of day on that Friday
+              fridayOfSelectedWeek.setUTCHours(23, 59, 59, 999); // Use UTC hours for consistency
+              userPackageData.expiryDate = fridayOfSelectedWeek;
+              
+              console.log(`🗓️ Semana Ilimitada: selectedStartDate=${metadata.selectedStartDate}, purchaseDate=${userPackageData.purchaseDate.toISOString()}, expiryDate=${userPackageData.expiryDate.toISOString()}`);
+
+            } catch (dateError) {
+              console.error(`❌ Error parsing selectedStartDate '${metadata.selectedStartDate}' for Semana Ilimitada:`, dateError);
+              // Fallback to default validity if date parsing fails, and log critical error
+              // This case should ideally not happen if create-payment-intent validates correctly.
+              let fallbackExpiry = new Date();
+              fallbackExpiry.setDate(fallbackExpiry.getDate() + packageData.validityDays);
+              userPackageData.expiryDate = fallbackExpiry;
+              // Do not set userPackageData.selectedStartDate if parsing failed
+              console.error(`CRITICAL: Semana Ilimitada (packageId ${packageId}) purchased without valid selectedStartDate in metadata. Falling back to default validity. PaymentIntent ID: ${paymentIntent.id}`);
+            }
+          } else if (Number(packageId) === UNLIMITED_WEEK_PACKAGE_ID && !metadata.selectedStartDate) {
+            // This is an error condition: Semana Ilimitada MUST have a selectedStartDate.
+            console.error(`CRITICAL: Semana Ilimitada (packageId ${packageId}) purchased without selectedStartDate in metadata. PaymentIntent ID: ${paymentIntent.id}. Using default validity as fallback.`);
+            let fallbackExpiry = new Date();
+            fallbackExpiry.setDate(fallbackExpiry.getDate() + packageData.validityDays); // Default validity
+            userPackageData.expiryDate = fallbackExpiry;
           } else {
-            // Para otros paquetes: usar validityDays del paquete (30 días)
-            expirationDate.setDate(expirationDate.getDate() + packageData.validityDays)
+            // Existing logic for other packages or if conditions for Semana Ilimitada are not met
+            let expirationDate = new Date();
+            expirationDate.setDate(expirationDate.getDate() + packageData.validityDays);
+            userPackageData.expiryDate = expirationDate;
           }
 
-          const userPackage = await prisma.userPackage.create({
-            data: {
-              userId: userId,
-              packageId: packageId,
-              purchaseDate: new Date(),
-              expiryDate: expirationDate,
-              classesRemaining: packageData.classCount,
-              isActive: true,
-              paymentStatus: 'paid',
-              paymentMethod: 'stripe'
-            }
-          })
+          const userPackage = await prisma.userPackage.create({ data: userPackageData });
 
           // Actualizar el pago con la referencia al paquete
           await prisma.payment.update({

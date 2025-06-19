@@ -45,7 +45,7 @@ export async function POST(
     }
 
     // Status check for original reservation
-    if (originalReservation.status !== "confirmed") {
+    if (originalReservation.status !== 'confirmed') {
       return NextResponse.json(
         { error: `La reservación original ya ha sido procesada (estado: ${originalReservation.status}). No se puede aplicar penalización.` },
         { status: 400 }
@@ -70,7 +70,7 @@ export async function POST(
     const nextReservation = await prisma.reservation.findFirst({
       where: {
         userId: userId,
-        status: "confirmed",
+        status: 'confirmed',
         scheduledClass: {
           // Ensure the class date/time is after the original missed class
           OR: [ // Handles cases where next class is on same day but later time, or on a future day
@@ -103,7 +103,7 @@ export async function POST(
       await prisma.reservation.update({
         where: { id: originalReservationId },
         data: {
-          status: "cancelled",
+          status: 'cancelled', // Or a specific NO_SHOW status if enum allows
           cancellationReason: "No Show - Sin clases futuras para penalización.",
           cancelledAt: new Date(),
         },
@@ -124,7 +124,7 @@ export async function POST(
       await tx.reservation.update({
         where: { id: originalReservationId },
         data: {
-          status: "cancelled",
+          status: 'cancelled', // Or a specific NO_SHOW status
           cancellationReason: `No Show - Penalización aplicada a clase del ${nextClassDateFormatted}.`,
           cancelledAt: new Date(),
         },
@@ -134,7 +134,7 @@ export async function POST(
       await tx.reservation.update({
         where: { id: nextReservation.id },
         data: {
-          status: "cancelled",
+          status: 'cancelled',
           cancelledAt: new Date(),
           cancellationReason: `Penalización por no asistir a clase anterior del ${originalClassDateFormatted}.`,
         },
@@ -169,8 +169,8 @@ export async function POST(
       { 
         success: true,
         message: `Penalización aplicada: Reservación original (${originalReservationId}) marcada como No Show. Siguiente reservación (${nextReservation.id}) cancelada.`,
-        originalReservation: { id: originalReservationId, status: "cancelled" },
-        penalizedReservation: { id: nextReservation.id, status: "cancelled" }
+        originalReservation: { id: originalReservationId, status: 'cancelled' },
+        penalizedReservation: { id: nextReservation.id, status: 'cancelled' }
       },
       { status: 200 }
     );
