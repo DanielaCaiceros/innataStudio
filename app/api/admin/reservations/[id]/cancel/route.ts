@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { verifyToken } from "@/lib/jwt";
 
 const prisma = new PrismaClient();
+const UNLIMITED_WEEK_PACKAGE_ID = 3; // ID del paquete "Semana Ilimitada"
 
 // POST - Cancelar una reservación
 export async function POST(
@@ -70,10 +71,16 @@ export async function POST(
         }
       });
 
-      // 3. Si la reservación usó un paquete de clases, devolver la clase al balance
-      if (reservation.userPackageId) {
+      // 3. Lógica de Reembolso Condicional
+      let performRefund = false;
+      if (reservation.userPackageId && reservation.userPackage?.packageId !== UNLIMITED_WEEK_PACKAGE_ID) {
+        performRefund = true;
+      }
+
+      if (performRefund) {
+        // Si es un paquete y NO es Semana Ilimitada, proceder con el reembolso
         await prisma.userPackage.update({
-          where: { id: reservation.userPackageId },
+          where: { id: reservation.userPackageId! }, // userPackageId es !null aquí
           data: {
             classesRemaining: {
               increment: 1
@@ -85,17 +92,30 @@ export async function POST(
         });
 
         // 4. Actualizar el balance de clases del usuario
-        await prisma.userAccountBalance.update({
+        // Asegurarse que userAccountBalance exista o manejar el caso
+        const userAccountBalance = await prisma.userAccountBalance.findUnique({
           where: { userId: reservation.userId },
-          data: {
-            classesAvailable: {
-              increment: 1
-            },
-            classesUsed: {
-              decrement: 1
-            }
-          }
         });
+
+        if (userAccountBalance) {
+          await prisma.userAccountBalance.update({
+            where: { userId: reservation.userId },
+            data: {
+              classesAvailable: {
+                increment: 1
+              },
+              classesUsed: {
+                decrement: 1
+              }
+            }
+          });
+        } else {
+          // Opcional: Crear el UserAccountBalance si no existe y se espera que exista
+          // Para este caso, si no existe, simplemente no se puede actualizar.
+          // Podría ser un log o un manejo de error específico si es un estado inesperado.
+          console.warn(`UserAccountBalance no encontrado para userId: ${reservation.userId} durante el reembolso.`);
+        }
+        
 
         // 5. Registrar la transacción en el balance del usuario
         await prisma.balanceTransaction.create({
@@ -103,12 +123,14 @@ export async function POST(
             userId: reservation.userId,
             type: "refund",
             amount: 1, // Representa una clase devuelta
-            description: `Reembolso por cancelación: ${reason}`,
+            description: `Reembolso por cancelación administrativa: ${reason}`,
             relatedReservationId: reservationId,
-            createdBy: parseInt(payload.userId)
+            createdBy: parseInt(payload.userId) // payload.userId es string, convertir a int
           }
         });
       }
+      // Si es Semana Ilimitada (UNLIMITED_WEEK_PACKAGE_ID), no se hace reembolso de clase.
+      // Si no usó paquete (reservation.userPackageId es null), tampoco se hace reembolso de paquete.
 
       // 6. Notificar al usuario
       await prisma.notifications.create({
@@ -116,10 +138,10 @@ export async function POST(
           user_id: reservation.userId,
           type: "reservation_cancelled",
           title: "Reservación cancelada",
-          message: `Tu reservación ha sido cancelada. Motivo: ${reason}`,
+          message: `Tu reservación ha sido cancelada por un administrador. Motivo: ${reason}`,
           data: {
             reservationId: reservationId,
-            refunded: reservation.userPackageId ? true : false
+            refunded: performRefund // Usar la variable para reflejar si el reembolso ocurrió
           }
         }
       });

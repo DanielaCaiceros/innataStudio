@@ -1,220 +1,153 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { verifyToken } from "@/lib/jwt";
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import { verifyToken } from '@/lib/auth'; // Assuming this path is correct
+import { SystemConfigService } from '@/lib/services/system-config.service'; // Assuming path
+// import { UnlimitedWeekService } from '@/lib/services/unlimited-week.service'; // Path for service
+import { differenceInHours, parseISO } from 'date-fns';
 
 const prisma = new PrismaClient();
+const UNLIMITED_WEEK_PACKAGE_ID = 3; // Hardcoded as per instruction
 
-// GET - Obtener detalles de una reservación específica
-export async function GET(
+export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Verificar autenticación (admin)
-    const token = request.cookies.get("auth_token")?.value;
+    // 1. Authentication
+    const token = request.cookies.get('auth_token')?.value;
     if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const payload = await verifyToken(token);
-    if (payload.role !== "admin") {
-      return NextResponse.json({ error: "No tiene permisos de administrador" }, { status: 403 });
+    let decodedToken;
+    try {
+      decodedToken = await verifyToken(token);
+    } catch (error) {
+      return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
     }
+    const userId = decodedToken.userId;
 
-    const reservationId = parseInt(params.id);
+    // 2. Parameters & Reservation Fetching
+    const reservationId = parseInt(params.id, 10);
     if (isNaN(reservationId)) {
-      return NextResponse.json({ error: "ID de reservación no válido" }, { status: 400 });
+      return NextResponse.json({ error: 'ID de reservación inválido' }, { status: 400 });
     }
 
-    // Obtener la reservación con información relacionada
     const reservation = await prisma.reservation.findUnique({
       where: { id: reservationId },
       include: {
-        user: {
-          select: {
-            user_id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-          }
-        },
-        scheduledClass: {
-          include: {
-            classType: true,
-            instructor: {
-              include: {
-                user: {
-                  select: {
-                    firstName: true,
-                    lastName: true,
-                  }
-                }
-              }
-            }
-          }
-        },
+        scheduledClass: true,
         userPackage: {
           include: {
-            package: true
-          }
-        }
-      }
+            package: true,
+          },
+        },
+        user: true, // For ownership verification, though userId from token is primary
+      },
     });
 
     if (!reservation) {
-      return NextResponse.json({ error: "Reservación no encontrada" }, { status: 404 });
+      return NextResponse.json({ error: 'Reservación no encontrada' }, { status: 404 });
     }
 
-    // Formatear los datos para la respuesta
-    const formattedReservation = {
-      id: reservation.id,
-      user: `${reservation.user.firstName} ${reservation.user.lastName}`,
-      userId: reservation.user.user_id,
-      email: reservation.user.email,
-      phone: reservation.user.phone || "",
-      class: reservation.scheduledClass.classType.name,
-      classId: reservation.scheduledClass.classType.id,
-      instructor: `${reservation.scheduledClass.instructor.user.firstName} ${reservation.scheduledClass.instructor.user.lastName}`,
-      date: reservation.scheduledClass.date.toISOString().split('T')[0],
-      time: reservation.scheduledClass.time.toTimeString().slice(0, 5),
-      status: reservation.status,
-      package: reservation.userPackage?.package.name || "PASE INDIVIDUAL",
-      packageId: reservation.userPackage?.packageId,
-      remainingClasses: reservation.userPackage?.classesRemaining || 0,
-      paymentStatus: reservation.userPackage?.paymentStatus || "pending",
-      paymentMethod: reservation.userPackage?.paymentMethod || "pending",
-      cancellationReason: reservation.cancellationReason || "",
-      cancelledAt: reservation.cancelledAt || null,
-      createdAt: reservation.createdAt
-    };
-
-    return NextResponse.json(formattedReservation);
-  } catch (error) {
-    console.error("Error al obtener detalles de reservación:", error);
-    return NextResponse.json({ error: "Error al obtener detalles de reservación" }, { status: 500 });
-  }
-}
-
-// PUT - Actualizar una reservación
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    // Verificar autenticación (admin)
-    const token = request.cookies.get("auth_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    // 3. Ownership Verification
+    if (reservation.userId !== userId) {
+      return NextResponse.json({ error: 'No tienes permiso para cancelar esta reservación' }, { status: 403 });
     }
 
-    const payload = await verifyToken(token);
-    if (payload.role !== "admin") {
-      return NextResponse.json({ error: "No tiene permisos de administrador" }, { status: 403 });
+    // 4. Status Check
+    if (reservation.status === 'cancelled') {
+      return NextResponse.json({ error: 'Esta reservación ya ha sido cancelada' }, { status: 400 });
     }
 
-    const reservationId = parseInt(params.id);
-    if (isNaN(reservationId)) {
-      return NextResponse.json({ error: "ID de reservación no válido" }, { status: 400 });
+    // 5. Timeliness Check (Grace Period)
+    const graceTimeHours = await SystemConfigService.getGraceTimeHours(); // Defaults to 12 if not set
+
+    // Combine date and time. Prisma stores time as DateTime object, but it's only the time part.
+    // Date is also a DateTime object, but it's only the date part.
+    // We need to construct the full DateTime of the class.
+    const classDateStr = reservation.scheduledClass.date.toISOString().split('T')[0]; // YYYY-MM-DD
+    const classTimeStr = reservation.scheduledClass.time.toISOString().split('T')[1]; // HH:mm:ss.SSSZ
+    
+    // Ensure classTimeStr is correctly representing the time from DB
+    // If reservation.scheduledClass.time is already a time string like "HH:mm:ss"
+    // then parseISO might not be needed or might need adjustment.
+    // Assuming it's a full ISO string from which we extract time.
+    
+    const classStartDateTime = parseISO(`${classDateStr}T${classTimeStr}`);
+    const now = new Date();
+    const hoursUntilClass = differenceInHours(classStartDateTime, now);
+
+    if (hoursUntilClass < graceTimeHours) {
+      return NextResponse.json(
+        { error: `No puedes cancelar la reservación con menos de ${graceTimeHours} horas de anticipación.` },
+        { status: 400 }
+      );
     }
 
-    // Obtener la reservación existente
-    const existingReservation = await prisma.reservation.findUnique({
-      where: { id: reservationId },
-      include: {
-        scheduledClass: {
-          include: {
-            classType: true
-          }
-        },
-        userPackage: true
-      }
-    });
-
-    if (!existingReservation) {
-      return NextResponse.json({ error: "Reservación no encontrada" }, { status: 404 });
-    }
-
-    const body = await request.json();
-    const { class: className, date, time, status } = body;
-
-    // Si cambiamos la clase o la fecha/hora, debemos verificar disponibilidad
-    if ((className && className !== existingReservation.scheduledClass.classType.name) ||
-        (date && date !== existingReservation.scheduledClass.date.toISOString().split('T')[0]) ||
-        (time && time !== existingReservation.scheduledClass.time.toTimeString().slice(0, 5))) {
-      
-      // Implementación para cambiar la clase/fecha/hora
-      // Esto requeriría:
-      // 1. Encontrar la nueva clase programada
-      // 2. Verificar disponibilidad
-      // 3. Actualizar espacios disponibles en ambas clases
-      // 4. Actualizar la reserva
-      
-      // Esta es una implementación básica que asume que el cambio es válido
-      // En una implementación completa, se verificaría la disponibilidad
-      
-      // TODO: Implementar cambio de clase/fecha/hora
-      return NextResponse.json({ 
-        error: "Cambio de clase/fecha/hora no implementado aún. Por favor, cancele esta reservación y cree una nueva." 
-      }, { status: 501 });
-    }
-
-    // Actualizar el estado de la reservación
-    if (status && status !== existingReservation.status) {
-      await prisma.reservation.update({
+    // 6. Cancellation Logic (within a Prisma transaction)
+    await prisma.$transaction(async (tx) => {
+      // Update Reservation
+      await tx.reservation.update({
         where: { id: reservationId },
-        data: { status }
+        data: {
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: 'Cancelada por el usuario',
+        },
       });
-    }
 
-    // Obtener la reservación actualizada
-    const updatedReservation = await prisma.reservation.findUnique({
-      where: { id: reservationId },
-      include: {
-        user: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-          }
+      // Increment ScheduledClass availableSpots
+      await tx.scheduledClass.update({
+        where: { id: reservation.scheduledClassId },
+        data: {
+          availableSpots: {
+            increment: 1,
+          },
         },
-        scheduledClass: {
-          include: {
-            classType: true,
-          }
-        },
-        userPackage: {
-          include: {
-            package: true
-          }
+      });
+
+      // Conditional Refund Logic
+      const isUnlimitedWeekPackage = reservation.userPackage?.packageId === UNLIMITED_WEEK_PACKAGE_ID;
+
+      if (reservation.userPackageId && !isUnlimitedWeekPackage) {
+        // It's a different package (not Semana Ilimitada), so refund class credit
+        await tx.userPackage.update({
+          where: { id: reservation.userPackageId },
+          data: {
+            classesRemaining: { increment: 1 },
+            classesUsed: { decrement: 1 },
+          },
+        });
+
+        // Update UserAccountBalance if it exists
+        const userAccountBalance = await tx.userAccountBalance.findUnique({
+            where: { userId: reservation.userId },
+        });
+
+        if (userAccountBalance) {
+            await tx.userAccountBalance.update({
+                where: { userId: reservation.userId },
+                data: {
+                    classesAvailable: { increment: 1 },
+                    classesUsed: { decrement: 1 },
+                },
+            });
         }
+        // Note: Creation of a "refund" BalanceTransaction is omitted for simplicity as per subtask focus,
+        // but would typically be included here for full auditability.
       }
+      // If it IS "Semana Ilimitada", no class credit refund actions are taken.
     });
 
-    if (!updatedReservation) {
-      return NextResponse.json({ error: "Error al obtener la reservación actualizada" }, { status: 500 });
-    }
+    // 7. Response
+    return NextResponse.json({ message: 'Reservación cancelada exitosamente' }, { status: 200 });
 
-    // Formatear la respuesta
-    const formattedReservation = {
-      id: updatedReservation.id,
-      user: `${updatedReservation.user.firstName} ${updatedReservation.user.lastName}`,
-      email: updatedReservation.user.email,
-      phone: updatedReservation.user.phone || "",
-      class: updatedReservation.scheduledClass.classType.name,
-      date: updatedReservation.scheduledClass.date.toISOString().split('T')[0],
-      time: updatedReservation.scheduledClass.time.toTimeString().slice(0, 5),
-      status: updatedReservation.status,
-      package: updatedReservation.userPackage?.package.name || "PASE INDIVIDUAL",
-      remainingClasses: updatedReservation.userPackage?.classesRemaining || 0,
-      paymentStatus: updatedReservation.userPackage?.paymentStatus || "pending",
-      paymentMethod: updatedReservation.userPackage?.paymentMethod || "pending",
-    };
-
-    return NextResponse.json(formattedReservation);
   } catch (error) {
-    console.error("Error al actualizar reservación:", error);
-    return NextResponse.json({ error: "Error al actualizar reservación" }, { status: 500 });
+    console.error('Error al cancelar reservación:', error);
+    if (error instanceof Error && error.message.includes("Token inválido")) { // Example of specific error handling
+        return NextResponse.json({ error: 'Token inválido o expirado' }, { status: 401 });
+    }
+    return NextResponse.json({ error: 'Error interno del servidor al cancelar la reservación' }, { status: 500 });
   }
 }

@@ -2,7 +2,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { SystemConfigService } from './system-config.service'
-import { startOfWeek, endOfWeek } from 'date-fns'
+import { startOfWeek, endOfWeek, addWeeks } from 'date-fns' // Added addWeeks
 import { 
   isBusinessDay, 
   isUnlimitedWeekValid, 
@@ -100,6 +100,36 @@ export class UnlimitedWeekService {
         }
       }
 
+      // NUEVA VALIDACIÓN: Límite diario de clases (Correctly placed)
+      const dailyLimit = 5 // Límite diario harcodeado por ahora
+      const startOfDayForDailyCheck = new Date(classDate.getFullYear(), classDate.getMonth(), classDate.getDate())
+      const endOfDayForDailyCheck = new Date(classDate.getFullYear(), classDate.getMonth(), classDate.getDate() + 1)
+      
+      const dailyReservations = await prisma.reservation.count({
+        where: {
+          userId,
+          status: 'confirmed',
+          userPackage: {
+            packageId: UnlimitedWeekService.UNLIMITED_WEEK_PACKAGE_ID
+          },
+          scheduledClass: {
+            date: { 
+              gte: startOfDayForDailyCheck,
+              lt: endOfDayForDailyCheck
+            }
+          }
+        }
+      })
+
+      if (dailyReservations >= dailyLimit) {
+        return {
+          isValid: false,
+          canUseUnlimitedWeek: false,
+          reason: 'DAILY_LIMIT_EXCEEDED',
+          message: `Has alcanzado el límite diario de ${dailyLimit} clases para el día ${classDate.toLocaleDateString('es-ES')}`
+        }
+      }
+
       // 5. Verificar límite semanal de clases
       const weeklyValidation = await this.validateWeeklyLimit(userId, scheduledClass.date)
       if (!weeklyValidation.canReserve) {
@@ -128,16 +158,17 @@ export class UnlimitedWeekService {
         }
       }
 
-      // 7. Verificar que no exceda 1 mes de anticipación
-      const oneMonthFromNow = new Date()
-      oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1)
-      
-      if (classDate > oneMonthFromNow) {
+      // 7. Verificar que no exceda el límite de reserva futura (3 semanas calendario completas)
+      const today = new Date()
+      const endOfThirdWeek = endOfWeek(addWeeks(startOfWeek(today, { weekStartsOn: 1 }), 3), { weekStartsOn: 1 })
+      endOfThirdWeek.setHours(23, 59, 59, 999)
+
+      if (classDate > endOfThirdWeek) {
         return {
           isValid: false,
           canUseUnlimitedWeek: false,
           reason: 'TOO_FAR_IN_ADVANCE',
-          message: 'No puedes reservar con más de 1 mes de anticipación'
+          message: `Solo puedes reservar clases hasta el ${endOfThirdWeek.toLocaleDateString('es-ES')}.`
         }
       }
 
