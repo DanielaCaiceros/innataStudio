@@ -39,6 +39,7 @@ model User {
   accountBalance          UserAccountBalance?
   userPackages            UserPackage[]
   waitlist                Waitlist[]
+  checkedInReservations   Reservation[]  @relation("CheckedInBy")
 
   @@index([email], map: "idx_users_email")
   @@index([resetPasswordToken], map: "idx_users_reset_token")
@@ -179,7 +180,10 @@ model UserPackage {
   paymentStatus    String?       @default("pending") @map("payment_status") @db.VarChar(20)
   createdAt        DateTime?     @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt        DateTime?     @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
-  payments         Payment[]
+  
+  // Relaciones con nombres específicos
+  payments         Payment[]     @relation("UserPackagePayments")
+  relatedPayments  Payment[]     @relation("RelatedPackagePayments")
   reservations     Reservation[]
   package          Package       @relation(fields: [packageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   user             User          @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
@@ -206,6 +210,7 @@ model Reservation {
   checked_in          Boolean?             @default(false)
   checked_in_at       DateTime?            @db.Timestamp(6)
   checked_in_by       Int?
+  checked_in_by_user  User?     @relation("CheckedInBy", fields: [checked_in_by], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
   balanceTransactions BalanceTransaction[]
   scheduledClass      ScheduledClass       @relation(fields: [scheduledClassId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   user                User                 @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
@@ -217,6 +222,7 @@ model Reservation {
   @@index([userId], map: "idx_reservations_user_id")
   @@index([bikeNumber], map: "idx_reservations_bike_number")
   @@index([userId, scheduledClassId], map: "idx_reservations_user_class")
+  @@index([checked_in_by], map: "idx_reservations_checked_in_by")
   @@map("reservations")
 }
 
@@ -247,13 +253,18 @@ model Payment {
   paymentDate           DateTime             @default(now()) @map("payment_date") @db.Timestamp(6)
   createdAt             DateTime?            @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt             DateTime?            @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  relatedUserPackageId  Int?                 @map("related_user_package_id")
+  
+  // Relaciones con nombres específicos
   balanceTransactions   BalanceTransaction[]
   user                  User                 @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
-  userPackage           UserPackage?         @relation(fields: [userPackageId], references: [id], onUpdate: NoAction)
+  userPackage           UserPackage?         @relation("UserPackagePayments", fields: [userPackageId], references: [id], onUpdate: NoAction)
+  relatedUserPackage    UserPackage?         @relation("RelatedPackagePayments", fields: [relatedUserPackageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([status], map: "idx_payments_status")
   @@index([stripePaymentIntentId], map: "idx_payments_stripe_payment_intent_id")
   @@index([userId], map: "idx_payments_user_id")
+  @@index([relatedUserPackageId], map: "idx_payments_user_package_id")
   @@map("payments")
 }
 
