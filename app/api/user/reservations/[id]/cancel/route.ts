@@ -14,7 +14,7 @@ const prisma = new PrismaClient()
 // POST - Cancelar una reservación
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     // Verificar autenticación
@@ -26,6 +26,8 @@ export async function POST(
     const payload = await verifyToken(token)
     const userId = Number.parseInt(payload.userId)
 
+    // Next.js 13/14: await params if needed
+    const { params } = context
     const reservationId = parseInt(params.id)
     if (isNaN(reservationId)) {
       return NextResponse.json({ error: "ID de reservación no válido" }, { status: 400 })
@@ -75,7 +77,8 @@ export async function POST(
     const hoursUntilClass = (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60)
 
     // Determinar si se puede reembolsar la clase
-    const canRefund = hoursUntilClass >= 12
+    const isUnlimitedWeek = reservation.userPackage?.package?.name === "SEMANA ILIMITADA";
+    const canRefund = hoursUntilClass >= 12 && !isUnlimitedWeek;
 
     // Obtener datos de la solicitud
     const body = await request.json()

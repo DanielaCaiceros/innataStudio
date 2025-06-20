@@ -49,6 +49,7 @@ interface Reservation {
   checkedIn: boolean
   checkedInAt: string | null
   bikeNumber: number | null
+  cancelledAt?: string
 }
 
 interface AvailableTime {
@@ -1252,6 +1253,22 @@ export default function ReservationsPage() {
                           {reservation.phone && (
                             <div className="text-xs text-gray-400">{reservation.phone}</div>
                           )}
+                          {/* Penalización Semana Ilimitada */}
+                          {reservation.package === 'SEMANA ILIMITADA' && reservation.status === 'cancelled' && reservation.cancelledAt && (() => {
+                            const classDateTime = new Date(`${reservation.date}T${reservation.time}:00`)
+                            const cancelledAt = new Date(reservation.cancelledAt)
+                            const diffMs = classDateTime.getTime() - cancelledAt.getTime()
+                            const diffHours = diffMs / (1000 * 60 * 60)
+                            if (diffHours < 12) {
+                              return (
+                                <div className="mt-1 p-2 bg-yellow-100 border-l-4 border-yellow-400 text-yellow-800 text-xs rounded">
+                                  <AlertTriangle className="inline h-3 w-3 mr-1 text-yellow-600" />
+                                  Penalización pendiente: Cancela manualmente la siguiente clase de este usuario esta semana.
+                                </div>
+                              )
+                            }
+                            return null
+                          })()}
                         </div>
                       </td>
                       <td className="py-2.5 px-3">

@@ -46,6 +46,7 @@ interface UserReservation {
   capacity?: number
   description?: string
   bikeNumber?: number | null
+  cancelledAt?: string
 }
 
 interface UserProfile {
@@ -220,6 +221,8 @@ export default function ProfilePage() {
   const [isLoadingPackages, setIsLoadingPackages] = useState(true)
   const [currentPackagePage, setCurrentPackagePage] = useState(1)
   const packagesPerPage = 6
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [cancelResult, setCancelResult] = useState<null | 'success' | 'error'>(null)
 
   useEffect(() => {
     if (!user && !isLoading) {
@@ -302,7 +305,8 @@ export default function ProfilePage() {
 
   const confirmCancelClass = async () => {
     if (!selectedClass) return
-
+    setIsCancelling(true)
+    setCancelResult(null)
     try {
       const response = await fetch(`/api/user/reservations/${selectedClass.id}/cancel`, {
         method: "POST",
@@ -310,15 +314,12 @@ export default function ProfilePage() {
         body: JSON.stringify({ reason: "Cancelado por el usuario" }),
         credentials: "include",
       })
-
       const data = await response.json()
-
       if (!response.ok) {
         throw new Error(data.error || "Error al cancelar la reservación")
       }
-
       setUpcomingClasses((prevClasses) => prevClasses.filter((c) => c.id !== selectedClass.id))
-
+      setCancelResult('success')
       toast({
         title: "Reservación cancelada",
         description: data.refunded
@@ -326,6 +327,7 @@ export default function ProfilePage() {
           : "La clase ha sido cancelada pero no se pudo reembolsar debido a la política de cancelación.",
       })
     } catch (error) {
+      setCancelResult('error')
       console.error("Error:", error)
       toast({
         title: "Error al cancelar",
@@ -333,7 +335,11 @@ export default function ProfilePage() {
         variant: "destructive",
       })
     } finally {
-      setCancelDialogOpen(false)
+      setIsCancelling(false)
+      setTimeout(() => {
+        setCancelDialogOpen(false)
+        setCancelResult(null)
+      }, 1500)
     }
   }
 
@@ -642,38 +648,59 @@ export default function ProfilePage() {
                   </Card>
                 ) : (
                   <div className="space-y-4">
-                    {pastClasses.map((classItem) => (
-                      <Card
-                        key={classItem.id}
-                        className="border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
-                      >
-                        <div className="flex flex-col md:flex-row">
-                          <div className="flex-1 p-6">
-                            <div className="flex items-start justify-between mb-3">
-                              <div>
-                                <h3 className="text-lg font-bold text-brand-sage mb-1">{classItem.className}</h3>
-                                <p className="text-zinc-600 text-sm">Con {classItem.instructor}</p>
+                    {pastClasses.map((classItem) => {
+                      let penaltyBadge = null
+                      if (
+                        classItem.package === 'SEMANA ILIMITADA' &&
+                        classItem.status === 'cancelled' &&
+                        classItem.cancelledAt
+                      ) {
+                        const classDateTime = new Date(`${classItem.date}T${classItem.time}:00`)
+                        const cancelledAt = new Date(classItem.cancelledAt)
+                        const diffMs = classDateTime.getTime() - cancelledAt.getTime()
+                        const diffHours = diffMs / (1000 * 60 * 60)
+                        if (diffHours < 12) {
+                          penaltyBadge = (
+                            <span className="ml-2 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                              Cancelada fuera de tiempo (penalización aplicada)
+                            </span>
+                          )
+                        }
+                      }
+                      return (
+                        <Card
+                          key={classItem.id}
+                          className="border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
+                        >
+                          <div className="flex flex-col md:flex-row">
+                            <div className="flex-1 p-6">
+                              <div className="flex items-start justify-between mb-3">
+                                <div>
+                                  <h3 className="text-lg font-bold text-brand-sage mb-1">{classItem.className}</h3>
+                                  <p className="text-zinc-600 text-sm">Con {classItem.instructor}</p>
+                                </div>
+                                <Badge className="bg-brand-sage/10 text-brand-sage border-brand-sage/20">
+                                  Completada
+                                </Badge>
+                                {penaltyBadge}
                               </div>
-                              <Badge className="bg-brand-sage/10 text-brand-sage border-brand-sage/20">
-                                Completada
-                              </Badge>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="flex items-center text-zinc-700 text-sm">
-                                <Calendar className="h-4 w-4 mr-3 text-brand-sage" />
-                                <span>{classItem.dateFormatted || classItem.date}</span>
-                              </div>
-                              <div className="flex items-center text-zinc-700 text-sm">
-                                <Clock className="h-4 w-4 mr-3 text-brand-sage" />
-                                <span>
-                                  {classItem.time} • {classItem.duration}
-                                </span>
+                              <div className="space-y-2">
+                                <div className="flex items-center text-zinc-700 text-sm">
+                                  <Calendar className="h-4 w-4 mr-3 text-brand-sage" />
+                                  <span>{classItem.dateFormatted || classItem.date}</span>
+                                </div>
+                                <div className="flex items-center text-zinc-700 text-sm">
+                                  <Clock className="h-4 w-4 mr-3 text-brand-sage" />
+                                  <span>
+                                    {classItem.time} • {classItem.duration}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      </Card>
-                    ))}
+                        </Card>
+                      )
+                    })}
                   </div>
                 )}
               </TabsContent>
@@ -706,12 +733,36 @@ export default function ProfilePage() {
                     {selectedClass.time} • {selectedClass.duration}
                   </span>
                 </div>
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-4">
-                  <p className="text-sm text-amber-800">
-                    <strong>Política de cancelación:</strong> Las cancelaciones deben realizarse con al menos 12 horas
-                    de anticipación para recuperar tu crédito.
-                  </p>
-                </div>
+                {/* Mensaje especial para Semana Ilimitada */}
+                {selectedClass.package === 'SEMANA ILIMITADA' ? (() => {
+                  const classDateTime = new Date(`${selectedClass.date}T${selectedClass.time}:00`)
+                  const now = new Date()
+                  const diffMs = classDateTime.getTime() - now.getTime()
+                  const diffHours = diffMs / (1000 * 60 * 60)
+                  if (diffHours < 12) {
+                    return (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-4">
+                        <p className="text-sm text-red-800">
+                          <strong>Importante:</strong> Cancelar con menos de 12 horas de anticipación implica perder esta clase y se aplicará una penalización (se cancelará tu siguiente clase de la semana).
+                        </p>
+                      </div>
+                    )
+                  } else {
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-4">
+                        <p className="text-sm text-amber-800">
+                          <strong>Política Semana Ilimitada:</strong> Si cancelas con más de 12 horas de anticipación, no hay penalización, pero tampoco reposición de clase.
+                        </p>
+                      </div>
+                    )
+                  }
+                })() : (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-4">
+                    <p className="text-sm text-amber-800">
+                      <strong>Política de cancelación:</strong> Las cancelaciones deben realizarse con al menos 12 horas de anticipación para recuperar tu crédito.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -721,14 +772,23 @@ export default function ProfilePage() {
               variant="outline"
               className="w-full sm:w-auto order-2 sm:order-1"
               onClick={() => setCancelDialogOpen(false)}
+              disabled={isCancelling}
             >
               Mantener Reserva
             </Button>
             <Button
               className="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white order-1 sm:order-2 shadow-sm"
               onClick={confirmCancelClass}
+              disabled={isCancelling}
             >
-              Confirmar Cancelación
+              {isCancelling ? (
+                <>
+                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></span>
+                  Cancelando...
+                </>
+              ) : (
+                cancelResult === 'success' ? 'Cancelada' : cancelResult === 'error' ? 'Error' : 'Confirmar Cancelación'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

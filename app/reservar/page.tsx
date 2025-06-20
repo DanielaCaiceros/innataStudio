@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent } from "@/components/ui/card"
@@ -29,6 +29,7 @@ import {
   WeeklyUsageDisplay, 
   UnlimitedWeekConfirmation 
 } from '@/components/ui/unlimited-week-alerts'
+import { WhatsAppConfirmationAlert } from '@/components/ui/whatsapp-confirmation-alert'
 
 interface ClassType {
   id: number
@@ -57,6 +58,7 @@ export default function BookingPage() {
   const router = useRouter()
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const [isLoading, setIsLoading] = useState(true)
+  const reservationSummaryRef = useRef<HTMLDivElement>(null)
 
   // Estados para Semana Ilimitada - Activación automática
   const [unlimitedWeekValidation, setUnlimitedWeekValidation] = useState<any>(null)
@@ -220,6 +222,13 @@ export default function BookingPage() {
     }
   }
 
+  const handleBikeSelection = (bikeId: number) => {
+    setSelectedBikeId(bikeId);
+    setTimeout(() => {
+      reservationSummaryRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  }
+
   const handleUnlimitedWeekToggle = async (enabled: boolean) => {
     // Funcionalidad removida - Semana Ilimitada se activa automáticamente
     // Esta función se mantiene para compatibilidad pero no hace nada
@@ -235,7 +244,7 @@ export default function BookingPage() {
     setIsProcessingBooking(true)
     
     try {
-      const response = await fetch('/api/bookings', {
+      const response = await fetch('/api/reservations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -281,65 +290,39 @@ export default function BookingPage() {
   }
 
   const proceedWithBooking = async () => {
-    if (!selectedClass) return
-
-    try {
-      setIsLoading(true)
-      
-      const requestBody: any = {
-        scheduledClassId: selectedClass,
-        bikeNumber: selectedBikeId,
-      }
-
-      if (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek) {
-        requestBody.useUnlimitedWeek = true
-      }
-
-      const response = await fetch("/api/reservations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(requestBody),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        
-        toast({
-          title: "¡Reserva confirmada!",
-          description: isUsingUnlimitedWeek 
-            ? "Reserva creada con Semana Ilimitada. Recuerda confirmar por WhatsApp."
-            : "Se ha enviado un correo de confirmación.",
-        })
-
-        setSelectedClass(null)
-        setSelectedTime(null)
-        setSelectedBikeId(null)
-        setUnlimitedWeekValidation(null)
-        setShowUnlimitedWeekConfirmation(false)
-        
-        loadAvailableClasses()
-        
-      } else {
-        const errorData = await response.json()
-        toast({
-          title: "Error al confirmar la reserva",
-          description: errorData.error || "No se pudo procesar la reserva",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("Error:", error)
-      toast({
-        title: "Error al confirmar la reserva",
-        description: "Error de conexión",
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
+    if (!isAuthenticated) {
+      setIsAuthModalOpen(true);
+      return;
     }
+
+    if (!selectedClass || !selectedBikeId) {
+      toast({
+        title: "Información incompleta",
+        description: "Por favor selecciona una clase y una bicicleta.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const selectedCls = availableClasses.find(c => c.id === selectedClass);
+    if (!selectedCls) return;
+    
+    setSelectedScheduledClassForBooking(selectedCls);
+
+    // Si tiene Semana Ilimitada y es válida, reservar directamente
+    if (isUsingUnlimitedWeek && unlimitedWeekValidation?.isValid) {
+      setShowUnlimitedWeekConfirmation(true); // Muestra modal de confirmación
+      return;
+    }
+
+    // Si no tiene clases disponibles, mostrar modal de pago
+    if (userAvailableClasses <= 0) {
+      setIsPaymentOpen(true);
+      return;
+    }
+    
+    // Si tiene clases, reservar directamente
+    await handleConfirmBooking();
   }
 
   // Obtener clases para fecha seleccionada
@@ -454,6 +437,9 @@ export default function BookingPage() {
       setScheduledClassId(null)
     }
   }, [isUsingUnlimitedWeek, date])
+
+  const selectedClassDetails = availableClasses.find(c => c.id === selectedClass);
+  const showWhatsappAlert = isUsingUnlimitedWeek && unlimitedWeekValidation?.isValid;
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
@@ -761,136 +747,6 @@ export default function BookingPage() {
                             </Card>
                           )
                         })}
-
-                        {/* Opciones de reserva */}
-                        {selectedClass && (
-                          <Card className="bg-gray-50 border-2 border-dashed border-gray-300">
-                            <CardContent className="p-6">
-                              <h3 className="font-semibold mb-4">Opciones de Reserva</h3>
-                              
-                              {/* Mensaje informativo de Semana Ilimitada */}
-                              {isUsingUnlimitedWeek && (
-                                <div className="space-y-3 mb-4">
-                                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                                    <div className="flex items-start gap-3">
-                                      <div className="bg-blue-500 text-white rounded-full p-1 flex-shrink-0">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                          <path d="M9 12l2 2 4-4"/>
-                                          <circle cx="12" cy="12" r="10"/>
-                                        </svg>
-                                      </div>
-                                      <div className="flex-1">
-                                        <h4 className="font-medium text-blue-900 mb-1">
-                                          Estas usando tu Semana Ilimitada
-                                        </h4>
-                                        <p className="text-sm text-blue-800">
-                                          Esta reserva se realizará automáticamente con tu paquete Semana Ilimitada. 
-                                          Recuerda confirmar por WhatsApp para garantizar tu lugar.
-                                        </p>
-                                        {weeklyUsage && (
-                                          <div className="mt-2 text-xs text-blue-700">
-                                            <span className="bg-blue-100 px-2 py-1 rounded-full">
-                                              {weeklyUsage.used}/{weeklyUsage.limit} clases esta semana
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Mostrar validación de Semana Ilimitada */}
-                                  {unlimitedWeekValidation && (
-                                    <UnlimitedWeekAlert 
-                                      validation={unlimitedWeekValidation}
-                                      className="mt-3"
-                                    />
-                                  )}
-                                  
-                                  {isValidatingUnlimitedWeek && (
-                                    <div className="flex items-center gap-2 text-sm text-blue-600">
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                                      Validando disponibilidad...
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Información de paquetes normales */}
-                              {!isUsingUnlimitedWeek && isAuthenticated && userAvailableClasses > 0 && (
-                                <div className="bg-green-50 p-3 rounded-md border border-green-200 mb-4">
-                                  <p className="text-sm text-green-800">
-                                    Tienes {userAvailableClasses} clase(s) disponible(s) en tus paquetes
-                                  </p>
-                                </div>
-                              )}
-                              
-                              {/* Información para usuarios no autenticados */}
-                              {!isAuthenticated && (
-                                <div className="bg-yellow-50 p-3 rounded-md border border-yellow-200 mb-4">
-                                  <p className="text-sm text-yellow-800">
-                                   Inicia sesión para usar tus paquetes o completar la reserva
-                                  </p>
-                                </div>
-                              )}
-
-                              {/* Botón de reserva */}
-                              <Button
-                                className="w-full bg-brand-sage hover:bg-brand-sage text-white font-semibold py-3"
-                                disabled={
-                                  isProcessingBooking || 
-                                  !selectedClass || 
-                                  !selectedBikeId ||
-                                  (isUsingUnlimitedWeek && !unlimitedWeekValidation?.canUseUnlimitedWeek) ||
-                                  !isClassReservable(availableClasses.find(c => c.id === selectedClass))
-                                }
-                                onClick={() => {
-                                  if (!isAuthenticated) {
-                                    setIsAuthModalOpen(true)
-                                    return
-                                  }
-                                  
-                                  const classToBook = availableClasses.find(c => c.id === selectedClass)
-                                  if (classToBook) {
-                                    setSelectedScheduledClassForBooking(classToBook)
-                                    
-                                    if (userAvailableClasses > 0 || (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek)) {
-                                      handleConfirmBooking()
-                                    } else {
-                                      setIsPaymentOpen(true)
-                                    }
-                                  }
-                                }}
-                              >
-                                <span className="flex items-center gap-1">
-                                  {isProcessingBooking ? (
-                                    <>
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                      PROCESANDO...
-                                    </>
-                                  ) : !isAuthenticated ? (
-                                    "INICIAR SESIÓN PARA RESERVAR"
-                                  ) : !selectedBikeId ? (
-                                    "SELECCIONA BICICLETA PRIMERO"
-                                  ) : isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek ? (
-                                    "RESERVAR CON SEMANA ILIMITADA"
-                                  ) : isAuthenticated && userAvailableClasses > 0 ? (
-                                    "USAR PAQUETE - RESERVAR" 
-                                  ) : (
-                                    "CONFIRMAR RESERVA"
-                                  )} 
-                                  {!isProcessingBooking && <ChevronRight className="h-4 w-4" />}
-                                </span>
-                              </Button>
-
-                              {/* Mensaje de información adicional */}
-                              {isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek && (
-                                <p className="text-xs text-gray-600 mt-2 text-center">
-                                  Deberás confirmar por WhatsApp para garantizar tu lugar
-                                </p>
-                              )}
-                            </CardContent>
-                          </Card>
-                        )}
                       </div>
                     ) : (
                       <div className="text-center py-8 text-gray-500">
@@ -1020,8 +876,18 @@ export default function BookingPage() {
                   )}
                 </div>
 
+                {isUsingUnlimitedWeek && unlimitedWeekValidation?.isValid && (
+                  <div className="mb-4">
+                    <WhatsAppConfirmationAlert
+                      date={selectedClassDetails?.date || ''}
+                      time={selectedClassDetails?.time || ''}
+                      userName={user?.firstName || ''}
+                    />
+                  </div>
+                )}
+
                 <Button
-                  className="w-full mt-6 bg-brand-mint hover:bg-brand-mint/90 font-bold text-lg py-6 rounded-full text-white"
+                  className="w-full mt-6 bg-brand-sage/90 hover:bg-brand-sage/100 font-bold text-lg py-6 rounded-full text-white"
                   disabled={!date || !selectedClass || !selectedTime || !selectedBikeId || isProcessingBooking || !isClassReservable(availableClasses.find(c => c.id === selectedClass))}
                   onClick={() => {
                     if (!isAuthenticated) {
@@ -1051,6 +917,8 @@ export default function BookingPage() {
                       "INICIAR SESIÓN PARA RESERVAR"
                     ) : !selectedBikeId ? (
                       "SELECCIONA BICICLETA PRIMERO"
+                    ) : isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek ? (
+                      "RESERVAR CON SEMANA ILIMITADA"
                     ) : isAuthenticated && userAvailableClasses > 0 ? (
                       "USAR PAQUETE - RESERVAR" 
                     ) : (
@@ -1131,12 +999,56 @@ export default function BookingPage() {
       }}>
         <DialogContent className="bg-white border-gray-200 text-zinc-900">
           <DialogHeader>
-            <DialogTitle className="text-[#4A102A]">¡Reserva Confirmada!</DialogTitle>
+            <DialogTitle className="text-[#4A102A]">
+              {isUsingUnlimitedWeek && unlimitedWeekValidation?.isValid ? '¡Reserva con Semana Ilimitada!' : '¡Reserva Confirmada!'}
+            </DialogTitle>
             <DialogDescription className="text-gray-600">
-              Tu reserva ha sido confirmada exitosamente
+              {isUsingUnlimitedWeek && unlimitedWeekValidation?.isValid
+                ? 'Recuerda que para garantizar tu lugar debes confirmar tu asistencia por WhatsApp.'
+                : 'Tu reserva ha sido confirmada exitosamente'}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
+            {isUsingUnlimitedWeek && unlimitedWeekValidation?.isValid && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2 text-center">
+                <p className="font-semibold text-amber-800 mb-2">¡Acción requerida!</p>
+                <p className="text-amber-900 text-sm">Para garantizar tu lugar, confirma tu asistencia por WhatsApp con al menos 12 horas de anticipación.</p>
+                <a
+                  href={`https://wa.me/527753571894?text=${encodeURIComponent(
+                    `Hola! Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : ""} Hora: ${selectedTime || ""} Clase: ${selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""} Bicicleta: #${selectedBikeId}`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-[#25D366] text-white px-6 py-3 rounded-full font-semibold inline-flex items-center gap-2 hover:bg-[#20BD5A] transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  </svg>
+                  Confirmar por WhatsApp
+                </a>
+                
+                <div className="mt-2 flex flex-col items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-amber-300 text-amber-800"
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        `Hola! Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : ""} Hora: ${selectedTime || ""} Clase: ${selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""} Bicicleta: #${selectedBikeId}`
+                      );
+                      toast({
+                        title: 'Mensaje copiado',
+                        description: 'El mensaje de confirmación ha sido copiado al portapapeles.',
+                      });
+                    }}
+                  >
+                    Copiar mensaje de WhatsApp
+                  </Button>
+                  <span className="text-xs text-amber-700">Si el botón no funciona, envía el mensaje manualmente al <b>+52 77 5357 1894</b></span>
+                </div>
+              </div>
+            )}
+            {/* Detalles de la reserva */}
             <div className="space-y-2">
               <p className="text-sm text-gray-500">Detalles de tu reserva:</p>
               <div className="bg-gray-50 p-4 rounded-lg space-y-2">
