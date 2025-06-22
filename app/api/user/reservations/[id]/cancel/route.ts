@@ -76,9 +76,13 @@ export async function POST(
     const now = new Date()
     const hoursUntilClass = (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60)
 
-    // Determinar si se puede reembolsar la clase
-    const isUnlimitedWeek = reservation.userPackage?.package?.name === "SEMANA ILIMITADA";
-    const canRefund = hoursUntilClass >= 12 && !isUnlimitedWeek;
+    // FIXED: Properly determine if it's a Semana Ilimitada package and handle refund logic
+    const isUnlimitedWeek = reservation.userPackage?.package?.id === 3 || 
+                           reservation.userPackage?.package?.name?.toLowerCase().includes('semana ilimitada');
+    
+    // For Semana Ilimitada: no refund regardless of cancellation time
+    // For normal packages: refund only if cancelled with more than 12 hours notice
+    const canRefund = !isUnlimitedWeek && hoursUntilClass >= 12;
 
     // Obtener datos de la solicitud
     const body = await request.json()
@@ -103,8 +107,9 @@ export async function POST(
       }
     })
 
-    // Si se puede reembolsar y viene de un paquete, devolver la clase al paquete
+    // FIXED: Handle refund logic based on package type
     if (canRefund && reservation.userPackageId) {
+      // Only refund for normal packages (not Semana Ilimitada)
       await prisma.userPackage.update({
         where: { id: reservation.userPackageId },
         data: {
@@ -119,6 +124,15 @@ export async function POST(
         data: {
           classesAvailable: { increment: 1 },
           classesUsed: { decrement: 1 }
+        }
+      })
+    } else if (isUnlimitedWeek && reservation.userPackageId) {
+      // For Semana Ilimitada: update usage count but don't refund
+      await prisma.userPackage.update({
+        where: { id: reservation.userPackageId },
+        data: {
+          classesUsed: { decrement: 1 }
+          // Don't increment classesRemaining - no refund for Semana Ilimitada
         }
       })
     }
@@ -147,7 +161,8 @@ export async function POST(
           date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
           time: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "HH:mm", { locale: es }),
           isRefundable: canRefund,
-          packageName: reservation.userPackage?.package?.name
+          packageName: reservation.userPackage?.package?.name,
+          isUnlimitedWeek: isUnlimitedWeek
         };
 
         await sendCancellationConfirmationEmail(
@@ -165,8 +180,11 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: "Reservación cancelada correctamente",
-      refunded: canRefund
+      message: isUnlimitedWeek 
+        ? "Reservación cancelada. Para Semana Ilimitada no hay reposición de clase." 
+        : "Reservación cancelada correctamente",
+      refunded: canRefund,
+      isUnlimitedWeek: isUnlimitedWeek
     })
   } catch (error) {
     console.error("Error al cancelar reservación:", error)

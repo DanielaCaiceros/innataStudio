@@ -95,7 +95,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { user_id, amount, userPackageId, notes, selectedWeekStart } = body
+    const { user_id, amount, userPackageId, notes, selectedWeek } = body
+    console.log('Admin Payments POST body:', body);
+    console.log('selectedWeek:', selectedWeek);
 
     // Validaciones
     if (!user_id || !amount) {
@@ -150,17 +152,33 @@ export async function POST(request: NextRequest) {
     let purchaseDate = new Date();
     let expirationDate = new Date();
     // Para Semana Ilimitada, usar la semana seleccionada
-    if (body.packageId === 3 && selectedWeekStart) {
-      purchaseDate = new Date(selectedWeekStart);
-      expirationDate = getUnlimitedWeekExpiryDate(purchaseDate);
+    if (body.packageId === 3 && selectedWeek) {
+      // Parse selectedWeek as UTC and set to Monday 00:00:00 UTC
+      const selectedWeekDate = new Date(selectedWeek);
+      const mondayUTC = new Date(Date.UTC(
+        selectedWeekDate.getUTCFullYear(),
+        selectedWeekDate.getUTCMonth(),
+        selectedWeekDate.getUTCDate(),
+        0, 0, 0, 0
+      ));
+      purchaseDate = mondayUTC;
+      expirationDate = getUnlimitedWeekExpiryDate(purchaseDate); // This returns Friday 23:59:59 UTC
     } else if (body.packageId === 3) {
-      // Fallback: si no se envía selectedWeekStart, usar la fecha actual
-      purchaseDate = new Date();
+      // Fallback: si no se envía selectedWeek, usar la fecha actual (UTC-normalized)
+      const now = new Date();
+      const mondayUTC = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        0, 0, 0, 0
+      ));
+      purchaseDate = mondayUTC;
       expirationDate = getUnlimitedWeekExpiryDate(purchaseDate);
     } else {
       // Para otros paquetes, usar validityDays del paquete (30 días)
       if (packageData) {
-        expirationDate.setDate(expirationDate.getDate() + packageData.validityDays);
+        expirationDate = new Date();
+        expirationDate.setUTCDate(expirationDate.getUTCDate() + packageData.validityDays);
       }
     }
 

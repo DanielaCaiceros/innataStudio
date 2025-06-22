@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient, Prisma } from "@prisma/client" // Import Prisma
 import { verifyToken } from "@/lib/jwt"
 import { sendBookingConfirmationEmail } from '@/lib/email'
-import { format, addHours, parseISO } from 'date-fns'
+import { format, addHours, parseISO, startOfWeek } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { formatInTimeZone } from 'date-fns-tz'
 import { UnlimitedWeekService } from '@/lib/services/unlimited-week.service'
@@ -254,20 +254,32 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
 
-      // Obtener el paquete Semana Ilimitada activo
+      // Obtener el paquete Semana Ilimitada activo para la semana específica de la clase
+      const classDate = new Date(scheduledClass.date)
+      const classWeekStart = startOfWeek(classDate, { weekStartsOn: 1 })
+      
       const unlimitedWeekPackage = await prisma.userPackage.findFirst({
         where: {
           userId,
           packageId: 3, // ID del paquete Semana Ilimitada
           isActive: true,
           classesRemaining: { gt: 0 },
-          expiryDate: { gte: new Date() }
+          purchaseDate: { lte: classDate },
+          expiryDate: { gte: classDate }
         }
       })
 
       if (!unlimitedWeekPackage) {
         return NextResponse.json({ 
           error: 'No se encontró un paquete Semana Ilimitada válido' 
+        }, { status: 400 })
+      }
+
+      // Verificar que el paquete sea para la semana correcta
+      const packageWeekStart = startOfWeek(unlimitedWeekPackage.purchaseDate, { weekStartsOn: 1 })
+      if (packageWeekStart.getTime() !== classWeekStart.getTime()) {
+        return NextResponse.json({ 
+          error: 'Tu Semana Ilimitada no es válida para esta semana. Solo puedes reservar en la semana específica que contrataste.' 
         }, { status: 400 })
       }
 

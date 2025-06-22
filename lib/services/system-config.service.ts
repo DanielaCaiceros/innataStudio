@@ -41,7 +41,7 @@ export class SystemConfigService {
   }
 
   /**
-   * Obtiene el tiempo de gracia en horas (por defecto 6)
+   * Obtiene el tiempo de gracia en horas (por defecto 12)
    */
   static async getGraceTimeHours(): Promise<number> {
     const value = await this.getConfig('grace_time_hours')

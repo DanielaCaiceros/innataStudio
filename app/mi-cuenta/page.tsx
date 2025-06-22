@@ -560,20 +560,16 @@ export default function ProfilePage() {
                                 <span className="font-medium text-zinc-800">{pkg.classesUsed}</span>
                               </div>
                               {pkg.name === 'SEMANA ILIMITADA' ? (
-                                (() => {
-                                  let semanaValida = 'No disponible';
-                                  if (pkg.purchaseDate) {
-                                    const weekStart = startOfWeek(new Date(pkg.purchaseDate), { weekStartsOn: 1 });
-                                    const weekEnd = getUnlimitedWeekExpiryDate(weekStart);
-                                    semanaValida = `${weekStart.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })} al ${weekEnd.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })}`;
-                                  }
-                                  return (
-                                    <div className="flex flex-col gap-1 text-xs text-zinc-600 mt-2">
-                                      <span>Semana válida:</span>
-                                      <span className="font-semibold text-zinc-800">{semanaValida}</span>
-                                    </div>
-                                  );
-                                })()
+                                <div className="flex flex-col gap-1 text-xs text-zinc-600 mt-2">
+                                  <span>Semana válida:</span>
+                                  <span className="font-semibold text-zinc-800">
+                                    {pkg.purchaseDate && pkg.expiryDate ? (
+                                      `${new Date(pkg.purchaseDate).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })} al ${new Date(pkg.expiryDate).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                                    ) : (
+                                      'No disponible'
+                                    )}
+                                  </span>
+                                </div>
                               ) : (
                                 <div className="flex flex-col gap-1 text-xs text-zinc-600 mt-2">
                                   <span>Expira el:</span>

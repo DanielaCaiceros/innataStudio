@@ -71,17 +71,6 @@ export function LoadingAnimation() {
           />
         </div>
 
-        {/* Progress bar */}
-        <div className="w-full bg-gray-100 rounded-full h-2.5 mb-6 overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-300 ease-out"
-            style={{
-              width: `${progress}%`,
-              background: "linear-gradient(90deg, #4A102A 0%, #85193C 50%, #C5172E 100%)",
-            }}
-          />
-        </div>
-
         {/* Loading text */}
         <div className="text-center">
           <p className="text-black font-medium">Preparando tu experiencia Innata</p>

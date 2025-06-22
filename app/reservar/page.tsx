@@ -109,6 +109,25 @@ export default function BookingPage() {
     setShowWeekendInfoMessage
   ] = useState(false)
 
+  // Define the modifier for unlimited week days
+  const unlimitedWeekDays = weeklyUsage?.allUnlimitedPackages.flatMap(pkg => {
+    const dates = [];
+    let currentDate = new Date(pkg.purchaseDate);
+    const endDate = new Date(pkg.expiryDate);
+    while (currentDate <= endDate) {
+      // Always use UTC noon to avoid timezone shift
+      const utcDate = new Date(Date.UTC(
+        currentDate.getUTCFullYear(),
+        currentDate.getUTCMonth(),
+        currentDate.getUTCDate(),
+        12, 0, 0, 0 // noon UTC
+      ));
+      dates.push(utcDate);
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+    }
+    return dates;
+  }) || [];
+
   // Estado para alerta contextual
   const [bookingAlert, setBookingAlert] = useState<{ type: 'unlimited' | 'normal' | 'individual' | 'out-of-unlimited' | null, message: string } | null>(null);
 
@@ -171,6 +190,21 @@ export default function BookingPage() {
 
   useEffect(() => {
     loadAvailableClasses();
+  }, [date]);
+
+  // When the date changes, auto-select the first available class and trigger validation
+  useEffect(() => {
+    if (!date) return;
+    const classesForDate = getClassesForSelectedDate();
+    if (classesForDate.length > 0) {
+      handleClassSelection(classesForDate[0]);
+    } else {
+      setSelectedClass(null);
+      setScheduledClassId(null);
+      setSelectedScheduledClassForBooking(null);
+      setCanUseUnlimitedForSelectedClass(false);
+      setUnlimitedWeekValidation(null);
+    }
   }, [date]);
 
   const handlePaymentSuccess = async (paymentId: string) => {
@@ -350,7 +384,7 @@ export default function BookingPage() {
         body: JSON.stringify({
           scheduledClassId,
           bikeNumber: selectedBikeId,
-          isUnlimitedWeek: canUseUnlimitedForSelectedClass, // Envía el estado correcto
+          useUnlimitedWeek: canUseUnlimitedForSelectedClass,
         }),
         credentials: 'include',
       })
@@ -627,17 +661,19 @@ export default function BookingPage() {
                         modifiers={{
                           past: isPastDate,
                           full: hasClassesButAllFull,
+                          unlimited: unlimitedWeekDays,
                         }}
                         modifiersClassNames={{
                           past: 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50',
                           full: 'bg-red-200 text-red-800 font-bold cursor-pointer border border-red-300 hover:bg-red-300',
+                          unlimited: 'bg-blue-100 border-2 border-blue-300 rounded-lg',
                         }}
                         disabled={isPastDate}
                       />
                       
                       {/* Leyenda del calendario */}
                       <div className="mt-2 text-xs text-gray-500 px-2">
-                        <ul className="flex space-x-4">
+                        <ul className="flex flex-wrap gap-x-4 gap-y-1">
                           <li className="flex items-center">
                             <span className="w-2.5 h-2.5 rounded-full bg-red-200 mr-1.5"></span>
                             Lleno
@@ -645,6 +681,10 @@ export default function BookingPage() {
                           <li className="flex items-center">
                             <span className="w-2.5 h-2.5 rounded-full bg-gray-300 opacity-50 mr-1.5"></span>
                             Pasado
+                          </li>
+                          <li className="flex items-center">
+                            <span className="w-2.5 h-2.5 rounded-full bg-blue-100 border border-blue-300 mr-1.5"></span>
+                            Tu Semana Ilimitada
                           </li>
                         </ul>
                         <p className="mt-2 text-brand-sage-dark">

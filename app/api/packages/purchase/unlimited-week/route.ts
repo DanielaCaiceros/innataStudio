@@ -10,6 +10,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-05-28.basil',
 });
 
+console.log('--- API /api/reservations/validate-unlimited-week called ---');
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

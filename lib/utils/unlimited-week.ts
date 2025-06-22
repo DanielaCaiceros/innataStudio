@@ -1,6 +1,6 @@
 // lib/utils/unlimited-week.ts
 
-import { startOfWeek, endOfWeek, addWeeks, isBefore, isAfter, isWithinInterval, format } from 'date-fns';
+import { startOfWeek, endOfWeek, addWeeks, isBefore, isAfter, isWithinInterval, format, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export interface UnlimitedWeekValidation {
@@ -33,10 +33,8 @@ export function getUnlimitedWeekExpiryDate(startWeekDate: Date): Date {
   const fridayOfWeek = new Date(mondayOfWeek);
   fridayOfWeek.setDate(mondayOfWeek.getDate() + 4); // +4 días = viernes
   
-  // Establecer al final del día viernes (23:59:59)
-  fridayOfWeek.setHours(23, 59, 59, 999);
-  
-  return fridayOfWeek;
+  // Establecer al final del día viernes para incluir todo el día en las validaciones
+  return endOfDay(fridayOfWeek);
 }
 
 /**

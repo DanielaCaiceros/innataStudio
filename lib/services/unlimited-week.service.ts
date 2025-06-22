@@ -40,6 +40,7 @@ export class UnlimitedWeekService {
     userId: number,
     scheduledClassId: number,
   ): Promise<UnlimitedWeekValidation> {
+    console.log(`[Service] 🚀 Validating unlimited week for userId: ${userId}, classId: ${scheduledClassId}`);
     try {
       // 1. Obtener información de la clase
       const scheduledClass = await prisma.scheduledClass.findUnique({
@@ -58,34 +59,70 @@ export class UnlimitedWeekService {
         }
       }
 
-      const classDate = scheduledClass.date
+      // Normalize class date to UTC midnight for comparison
+      const classDateRaw = scheduledClass.date;
+      const classDateUTC = new Date(Date.UTC(
+        classDateRaw.getFullYear(),
+        classDateRaw.getMonth(),
+        classDateRaw.getDate(),
+        0, 0, 0, 0
+      ));
+      console.log('[UnlimitedWeekService] classDateRaw:', classDateRaw, 'classDateUTC:', classDateUTC);
 
       // 2. Buscar un paquete de Semana Ilimitada válido para la fecha de esta clase
-      const userPackages = await prisma.userPackage.findMany({
+      const validPackageForClass = await prisma.userPackage.findFirst({
         where: {
           userId,
           packageId: this.UNLIMITED_WEEK_PACKAGE_ID,
           isActive: true,
+          purchaseDate: { lte: classDateUTC },
+          expiryDate: { gte: classDateUTC },
         },
-        orderBy: { purchaseDate: 'desc' },
-      })
-
-      const validPackageForClass = userPackages.find(pkg => {
-        // Timezone-safe date comparison.
-        // This normalizes all dates to midnight UTC to compare only the calendar date,
-        // ignoring time-of-day and timezone shifts.
-        const classCalDate = new Date(Date.UTC(classDate.getUTCFullYear(), classDate.getUTCMonth(), classDate.getUTCDate()));
-        
-        const packageStartDate = new Date(pkg.purchaseDate);
-        packageStartDate.setUTCHours(0,0,0,0);
-
-        const packageEndDate = new Date(pkg.expiryDate);
-        packageEndDate.setUTCHours(0,0,0,0);
-        
-        return classCalDate >= packageStartDate && classCalDate <= packageEndDate;
-      })
+      });
+      
+      // Add detailed logs for debugging
+      if (validPackageForClass) {
+        const purchaseDateStr = validPackageForClass.purchaseDate.toISOString().slice(0, 10);
+        const expiryDateStr = validPackageForClass.expiryDate.toISOString().slice(0, 10);
+        const classDateStr = classDateUTC.toISOString().slice(0, 10);
+        const inRange = classDateStr >= purchaseDateStr && classDateStr <= expiryDateStr;
+        console.log('[UnlimitedWeekService] DB values:', {
+          purchaseDate: validPackageForClass.purchaseDate,
+          expiryDate: validPackageForClass.expiryDate,
+          classDate: classDateUTC,
+          purchaseDateType: typeof validPackageForClass.purchaseDate,
+          expiryDateType: typeof validPackageForClass.expiryDate,
+          classDateType: typeof classDateUTC,
+        });
+        console.log('[UnlimitedWeekService] String comparison:', {
+          purchaseDateStr,
+          expiryDateStr,
+          classDateStr,
+          inRange,
+        });
+      } else {
+        console.log('[UnlimitedWeekService] No valid unlimited week package found for classDateUTC:', classDateUTC);
+      }
 
       if (!validPackageForClass) {
+        // For a better error message, find any active unlimited package to show its dates
+        const anyUnlimitedPackage = await prisma.userPackage.findFirst({
+          where: { userId, packageId: this.UNLIMITED_WEEK_PACKAGE_ID, isActive: true },
+          orderBy: { purchaseDate: 'desc' },
+        })
+
+        if (anyUnlimitedPackage) {
+          const packageWeekStart = startOfWeek(anyUnlimitedPackage.purchaseDate, { weekStartsOn: 1 });
+          const packageWeekEnd = anyUnlimitedPackage.expiryDate;
+          
+          return {
+            isValid: false,
+            canUseUnlimitedWeek: false,
+            reason: 'WRONG_WEEK',
+            message: `Tu Semana Ilimitada es válida solo del ${packageWeekStart.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} al ${packageWeekEnd.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}. Esta clase no está en tu semana contratada.`,
+          }
+        }
+        
         return {
           isValid: false,
           canUseUnlimitedWeek: false,
@@ -96,7 +133,7 @@ export class UnlimitedWeekService {
       }
 
       // 3. Verificar que la clase esté en días hábiles (lunes a viernes)
-      if (!isBusinessDay(classDate)) {
+      if (!isBusinessDay(classDateUTC)) {
         return {
           isValid: false,
           canUseUnlimitedWeek: false,
@@ -130,6 +167,7 @@ export class UnlimitedWeekService {
         scheduledClass.date,
         scheduledClass.time,
       )
+      console.log('[Service] ⏰ Time validation result:', JSON.stringify(timeValidation, null, 2));
       if (!timeValidation.isValid) {
         return {
           isValid: false,
@@ -144,7 +182,7 @@ export class UnlimitedWeekService {
       const oneMonthFromNow = new Date()
       oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1)
 
-      if (convertUTCToLocalDate(classDate.toISOString()) > oneMonthFromNow) {
+      if (convertUTCToLocalDate(classDateUTC.toISOString()) > oneMonthFromNow) {
         return {
           isValid: false,
           canUseUnlimitedWeek: false,
@@ -218,34 +256,45 @@ export class UnlimitedWeekService {
    * Valida los requerimientos de tiempo
    */
   private static async validateTimeRequirements(classDate: Date | string, classTime: Date | string) {
+    console.log(`[Service TimeCheck]  validating time for classDate: ${classDate}, classTime: ${classTime}`);
     const now = new Date()
     
-    // Combinar fecha y hora de la clase usando manejo correcto de fechas para México
+    // FIX: Combine date and time using UTC methods to prevent timezone corruption.
+    // The previous implementation used local-time methods (.getFullYear(), .getHours())
+    // which could corrupt the date when the server's timezone was different from UTC.
     const dateString = classDate instanceof Date ? classDate.toISOString() : classDate
     const classDateObj = new Date(dateString)
     const classTimeObj = new Date(classTime)
     
-    const classDateTime = new Date(
-      classDateObj.getFullYear(),
-      classDateObj.getMonth(),
-      classDateObj.getDate(),
-      classTimeObj.getHours(),
-      classTimeObj.getMinutes(),
+    const classDateTime = new Date(Date.UTC(
+      classDateObj.getUTCFullYear(),
+      classDateObj.getUTCMonth(),
+      classDateObj.getUTCDate(),
+      classTimeObj.getUTCHours(),
+      classTimeObj.getUTCMinutes(),
       0,
       0
-    )
+    ))
+
+    console.log(`[Service TimeCheck] Now (local): ${now.toString()}`);
+    console.log(`[Service TimeCheck] Calculated classDateTime (UTC): ${classDateTime.toUTCString()}`);
 
     // Calcular tiempo de anticipación en minutos
     const timeUntilClass = (classDateTime.getTime() - now.getTime()) / (1000 * 60)
+    
+    console.log(`[Service TimeCheck] Time until class (minutes): ${timeUntilClass}`);
     
     // Obtener tiempo de gracia configurado (12.5 horas para Semana Ilimitada)
     const graceTimeHours = 12
     const minimumRequiredMinutes = (graceTimeHours * 60) + 30 // gracia + 30 minutos
 
+    console.log(`[Service TimeCheck] Minimum required minutes: ${minimumRequiredMinutes}`);
+
     if (timeUntilClass < minimumRequiredMinutes) {
       const remainingHours = Math.floor(timeUntilClass / 60)
       const remainingMinutes = Math.floor(timeUntilClass % 60)
       
+      console.log('[Service TimeCheck] ❌ Time requirement NOT MET.');
       return {
         isValid: false,
         message: 'No puedes reservar con Semana Ilimitada en este horario. Ya no hay tiempo suficiente para enviar tu confirmación por WhatsApp.',
@@ -256,6 +305,7 @@ export class UnlimitedWeekService {
       }
     }
 
+    console.log('[Service TimeCheck] ✅ Time requirement MET.');
     return {
       isValid: true,
       timeRemaining: {

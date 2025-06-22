@@ -45,6 +45,8 @@ import {
 import { toast } from "@/components/ui/use-toast"
 import { Textarea } from "@/components/ui/textarea"
 import { getAvailableWeekOptions } from '@/lib/utils/unlimited-week'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 interface Payment {
   id: number
@@ -371,7 +373,6 @@ export default function PaymentsPage() {
       })
       return
     }
-
     // Validar que el monto sea válido
     const amount = parseFloat(paymentAmount)
     if (isNaN(amount) || amount <= 0) {
@@ -382,20 +383,33 @@ export default function PaymentsPage() {
       })
       return
     }
-
+    // Si es semana ilimitada, debe seleccionar semana
+    if (selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && !selectedUnlimitedWeek) {
+      toast({
+        title: "Error",
+        description: "Debes seleccionar la semana para el paquete ilimitado",
+        variant: "destructive",
+      })
+      return
+    }
     setIsProcessingPayment(true)
-
     try {
       const body: any = {
         user_id: parseInt(selectedUserId),
-        userPackageId: selectedUserPackageId ? parseInt(selectedUserPackageId) : null,
         amount: amount,
         notes: paymentNotes.trim() || null,
       }
-      // Si es semana ilimitada y hay semana seleccionada, enviar selectedWeekStart
-      if (selectedPackageId && Number(selectedPackageId) === 3 && selectedUnlimitedWeek) {
-        body.selectedWeekStart = selectedUnlimitedWeek.start
+      // Only send userPackageId if NOT creating a new unlimited week package
+      if (!(selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && selectedUnlimitedWeek)) {
+        if (selectedUserPackageId) {
+          body.userPackageId = parseInt(selectedUserPackageId);
+        }
       }
+      // Si es semana ilimitada y hay semana seleccionada, enviar selectedWeek
+      if (selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && selectedUnlimitedWeek) {
+        body.selectedWeek = selectedUnlimitedWeek.start;
+      }
+      console.log('Admin Payments POST body:', body);
       const response = await fetch("/api/admin/payments", {
         method: "POST",
         headers: {
@@ -403,9 +417,7 @@ export default function PaymentsPage() {
         },
         body: JSON.stringify(body),
       })
-
       const data = await response.json()
-
       if (response.ok) {
         toast({
           title: "Pago registrado",
@@ -440,13 +452,12 @@ export default function PaymentsPage() {
     }
   }
 
-  // Buscar usuarios por email
+  // Buscar usuarios por email (simplificado)
   const searchUsersByEmail = async (email: string) => {
     if (!email.trim()) {
       setSearchedUsers([])
       return
     }
-
     setIsSearchingUsers(true)
     try {
       const response = await fetch(`/api/admin/users/search?email=${encodeURIComponent(email)}`)
@@ -590,7 +601,7 @@ export default function PaymentsPage() {
   // Efecto para búsqueda de usuarios con debounce
   useEffect(() => {
     const delayedSearch = setTimeout(() => {
-      if (userSearchEmail.trim().length >= 3) {
+      if (userSearchEmail.trim().length >= 2) {
         searchUsersByEmail(userSearchEmail)
       } else {
         setSearchedUsers([])
@@ -922,7 +933,8 @@ export default function PaymentsPage() {
                   {userSearchEmail && searchedUsers.length === 0 && !isSearchingUsers && userSearchEmail.trim().length >= 3 && !selectedUserId && (
                     <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
                       <div className="text-sm text-blue-800 mb-2">
-                        No se encontró ningún usuario con ese email.
+                        No se encontró ningún cliente con ese email.<br />
+                        Puedes crear uno en la página de usuarios y regresar para completar el pago.
                       </div>
                       <Button
                         type="button"
@@ -931,7 +943,7 @@ export default function PaymentsPage() {
                         onClick={() => window.location.href = '/admin/users'}
                         className="text-blue-700 border-blue-300 hover:bg-blue-100"
                       >
-                        Agregar nuevo cliente
+                        Ir a crear cliente
                       </Button>
                     </div>
                   )}
@@ -941,8 +953,6 @@ export default function PaymentsPage() {
                 {selectedUserId && (
                   <div className="space-y-2">
                     <Label htmlFor="package-select">Paquete</Label>
-                    
-                    {/* Botón para asignar nuevo paquete - ahora es el principal */}
                     <div className="flex gap-2">
                       <Select onValueChange={(value) => handleAssignPackage(selectedUserId, value)}>
                         <SelectTrigger className="flex-1">
@@ -957,7 +967,6 @@ export default function PaymentsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-
                     {/* Mostrar paquete seleccionado */}
                     {selectedPackageId && selectedPackageId !== "none" && (
                       <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
@@ -968,13 +977,14 @@ export default function PaymentsPage() {
                         </div>
                       </div>
                     )}
-
-                    {/* In the package selection UI, after selecting a package: */}
-                    {selectedPackageId && Number(selectedPackageId) === 3 && (
+                    {/* Semana ilimitada: picker obligatorio */}
+                    {selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && (
                       <div className="space-y-2">
-                        <Label htmlFor="unlimited-week-select">Semana Ilimitada</Label>
-                        <Select onValueChange={value => {
+                        <Label htmlFor="unlimited-week-select">Semana Ilimitada *</Label>
+                        <Select value={selectedUnlimitedWeek?.start || ''} onValueChange={value => {
                           const option = getAvailableWeekOptions().find(opt => opt.value === value)
+                          console.log('Selected week value:', value, 'Label:', option?.label, 'Start:', option?.startDate)
+
                           if (option) {
                             setSelectedUnlimitedWeek({ start: option.startDate.toISOString().slice(0, 10), end: option.endDate.toISOString().slice(0, 10) })
                           }
@@ -992,8 +1002,16 @@ export default function PaymentsPage() {
                         </Select>
                         {selectedUnlimitedWeek && (
                           <div className="text-xs text-blue-700 mt-1">
-                            Semana seleccionada: {selectedUnlimitedWeek.start} al {selectedUnlimitedWeek.end}
+                            {/* Mostrar fechas en formato local y amigable */}
+                            Semana seleccionada: {
+                              format(new Date(selectedUnlimitedWeek.start), 'd MMM yyyy', { locale: es })
+                            } al {
+                              format(new Date(selectedUnlimitedWeek.end), 'd MMM yyyy', { locale: es })
+                            }
                           </div>
+                        )}
+                        {!selectedUnlimitedWeek && (
+                          <div className="text-xs text-red-600 mt-1">Debes seleccionar una semana para continuar.</div>
                         )}
                       </div>
                     )}
@@ -1044,7 +1062,7 @@ export default function PaymentsPage() {
                 </AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleCreatePayment}
-                  disabled={isProcessingPayment || !selectedUserId || !paymentAmount}
+                  disabled={isProcessingPayment || !selectedUserId || !paymentAmount || (selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && !selectedUnlimitedWeek)}
                   className="bg-[#4A102A] hover:bg-[#5A1A3A]"
                 >
                   {isProcessingPayment ? (
