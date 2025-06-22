@@ -60,6 +60,15 @@ interface AvailableTime {
   availableSpots: number
   maxCapacity: number
   typeId: number
+  scheduledClassId: number // Add this field
+
+}
+
+interface UserPackage {
+  id: number // Add this field
+  name: string
+  classesRemaining: number
+  expiryDate: string
 }
 
 interface BikeOption {
@@ -92,6 +101,7 @@ export default function ReservationsPage() {
   const [selectedPackage, setSelectedPackage] = useState<string>("")
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("pending")
   const [selectedBike, setSelectedBike] = useState<number | null>(null)
+  const [selectedUserPackageId, setSelectedUserPackageId] = useState<string>("")
 
   // Estados para horarios disponibles dinámicos
   const [availableTimes, setAvailableTimes] = useState<AvailableTime[]>([])
@@ -147,7 +157,10 @@ export default function ReservationsPage() {
         // Guardar información detallada de las clases
         setUserClassesInfo({
           totalAvailableClasses: packageData.totalAvailableClasses || 0,
-          activePackages: packageData.activePackages || []
+          activePackages: (packageData.activePackages || []).map((pkg: any, idx: number) => ({
+            ...pkg,
+            id: pkg.id ?? pkg.userPackageId ?? idx // asegurar que cada paquete tiene id único
+          }))
         })
       } else {
         setUserHasClasses(false)
@@ -165,31 +178,26 @@ export default function ReservationsPage() {
   // Función mejorada para crear reservación con verificación de paquetes
   const createReservationWithPackageCheck = async (reservationData: any) => {
     try {
-      // 1. Verificar paquetes del usuario
       const packageCheck = await checkUserPackages(Number(reservationData.userId))
-      
       if (!packageCheck) {
         alert("Error al verificar los paquetes del usuario")
         return
       }
-
-      // 2. Si no tiene clases disponibles, redirigir a pagos con datos de reservación
       if (!packageCheck.hasAvailableClasses) {
-        // Guardar datos de reservación en localStorage para recuperarlos en la página de pagos
         localStorage.setItem('pendingReservation', JSON.stringify({
           ...reservationData,
           userInfo: packageCheck.user,
           redirectFrom: 'reservations'
         }))
-        
-        // Redirigir a la página de pagos
         router.push(`/admin/payments?userId=${reservationData.userId}&context=reservation`)
         return
       }
-
-      // 3. Si tiene clases disponibles, proceder con la reservación normal
-      await createReservationDirectly(reservationData)
-      
+      // Si hay más de un paquete y el admin seleccionó uno, incluirlo
+      const dataToSend = { ...reservationData };
+      if (selectedUserPackageId) {
+        dataToSend.userPackageId = selectedUserPackageId;
+      }
+      await createReservationDirectly(dataToSend)
     } catch (error) {
       console.error("Error in reservation creation process:", error)
       alert(`Error al crear la reservación: ${error instanceof Error ? error.message : String(error)}`)
@@ -765,7 +773,7 @@ export default function ReservationsPage() {
       setIsLoadingBikes(true)
       try {
         const response = await fetch(
-          `/api/reservations/available-bikes?scheduledClassId=${selectedAvailableTime.classId}`
+          `/api/reservations/available-bikes?scheduledClassId=${selectedAvailableTime.scheduledClassId}`
         )
         
         if (response.ok) {
@@ -901,20 +909,7 @@ export default function ReservationsPage() {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="package">Paquete</Label>
-                    <Select value={selectedPackage} onValueChange={setSelectedPackage}>
-                      <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
-                        <SelectValue placeholder="Seleccionar paquete" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-gray-200 text-zinc-900">
-                        <SelectItem value="individual">PASE INDIVIDUAL - $69</SelectItem>
-                        <SelectItem value="primera-vez">PRIMERA VEZ - $49</SelectItem>
-                        <SelectItem value="semana-ilimitada">SEMANA ILIMITADA - $299</SelectItem>
-                        <SelectItem value="10classes">PAQUETE 10 CLASES - $599</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  
 
                   {/* Validación de clases disponibles */}
                   {selectedUser && (
@@ -957,6 +952,25 @@ export default function ReservationsPage() {
                           </div>
                         </div>
                       ) : null}
+                    </div>
+                  )}
+
+                  {/* Selector de paquete activo si hay más de uno */}
+                  {userHasClasses && userClassesInfo && userClassesInfo.activePackages.length > 1 && (
+                    <div className="space-y-2">
+                      <Label>Seleccionar paquete a usar</Label>
+                      <Select value={selectedUserPackageId} onValueChange={setSelectedUserPackageId}>
+                        <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
+                          <SelectValue placeholder="Seleccionar paquete activo" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                          {userClassesInfo.activePackages.map(pkg => (
+                            <SelectItem key={pkg.id} value={pkg.id.toString()}>
+                              {pkg.name} - {pkg.classesRemaining} clases (expira {pkg.expiryDate})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
 
@@ -1017,6 +1031,7 @@ export default function ReservationsPage() {
                     setSelectedTime("")
                     setSelectedPackage("")
                     setSelectedBike(null)
+                    setSelectedUserPackageId("")
                   }}
                   className="border-gray-200 text-zinc-900 hover:bg-gray-100"
                 >
@@ -1047,6 +1062,7 @@ export default function ReservationsPage() {
                       !selectedTime || 
                       !selectedPackage ||
                       userHasClasses === false ||
+                      (userHasClasses && userClassesInfo && userClassesInfo.activePackages.length > 1 && !selectedUserPackageId) ||
                       isCheckingUserClasses
                     }
                     onClick={async () => {
@@ -1083,13 +1099,14 @@ export default function ReservationsPage() {
                         }
 
                         // Crear directamente la reservación (ya sabemos que tiene clases)
-                        await createReservationDirectly(newReservationData)
+                        await createReservationWithPackageCheck(newReservationData)
                         
                         // Limpiar formulario después de éxito
                         setSelectedUser("")
                         setSelectedTime("")
                         setSelectedPackage("")
                         setSelectedBike(null)
+                        setSelectedUserPackageId("")
                         setUserHasClasses(null)
                         setUserClassesInfo(null)
                         setIsNewReservationOpen(false)

@@ -451,6 +451,7 @@ export async function sendPackagePurchaseConfirmationEmail(
     expiryDate: string;
     purchaseDate: string;
     price: number;
+    isUnlimitedWeek?: boolean;
   },
 ): Promise<void> {
   const subject = "¡Confirmación de Compra de Paquete - Innata Studio!";
@@ -507,15 +508,36 @@ export async function sendPackagePurchaseConfirmationEmail(
                 <span style="color: #111827; font-weight: 500; margin-left: 8px;">$${packageDetails.price.toFixed(2)} MXN</span>
               </div>
 
-              <div style="margin: 8px 0;">
-                <span style="color: #6b7280; font-size: 14px;">Fecha de Compra:</span>
-                <span style="color: #111827; font-weight: 500; margin-left: 8px;">${packageDetails.purchaseDate}</span>
-              </div>
+              ${packageDetails.isUnlimitedWeek
+                ? `<div style="margin: 8px 0;">
+                    <span style="color: #6b7280; font-size: 14px;">Inicio de semana ilimitada:</span>
+                    <span style="color: #111827; font-weight: 500; margin-left: 8px;">${packageDetails.purchaseDate}</span>
+                  </div>
+                  <div style="margin: 8px 0;">
+                    <span style="color: #6b7280; font-size: 14px;">Fin de semana ilimitada:</span>
+                    <span style="color: #111827; font-weight: 500; margin-left: 8px;">${packageDetails.expiryDate}</span>
+                  </div>
+                  <div style="background: #F0F4E8; border-left: 6px solid #AAB99A; border-radius: 8px; padding: 18px 20px; margin: 24px 0 0 0;">
+                    <h4 style="color: #4A102A; font-size: 16px; font-weight: bold; margin: 0 0 10px 0;">Reglas de la Semana Ilimitada:</h4>
+                    <ul style="color: #374151; font-size: 15px; line-height: 1.7; margin: 0; padding-left: 22px;">
+                      <li>Solo puedes reservar clases de <b>lunes a viernes</b> de la semana seleccionada.</li>
+                      <li>Hasta <b>25 clases</b> en la semana ilimitada.</li>
+                      <li>Si <b>no te presentas, y no cancelaste antes</b>, se descontará una clase de tu paquete, y se penalizará la siguiente clase.</li>
+                       <li>Si <b>cancelas a tiempo (con 12 horas de anticipación)</b>,no habrá penalización , pero se descontará una clase de tu paquete.</li>
 
-              <div style="margin: 8px 0;">
-                <span style="color: #6b7280; font-size: 14px;">Fecha de Expiración:</span>
-                <span style="color: #111827; font-weight: 500; margin-left: 8px;">${packageDetails.expiryDate}</span>
-              </div>
+                      <li>Debes <b>confirmar tu asistencia por WhatsApp</b> al menos 12 horas antes de la clase para garantizar tu lugar.</li>
+                    </ul>
+                  </div>`
+                : `<div style="margin: 8px 0;">
+                    <span style="color: #6b7280; font-size: 14px;">Fecha de Compra:</span>
+                    <span style="color: #111827; font-weight: 500; margin-left: 8px;">${packageDetails.purchaseDate}</span>
+                  </div>
+                  <div style="margin: 8px 0;">
+                    <span style="color: #6b7280; font-size: 14px;">Fecha de Expiración:</span>
+                    <span style="color: #111827; font-weight: 500; margin-left: 8px;">${packageDetails.expiryDate}</span>
+                  </div>`
+              }
+
             </div>
           </div>
 
@@ -555,8 +577,14 @@ Detalles de tu Paquete:
 - Nombre del Paquete: ${packageDetails.packageName}
 - Número de Clases: ${packageDetails.classCount}
 - Precio: $${packageDetails.price.toFixed(2)} MXN
-- Fecha de Compra: ${packageDetails.purchaseDate}
-- Fecha de Expiración: ${packageDetails.expiryDate}
+- ${packageDetails.isUnlimitedWeek
+  ? `Inicio de semana ilimitada: ${packageDetails.purchaseDate}`
+  : `Fecha de Compra: ${packageDetails.purchaseDate}`
+}
+- ${packageDetails.isUnlimitedWeek
+  ? `Fin de semana ilimitada: ${packageDetails.expiryDate}`
+  : `Fecha de Expiración: ${packageDetails.expiryDate}`
+}
 
 Reserva tu próxima clase: ${appUrl}/reservar
 Ir a Mi Cuenta: ${appUrl}/mi-cuenta

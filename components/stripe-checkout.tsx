@@ -1,17 +1,15 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { CardElement, Elements, useStripe, useElements } from "@stripe/react-stripe-js"
 import { stripePromise } from "@/lib/stripe"
 import { Loader2 } from "lucide-react"
 
 interface CheckoutFormProps {
-  amount: number // Monto NETO deseado (lo que quieres recibir)
+  amount: number
   description: string
   onSuccess: (paymentId: string) => void
   onCancel: () => void
@@ -19,18 +17,25 @@ interface CheckoutFormProps {
   email?: string
 }
 
-function CheckoutForm({ amount, description, onSuccess, onCancel, name: initialName = "", email: initialEmail = "", firstName = "", lastName = "" }: CheckoutFormProps & { firstName?: string, lastName?: string }) {
+function CheckoutForm({
+  amount,
+  description,
+  onSuccess,
+  onCancel,
+  name: initialName = "",
+  email: initialEmail = "",
+  firstName = "",
+  lastName = "",
+}: CheckoutFormProps & { firstName?: string; lastName?: string }) {
   const stripe = useStripe()
   const elements = useElements()
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
-  // Si name no viene, usar firstName + lastName
-  const defaultName = initialName || ((firstName || "") + (lastName ? ` ${lastName}` : ""))
+  const defaultName = initialName || (firstName || "") + (lastName ? ` ${lastName}` : "")
   const [email, setEmail] = useState(initialEmail)
   const [name, setName] = useState(defaultName)
 
-  // El usuario paga exactamente el amount recibido (precio base)
-  const totalAmount = parseFloat(amount.toString().replace(/[^0-9.]/g, ''))
+  const totalAmount = Number.parseFloat(amount.toString().replace(/[^0-9.]/g, ""))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,17 +54,16 @@ function CheckoutForm({ amount, description, onSuccess, onCancel, name: initialN
       return
     }
 
-    // Forzamos el tipo porque ya validamos que cardElement no es null
     const paymentMethodCard = cardElement as any
 
     try {
-      const response = await fetch('/api/create-payment-intent', {
-        method: 'POST',
+      const response = await fetch("/api/create-payment-intent", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          amount: Math.round(totalAmount * 100), // En centavos
+          amount: Math.round(totalAmount * 100),
           description,
           email,
           name,
@@ -72,24 +76,21 @@ function CheckoutForm({ amount, description, onSuccess, onCancel, name: initialN
         throw new Error(data.error)
       }
 
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(
-        data.clientSecret,
-        {
-          payment_method: {
-            card: paymentMethodCard,
-            billing_details: {
-              name,
-              email,
-            },
+      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(data.clientSecret, {
+        payment_method: {
+          card: paymentMethodCard,
+          billing_details: {
+            name,
+            email,
           },
-        }
-      )
+        },
+      })
 
       if (stripeError) {
         throw new Error(stripeError.message)
       }
 
-      if (paymentIntent.status === 'succeeded') {
+      if (paymentIntent.status === "succeeded") {
         onSuccess(paymentIntent.id)
       }
     } catch (err) {
@@ -100,83 +101,120 @@ function CheckoutForm({ amount, description, onSuccess, onCancel, name: initialN
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Nombre</Label>
-        <Input
-          id="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Nombre completo"
-          required
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="tu@email.com"
-          required
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="card">Información de Tarjeta</Label>
-        <div className="rounded-md border border-gray-200 p-3">
-          <CardElement
-            options={{
-              style: {
-                base: {
-                  fontSize: "16px",
-                  color: "#424770",
-                  "::placeholder": {
-                    color: "#aab7c4",
-                  },
-                },
-                invalid: {
-                  color: "#9e2146",
-                },
-              },
-            }}
+    <div className="max-w-md mx-auto">
+      <h2 className="text-2xl font-semibold text-gray-900 mb-8">Pago con Tarjeta</h2>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Email */}
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+            Email
+          </label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            required
           />
         </div>
-      </div>
-      {error && <div className="text-sm text-red-500">{error}</div>}
-      <div className="space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-500">Subtotal</span>
-          <span>${totalAmount.toFixed(2)}</span>
+
+        {/* Card Information */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Número de tarjeta</label>
+          <div className="border border-gray-300 rounded-md">
+            <div className="px-3 py-3 border-b border-gray-300">
+              <CardElement
+                options={{
+                  style: {
+                    base: {
+                      fontSize: "16px",
+                      color: "#1f2937",
+                      fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                      "::placeholder": {
+                        color: "#9ca3af",
+                      },
+                      iconColor: "#6b7280",
+                    },
+                    invalid: {
+                      color: "#ef4444",
+                      iconColor: "#ef4444",
+                    },
+                  },
+                  hidePostalCode: false,
+                }}
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="flex justify-between font-medium">
-          <span>Total</span>
-          <span>${totalAmount.toFixed(2)}</span>
+        {/* Name on card */}
+        <div>
+          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+            Nombre
+          </label>
+          <Input
+            id="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            required
+          />
         </div>
-      </div>
-      <div className="flex flex-col space-y-2">
-        <Button type="submit" disabled={!stripe || processing} className="bg-[#CA7842] hover:bg-[#CA7842] text-white">
+
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-3">
+            <div className="text-sm text-red-800">{error}</div>
+          </div>
+        )}
+
+
+        {/* Pay Button */}
+        <Button
+          type="submit"
+          disabled={!stripe || processing}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-4 px-4 rounded-md text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           {processing ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando...
-            </>
+            <div className="flex items-center justify-center">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Procesando pago...
+            </div>
           ) : (
-            `Pagar $${totalAmount.toFixed(2)}`
+            "Pagar"
           )}
         </Button>
-        <Button type="button" variant="outline" onClick={onCancel} disabled={processing}>
-          Cancelar
-        </Button>
-      </div>
-    </form>
+      </form>
+    </div>
   )
 }
 
-export function StripeCheckout({ amount, description, onSuccess, onCancel, name, email, firstName, lastName, ...rest }: CheckoutFormProps & { firstName?: string, lastName?: string }) {
+export function StripeCheckout({
+  amount,
+  description,
+  onSuccess,
+  onCancel,
+  name,
+  email,
+  firstName,
+  lastName,
+  ...rest
+}: CheckoutFormProps & { firstName?: string; lastName?: string }) {
   return (
     <Elements stripe={stripePromise}>
-      <CheckoutForm amount={amount} description={description} onSuccess={onSuccess} onCancel={onCancel} name={name} email={email} firstName={firstName} lastName={lastName} {...rest} />
+      <CheckoutForm
+        amount={amount}
+        description={description}
+        onSuccess={onSuccess}
+        onCancel={onCancel}
+        name={name}
+        email={email}
+        firstName={firstName}
+        lastName={lastName}
+        {...rest}
+      />
     </Elements>
   )
 }

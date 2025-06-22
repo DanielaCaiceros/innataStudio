@@ -58,7 +58,7 @@ export function getAvailableWeekOptions(): WeekOption[] {
   }
   
   // Generar las opciones de semana (máximo 3 semanas hacia adelante)
-  for (let i = startWeek; i < startWeek + 3; i++) {
+  for (let i = startWeek; i < startWeek + 4; i++) {
     const weekStart = startOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
     const weekEnd = getUnlimitedWeekExpiryDate(weekStart);
     

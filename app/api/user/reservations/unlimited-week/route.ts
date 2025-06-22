@@ -17,10 +17,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const { scheduledClassId } = await request.json();
+    const { scheduledClassId, bikeNumber } = await request.json();
 
     if (!scheduledClassId) {
       return NextResponse.json({ error: 'ID de clase requerido' }, { status: 400 });
+    }
+
+    if (!bikeNumber) {
+      return NextResponse.json({ error: 'Debes seleccionar una bicicleta para la reserva.' }, { status: 400 });
     }
 
     // Obtener información del usuario
@@ -130,7 +134,8 @@ export async function POST(request: NextRequest) {
           scheduledClassId: scheduledClassId,
           userPackageId: unlimitedWeekPackage.id,
           status: 'confirmed',
-          paymentMethod: 'package'
+          paymentMethod: 'package',
+          bikeNumber: bikeNumber
         },
         include: {
           scheduledClass: {
@@ -176,6 +181,36 @@ export async function POST(request: NextRequest) {
 
       return reservation;
     });
+
+    // Enviar correo de confirmación con el flag isUnlimitedWeek: true
+    try {
+      const { sendBookingConfirmationEmail } = await import('@/lib/email');
+      const { formatDateToSpanish, formatTimeFromDB } = await import('@/lib/utils/date');
+      await sendBookingConfirmationEmail(
+        user.email,
+        user.firstName,
+        {
+          className: result.scheduledClass.classType.name,
+          date: formatDateToSpanish(
+            result.scheduledClass.date instanceof Date
+              ? result.scheduledClass.date.toISOString()
+              : result.scheduledClass.date
+          ),
+          time: formatTimeFromDB(
+            result.scheduledClass.time instanceof Date
+              ? result.scheduledClass.time.toISOString()
+              : result.scheduledClass.time
+          ),
+          instructor: `${result.scheduledClass.instructor.user.firstName} ${result.scheduledClass.instructor.user.lastName}`,
+          confirmationCode: result.id.toString().padStart(6, '0'),
+          bikeNumber: result.bikeNumber || undefined,
+          isUnlimitedWeek: true,
+          graceTimeHours: 12 // O el valor que uses en tu sistema
+        }
+      );
+    } catch (emailError) {
+      console.error('Error enviando email de confirmación (semana ilimitada):', emailError);
+    }
 
     return NextResponse.json({
       success: true,

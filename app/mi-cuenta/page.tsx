@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/dialog"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { useToast } from "@/components/ui/use-toast"
+import { startOfWeek } from 'date-fns';
+import { getUnlimitedWeekExpiryDate } from '@/lib/utils/unlimited-week';
 
 // Interfaces para los datos de API
 interface UserPackage {
@@ -27,6 +29,7 @@ interface UserPackage {
   classesUsed: number
   expiryDate: string
   isActive: boolean
+  purchaseDate?: string
 }
 
 interface UserReservation {
@@ -285,8 +288,8 @@ export default function ProfilePage() {
         })
 
         if (response.ok) {
-          const data: UserPackage[] = await response.json()
-          setUserPackages(data)
+          const data = await response.json()
+          setUserPackages(Array.isArray(data.packages) ? data.packages : [])
         }
       } catch (error) {
         console.error("Error al cargar paquetes:", error)
@@ -365,8 +368,10 @@ export default function ProfilePage() {
     }
   }
 
-  // Calcular total de clases disponibles de todos los paquetes
-  const totalAvailableClasses = userPackages.reduce((total, pkg) => total + pkg.classesRemaining, 0)
+  // Calcular total de clases disponibles de todos los paquetes (incluye semana ilimitada)
+  const totalAvailableClasses = Array.isArray(userPackages)
+    ? userPackages.reduce((total, pkg) => total + (pkg.classesRemaining || 0), 0)
+    : 0
 
   // Paginación para paquetes
   const totalPackagePages = Math.ceil(userPackages.length / packagesPerPage)
@@ -517,7 +522,7 @@ export default function ProfilePage() {
                           <Package className="h-8 w-8 text-brand-mint" />
                         </div>
                         <h3 className="text-xl font-semibold mb-2 text-zinc-800">No tienes paquetes activos</h3>
-                        <p className="text-zinc-600 mb-6">Compra un paquete para comenza</p>
+                        <p className="text-zinc-600 mb-6">Compra un paquete para comenzar</p>
                         <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white shadow-sm">
                           <Link href="/paquetes">
                             Comprar un paquete
@@ -554,16 +559,29 @@ export default function ProfilePage() {
                                 <span className="text-zinc-600">Clases usadas</span>
                                 <span className="font-medium text-zinc-800">{pkg.classesUsed}</span>
                               </div>
-                              <div className="flex justify-between items-center text-sm">
-                                <span className="text-zinc-600">Expira el</span>
-                                <span className="font-medium text-zinc-800">
-                                  {new Date(pkg.expiryDate).toLocaleDateString("es-ES", {
-                                    year: "numeric",
-                                    month: "short",
-                                    day: "numeric",
-                                  })}
-                                </span>
-                              </div>
+                              {pkg.name === 'SEMANA ILIMITADA' ? (
+                                (() => {
+                                  let semanaValida = 'No disponible';
+                                  if (pkg.purchaseDate) {
+                                    const weekStart = startOfWeek(new Date(pkg.purchaseDate), { weekStartsOn: 1 });
+                                    const weekEnd = getUnlimitedWeekExpiryDate(weekStart);
+                                    semanaValida = `${weekStart.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })} al ${weekEnd.toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })}`;
+                                  }
+                                  return (
+                                    <div className="flex flex-col gap-1 text-xs text-zinc-600 mt-2">
+                                      <span>Semana válida:</span>
+                                      <span className="font-semibold text-zinc-800">{semanaValida}</span>
+                                    </div>
+                                  );
+                                })()
+                              ) : (
+                                <div className="flex flex-col gap-1 text-xs text-zinc-600 mt-2">
+                                  <span>Expira el:</span>
+                                  <span className="font-semibold text-zinc-800">
+                                    {pkg.expiryDate ? new Date(pkg.expiryDate).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No disponible'}
+                                  </span>
+                                </div>
+                              )}
                               <div className="w-full bg-gray-200 rounded-full h-2">
                                 <div
                                   className="bg-gradient-to-r from-brand-sage to-brand-mint h-2 rounded-full transition-all duration-500"

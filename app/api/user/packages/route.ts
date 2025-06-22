@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient, User } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
 import { sendPackagePurchaseConfirmationEmail } from "@/lib/email"
-import { getUnlimitedWeekExpiryDate } from '@/lib/utils/business-days'
+import { getUnlimitedWeekExpiryDate } from '@/lib/utils/unlimited-week'
 
 
 const prisma = new PrismaClient()
@@ -21,32 +21,45 @@ export async function GET(request: NextRequest) {
 
     // Obtener paquetes activos del usuario
     const userPackages = await prisma.userPackage.findMany({
-      where: { 
+      where: {
         userId,
         isActive: true,
         classesRemaining: { gt: 0 },
-        expiryDate: { gte: new Date() }
+        expiryDate: { gte: new Date() },
       },
       include: {
-        package: true
+        package: true,
       },
-      orderBy: { expiryDate: 'asc' }
+      orderBy: { expiryDate: 'asc' },
     })
+
+    // Contar solo las clases de paquetes que no son Semana Ilimitada
+    const normalClassesCount = userPackages
+      .filter(p => p.packageId !== 3)
+      .reduce((total, pkg) => total + (pkg.classesRemaining || 0), 0)
 
     // Formatear los datos para la respuesta
     const formattedPackages = userPackages.map(pkg => ({
       id: pkg.id,
+      packageId: pkg.packageId, // Importante para el frontend
       name: pkg.package.name,
       classesRemaining: pkg.classesRemaining,
       classesUsed: pkg.classesUsed,
       expiryDate: pkg.expiryDate.toISOString(),
-      isActive: pkg.isActive
+      purchaseDate: pkg.purchaseDate ? pkg.purchaseDate.toISOString() : null,
+      isActive: pkg.isActive,
     }))
 
-    return NextResponse.json(formattedPackages)
+    return NextResponse.json({
+      packages: formattedPackages,
+      totalAvailableClasses: normalClassesCount,
+    })
   } catch (error) {
-    console.error("Error fetching user packages:", error)
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
+    console.error('Error fetching user packages:', error)
+    return NextResponse.json(
+      { error: 'Error interno del servidor' },
+      { status: 500 },
+    )
   }
 }
 
@@ -63,7 +76,7 @@ export async function POST(request: NextRequest) {
     const userId = parseInt(payload.userId)
 
     const body = await request.json()
-    const { packageId, paymentId } = body
+    const { packageId, paymentId, selectedWeekStartDate } = body
 
     if (!packageId || !paymentId) {
       return NextResponse.json({ 
@@ -101,14 +114,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Calcular fecha de expiración
-    const purchaseDate = new Date()
+    let purchaseDate = new Date()
     let expiryDate: Date
-
-    // **NUEVA LÓGICA**: Para Semana Ilimitada (ID 3), usar días hábiles
-    if (Number(packageId) === 3) {
+    if (Number(packageId) === 3 && selectedWeekStartDate) {
+      purchaseDate = new Date(selectedWeekStartDate)
+      expiryDate = getUnlimitedWeekExpiryDate(purchaseDate)
+    } else if (Number(packageId) === 3) {
       expiryDate = getUnlimitedWeekExpiryDate(purchaseDate)
     } else {
-      // Para otros paquetes, usar días calendario normales
       expiryDate = new Date()
       expiryDate.setDate(purchaseDate.getDate() + packageInfo.validityDays)
     }

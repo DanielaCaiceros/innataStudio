@@ -22,6 +22,7 @@ import {
   createClassDateTime
 } from "@/lib/utils/date"
 import { isBusinessDay } from "@/lib/utils/business-days"
+import { isWithinInterval } from 'date-fns'
 
 import { useUnlimitedWeek } from '@/lib/hooks/useUnlimitedWeek'
 import { 
@@ -60,18 +61,24 @@ export default function BookingPage() {
   const [isLoading, setIsLoading] = useState(true)
   const reservationSummaryRef = useRef<HTMLDivElement>(null)
 
-  // Estados para Semana Ilimitada - Activación automática
+  // Estados para Semana Ilimitada - Lógica de validación por clase
   const [unlimitedWeekValidation, setUnlimitedWeekValidation] = useState<any>(null)
-  const [showUnlimitedWeekConfirmation, setShowUnlimitedWeekConfirmation] = useState(false)
-  const [isValidatingUnlimitedWeek, setIsValidatingUnlimitedWeek] = useState(false)
-  
+  const [
+    showUnlimitedWeekConfirmation,
+    setShowUnlimitedWeekConfirmation,
+  ] = useState(false)
+  const [isCheckingUnlimitedWeek, setIsCheckingUnlimitedWeek] = useState(false)
+  const [
+    canUseUnlimitedForSelectedClass,
+    setCanUseUnlimitedForSelectedClass,
+  ] = useState(false)
+
   const {
     weeklyUsage,
     validateUnlimitedWeek,
-    canUseUnlimitedWeek,
     hasActiveUnlimitedWeek,
     getWeeklyUsageMessage,
-    isLoading: isLoadingWeekly
+    isLoading: isLoadingWeekly,
   } = useUnlimitedWeek()
 
   // Auto-activar Semana Ilimitada si el usuario tiene paquete activo
@@ -96,32 +103,41 @@ export default function BookingPage() {
   const [isLoadingUserClasses, setIsLoadingUserClasses] = useState(false)
   const [selectedScheduledClassForBooking, setSelectedScheduledClassForBooking] = useState<ScheduledClass | null>(null)
 
+  // Nuevo estado para mostrar mensaje informativo en la sección de resumen
+  const [
+    showWeekendInfoMessage,
+    setShowWeekendInfoMessage
+  ] = useState(false)
+
+  // Estado para alerta contextual
+  const [bookingAlert, setBookingAlert] = useState<{ type: 'unlimited' | 'normal' | 'individual' | 'out-of-unlimited' | null, message: string } | null>(null);
+
   // Obtener clases disponibles del usuario
   useEffect(() => {
     const loadUserAvailableClasses = async () => {
-      if (!isAuthenticated || !user) return;
-      
-      setIsLoadingUserClasses(true);
+      if (!isAuthenticated || !user) return
+
+      setIsLoadingUserClasses(true)
       try {
-        const response = await fetch("/api/user/packages", {
-          method: "GET",
-          credentials: "include",
-        });
-        
+        const response = await fetch('/api/user/packages', {
+          method: 'GET',
+          credentials: 'include',
+        })
+
         if (response.ok) {
-          const packages = await response.json();
-          const totalClasses = packages.reduce((total: number, pkg: any) => total + pkg.classesRemaining, 0);
-          setUserAvailableClasses(totalClasses);
+          const data = await response.json()
+          // Usar el conteo pre-calculado del backend
+          setUserAvailableClasses(data.totalAvailableClasses || 0)
         }
       } catch (error) {
-        console.error("Error al cargar clases disponibles del usuario:", error);
+        console.error('Error al cargar clases disponibles del usuario:', error)
       } finally {
-        setIsLoadingUserClasses(false);
+        setIsLoadingUserClasses(false)
       }
-    };
+    }
 
-    loadUserAvailableClasses();
-  }, [isAuthenticated, user]);
+    loadUserAvailableClasses()
+  }, [isAuthenticated, user])
   
   // Obtener clases disponibles al cargar o cambiar la fecha
   const loadAvailableClasses = async () => {
@@ -160,169 +176,215 @@ export default function BookingPage() {
   const handlePaymentSuccess = async (paymentId: string) => {
     try {
       if (!scheduledClassId || !selectedBikeId) {
-        throw new Error("Falta información para completar la reserva");
+        throw new Error('Falta información para completar la reserva')
       }
-      
-      const response = await fetch("/api/reservations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+
+      const response = await fetch('/api/reservations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           scheduledClassId,
           paymentId,
-          bikeNumber: selectedBikeId
+          bikeNumber: selectedBikeId,
         }),
-        credentials: "include",
-      });
-      
-      const data = await response.json();
-      
+        credentials: 'include',
+      })
+
+      const data = await response.json()
+
       if (!response.ok) {
-        setIsPaymentOpen(false);
-        throw new Error(data.error || "Error al crear la reserva");
+        setIsPaymentOpen(false)
+        throw new Error(data.error || 'Error al crear la reserva')
       }
-      
-      setIsPaymentOpen(false);
-      setIsConfirmationOpen(true);
-      
+
+      setIsPaymentOpen(false)
+      setIsConfirmationOpen(true)
+
       toast({
-        title: "Reserva confirmada",
-        description: "Se ha enviado un correo de confirmación a tu email.",
-      });
+        title: 'Reserva confirmada',
+        description: 'Se ha enviado un correo de confirmación a tu email.',
+      })
     } catch (error) {
-      console.error("Error:", error);
+      console.error('Error:', error)
       toast({
-        title: "Error al confirmar la reserva",
-        description: error instanceof Error ? error.message : "No se pudo procesar la reserva",
-        variant: "destructive",
-      });
-      setIsPaymentOpen(false);
+        title: 'Error al confirmar la reserva',
+        description:
+          error instanceof Error ? error.message : 'No se pudo procesar la reserva',
+        variant: 'destructive',
+      })
+      setIsPaymentOpen(false)
     }
   }
 
   const handlePaymentCancel = () => {
     setIsPaymentOpen(false)
     toast({
-      title: "Pago cancelado",
-      description: "El proceso de pago ha sido cancelado.",
-      variant: "destructive",
+      title: 'Pago cancelado',
+      description: 'Puedes intentar de nuevo cuando quieras.',
     })
   }
 
-  const handleClassSelection = async (classId: number) => {
-    setSelectedClass(classId)
-    setScheduledClassId(classId)
-    setUnlimitedWeekValidation(null)
-    
-    // Auto-validar si tiene Semana Ilimitada activa
-    if (isUsingUnlimitedWeek) {
-      setIsValidatingUnlimitedWeek(true)
-      const validation = await validateUnlimitedWeek(classId)
-      setUnlimitedWeekValidation(validation)
-      setIsValidatingUnlimitedWeek(false)
+  const handleClassSelection = async (scheduledClass: ScheduledClass) => {
+    setSelectedClass(scheduledClass.id)
+    setScheduledClassId(scheduledClass.id)
+    setSelectedScheduledClassForBooking(scheduledClass)
+    setSelectedBikeId(null) // Reset bike selection
+    setCanUseUnlimitedForSelectedClass(false) // Reset
+    setUnlimitedWeekValidation(null) // Reset
+    setShowWeekendInfoMessage(false) // Reset del nuevo estado
+
+    if (hasActiveUnlimitedWeek) {
+      setIsCheckingUnlimitedWeek(true)
+      try {
+        const validation = await validateUnlimitedWeek(scheduledClass.id)
+        setUnlimitedWeekValidation(validation)
+
+        const classDate = new Date(scheduledClass.date)
+        if (validation.canUseUnlimitedWeek) {
+          setCanUseUnlimitedForSelectedClass(true)
+        } else if (!isBusinessDay(classDate)) {
+          setShowWeekendInfoMessage(true)
+        }
+      } catch (error) {
+        console.error('Error validating unlimited week', error)
+        toast({
+          title: 'Error de validación',
+          description: 'No se pudo validar el uso de Semana Ilimitada.',
+          variant: 'destructive',
+        })
+      } finally {
+        setIsCheckingUnlimitedWeek(false)
+      }
     }
   }
 
   const handleBikeSelection = (bikeId: number) => {
-    setSelectedBikeId(bikeId);
+    setSelectedBikeId(bikeId)
+    // Smooth scroll to summary
     setTimeout(() => {
-      reservationSummaryRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  }
-
-  const handleUnlimitedWeekToggle = async (enabled: boolean) => {
-    // Funcionalidad removida - Semana Ilimitada se activa automáticamente
-    // Esta función se mantiene para compatibilidad pero no hace nada
-    return
+      reservationSummaryRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    }, 100)
   }
 
   const handleConfirmBooking = async () => {
-    if (!selectedScheduledClassForBooking || !selectedBikeId) {
-      console.log('handleConfirmBooking: Faltan datos necesarios')
+    if (!isAuthenticated) {
+      setIsAuthModalOpen(true)
+      return
+    }
+
+    if (!selectedClass || !selectedBikeId) {
+      toast({
+        title: 'Información incompleta',
+        description: 'Por favor, selecciona una clase y una bicicleta.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Validar anticipación antes de reservar
+    if (!isClassReservable(selectedClassDetails)) {
+      if (canUseUnlimitedForSelectedClass) {
+        toast({
+          title: 'Anticipación insuficiente',
+          description: 'Las reservas con Semana Ilimitada deben hacerse con al menos 12 horas y media de anticipación para poder confirmar tu lugar por WhatsApp.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Anticipación insuficiente',
+          description: 'Las reservas normales deben hacerse con al menos 5 minutos de anticipación.',
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
+
+    // Flujo para Semana Ilimitada
+    if (canUseUnlimitedForSelectedClass) {
+      if (unlimitedWeekValidation?.canUseUnlimitedWeek) {
+        setShowUnlimitedWeekConfirmation(true)
+      } else {
+        toast({
+          title: 'Error de validación',
+          description:
+            'Parece que ya no puedes usar Semana Ilimitada para esta clase.',
+          variant: 'destructive',
+        })
+      }
+      return
+    }
+
+    // Flujo para clases normales
+    if (userAvailableClasses > 0) {
+      await proceedWithBooking()
+    } else {
+      // Si no tiene créditos, abrir modal de pago para una sola clase
+      const classToBook = availableClasses.find(c => c.id === selectedClass)
+      if (classToBook) {
+        setSelectedScheduledClassForBooking(classToBook)
+        setIsPaymentOpen(true)
+      } else {
+        toast({ title: 'Error', description: 'No se encontró la clase seleccionada.'})
+      }
+    }
+  }
+
+  const proceedWithBooking = async () => {
+    if (!scheduledClassId || !selectedBikeId) {
+      toast({
+        title: 'Error',
+        description: 'Falta información de la clase o bicicleta.',
+        variant: 'destructive',
+      })
       return
     }
 
     setIsProcessingBooking(true)
-    
     try {
       const response = await fetch('/api/reservations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          scheduledClassId: selectedScheduledClassForBooking.id,
-          bikeId: selectedBikeId
-        })
+          scheduledClassId,
+          bikeNumber: selectedBikeId,
+          isUnlimitedWeek: canUseUnlimitedForSelectedClass, // Envía el estado correcto
+        }),
+        credentials: 'include',
       })
 
-      if (response.ok) {
-        await loadAvailableClasses()
-        setIsConfirmationOpen(true)
-        
-        // Actualizar clases disponibles del usuario
-        if (isAuthenticated && user) {
-          try {
-            const packagesResponse = await fetch("/api/user/packages", {
-              method: "GET",
-              credentials: "include",
-            });
-            
-            if (packagesResponse.ok) {
-              const packages = await packagesResponse.json();
-              const totalClasses = packages.reduce((total: number, pkg: any) => total + pkg.classesRemaining, 0);
-              setUserAvailableClasses(totalClasses);
-            }
-          } catch (error) {
-            console.error("Error al actualizar clases disponibles del usuario:", error);
-          }
-        }
-        
-        // Limpiar estados
-        setSelectedScheduledClassForBooking(null)
-        setSelectedBikeId(null)
-      } else {
-        const errorData = await response.text()
-        console.error('Error al crear reserva:', errorData)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al crear la reserva')
       }
+
+      // Reset states
+      setSelectedClass(null)
+      setSelectedTime(null)
+      setSelectedBikeId(null)
+      setCanUseUnlimitedForSelectedClass(false)
+
+      // Reload data
+      loadAvailableClasses()
+
+      toast({
+        title: 'Reserva confirmada',
+        description: '¡Nos vemos en clase! Se ha enviado un correo de confirmación.',
+      })
     } catch (error) {
-      console.error('Error en la solicitud:', error)
+      console.error('Error en proceedWithBooking:', error)
+      toast({
+        title: 'Error al reservar',
+        description:
+          error instanceof Error ? error.message : 'No se pudo procesar la reserva',
+        variant: 'destructive',
+      })
     } finally {
       setIsProcessingBooking(false)
     }
-  }
-
-  const proceedWithBooking = async () => {
-    if (!isAuthenticated) {
-      setIsAuthModalOpen(true);
-      return;
-    }
-
-    if (!selectedClass || !selectedBikeId) {
-      toast({
-        title: "Información incompleta",
-        description: "Por favor selecciona una clase y una bicicleta.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const selectedCls = availableClasses.find(c => c.id === selectedClass);
-    if (!selectedCls) return;
-    
-    setSelectedScheduledClassForBooking(selectedCls);
-
-    // Si tiene Semana Ilimitada y es válida, reservar directamente
-    if (isUsingUnlimitedWeek && unlimitedWeekValidation?.isValid) {
-      setShowUnlimitedWeekConfirmation(true); // Muestra modal de confirmación
-      return;
-    }
-
-    // Si no tiene clases disponibles, mostrar modal de pago
-    if (userAvailableClasses <= 0) {
-      setIsPaymentOpen(true);
-      return;
-    }
-    
-    // Si tiene clases, reservar directamente
-    await handleConfirmBooking();
   }
 
   // Obtener clases para fecha seleccionada
@@ -368,20 +430,23 @@ export default function BookingPage() {
     ).map(item => (item as any).originalClass)
   }
 
-  // Verificar si una clase es reservable
+  // Verificar si una clase es reservable (solo true/false, sin toast)
   const isClassReservable = (cls: ScheduledClass | undefined) => {
     if (!cls) return false;
-    
     try {
-      const now = new Date()
-      const classDateTime = createClassDateTime(cls.date, cls.time)
-      const timeDiff = classDateTime.getTime() - now.getTime()
-      const THIRTY_MIN = 30 * 60 * 1000
-      
-      return timeDiff > THIRTY_MIN
+      const now = new Date();
+      const classDateTime = createClassDateTime(cls.date, cls.time);
+      const timeDiff = classDateTime.getTime() - now.getTime();
+      const TWELVE_AND_HALF_HOURS = (12 * 60 + 30) * 60 * 1000; // 12.5 horas en ms
+      const FIVE_MINUTES = 5 * 60 * 1000;
+
+      if (canUseUnlimitedForSelectedClass) {
+        return timeDiff > TWELVE_AND_HALF_HOURS;
+      }
+      return timeDiff > FIVE_MINUTES;
     } catch (error) {
-      console.error("Error verificando disponibilidad:", error)
-      return false
+      console.error("Error verificando disponibilidad:", error);
+      return false;
     }
   }
 
@@ -391,11 +456,6 @@ export default function BookingPage() {
       isClassOnSelectedDate(cls.date, checkDate)
     )
     return classesForDate.some(cls => cls.availableSpots > 0 && isClassReservable(cls))
-  }
-
-  // Verificar si una fecha está bloqueada por Semana Ilimitada (fines de semana)
-  const isDateBlockedForUnlimitedWeek = (checkDate: Date) => {
-    return isUsingUnlimitedWeek && !isBusinessDay(checkDate)
   }
 
   // Verificar si una fecha es pasada (ayer hacia atrás)
@@ -427,19 +487,30 @@ export default function BookingPage() {
     return allClassesFull
   }
 
-  // Reset estados cuando cambia la disponibilidad de Semana Ilimitada
-  useEffect(() => {
-    // Si se activa Semana Ilimitada y la fecha seleccionada es fin de semana, resetear
-    if (isUsingUnlimitedWeek && date && !isBusinessDay(date)) {
-      setDate(undefined)
-      setSelectedTime(null)
-      setSelectedClass(null)
-      setScheduledClassId(null)
-    }
-  }, [isUsingUnlimitedWeek, date])
-
   const selectedClassDetails = availableClasses.find(c => c.id === selectedClass);
   const showWhatsappAlert = isUsingUnlimitedWeek && unlimitedWeekValidation?.isValid;
+
+  // Actualizar alerta contextual según selección
+  useEffect(() => {
+    if (canUseUnlimitedForSelectedClass) {
+      setBookingAlert({
+        type: 'unlimited',
+        message: 'Estás reservando con tu paquete de Semana Ilimitada. Recuerda: debes confirmar tu asistencia por WhatsApp con al menos 12 horas y media de anticipación. Solo puedes reservar clases de lunes a viernes de la semana seleccionada.'
+      });
+    } else if (selectedClass && userAvailableClasses > 0) {
+      setBookingAlert({
+        type: 'normal',
+        message: 'Estás reservando usando tus créditos de paquete normal. Puedes reservar hasta 5 minutos antes del inicio de la clase.'
+      });
+    } else if (selectedClass && userAvailableClasses === 0) {
+      setBookingAlert({
+        type: 'individual',
+        message: 'No tienes créditos disponibles. Deberás comprar una clase individual para completar la reserva.'
+      });
+    } else {
+      setBookingAlert(null);
+    }
+  }, [canUseUnlimitedForSelectedClass, selectedClass, userAvailableClasses]);
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
@@ -459,7 +530,7 @@ export default function BookingPage() {
 
       {/* Sección de Información de Semana Ilimitada */}
       {isUsingUnlimitedWeek && weeklyUsage && (
-        <section className="py-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200">
+        <section className="py-2">
           <div className="container px-4 md:px-6">
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-xl p-6 shadow-sm border border-blue-200">
@@ -480,17 +551,19 @@ export default function BookingPage() {
                     </p>
                     <div className="flex flex-wrap gap-4 text-sm">
                       <WeeklyUsageDisplay 
-                        usage={weeklyUsage} 
+                        usage={{
+                          ...weeklyUsage,
+                          activePackageInfo: weeklyUsage.activePackageInfo && {
+                            ...weeklyUsage.activePackageInfo,
+                            expiryDate:
+                              typeof weeklyUsage.activePackageInfo.expiryDate === 'string'
+                                ? new Date(weeklyUsage.activePackageInfo.expiryDate)
+                                : weeklyUsage.activePackageInfo.expiryDate,
+                          }
+                        }}
                         className="flex-1 min-w-64"
                       />
-                      <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 flex-shrink-0">
-                        <p className="text-blue-700 font-medium text-sm">
-                          Días disponibles para reservar
-                        </p>
-                        <p className="text-blue-600 text-xs mt-1">
-                          Lunes • Martes • Miércoles • Jueves • Viernes
-                        </p>
-                      </div>
+                    
                     </div>
                   </div>
                 </div>
@@ -505,7 +578,16 @@ export default function BookingPage() {
         <section className="py-4 bg-blue-50">
           <div className="container px-4 md:px-6">
             <WeeklyUsageDisplay 
-              usage={weeklyUsage} 
+              usage={{
+                ...weeklyUsage,
+                activePackageInfo: weeklyUsage.activePackageInfo && {
+                  ...weeklyUsage.activePackageInfo,
+                  expiryDate:
+                    typeof weeklyUsage.activePackageInfo.expiryDate === 'string'
+                      ? new Date(weeklyUsage.activePackageInfo.expiryDate)
+                      : weeklyUsage.activePackageInfo.expiryDate,
+                }
+              }}
               className="max-w-md mx-auto"
             />
           </div>
@@ -529,8 +611,8 @@ export default function BookingPage() {
                         mode="single"
                         selected={date}
                         onSelect={(selectedDate) => {
-                          // Bloquear fechas pasadas y fines de semana si tiene Semana Ilimitada activa
-                          if (selectedDate && (isPastDate(selectedDate) || (isUsingUnlimitedWeek && !isBusinessDay(selectedDate)))) {
+                          // Solo bloquear fechas pasadas
+                          if (selectedDate && isPastDate(selectedDate)) {
                             return // No permitir selección
                           }
                           setDate(selectedDate)
@@ -543,43 +625,31 @@ export default function BookingPage() {
                           day: "text-zinc-900 hover:bg-gray-100 rounded-lg relative",
                         }}
                         modifiers={{
-                          pastDate: (day) => isPastDate(day),
-                          fullButFuture: (day) => hasClassesButAllFull(day),
-                          blockedWeekend: (day) => isDateBlockedForUnlimitedWeek(day)
+                          past: isPastDate,
+                          full: hasClassesButAllFull,
                         }}
                         modifiersClassNames={{
-                          pastDate: "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 line-through",
-                          fullButFuture: "bg-blue-50 text-blue-700 font-bold cursor-pointer border border-blue-200 hover:bg-blue-100 before:absolute before:bottom-1 before:left-1/2 before:-translate-x-1/2 before:w-1 before:h-1 before:bg-blue-600 before:rounded-full",
-                          blockedWeekend: "bg-red-100 text-red-400 cursor-not-allowed opacity-50 relative after:absolute after:inset-0 after:bg-red-500/20 after:rounded-lg"
+                          past: 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50',
+                          full: 'bg-red-200 text-red-800 font-bold cursor-pointer border border-red-300 hover:bg-red-300',
                         }}
-                        disabled={(date) => isPastDate(date) || isDateBlockedForUnlimitedWeek(date)}
+                        disabled={isPastDate}
                       />
                       
                       {/* Leyenda del calendario */}
-                      <div className="mt-3 px-2">
-                        <div className="flex justify-center gap-3 text-xs flex-wrap">
-                          <div className="flex items-center gap-1">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                            <span className="text-gray-600 font-bold text-blue-700">Lleno</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                            <span className="text-gray-600 line-through">Pasado</span>
-                          </div>
-                          {isUsingUnlimitedWeek && (
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 bg-red-400 rounded-full"></div>
-                              <span className="text-gray-600">Bloqueado</span>
-                            </div>
-                          )}
-                        </div>
-                        {isUsingUnlimitedWeek && (
-                          <div className="text-center mt-2">
-                            <p className="text-xs text-red-600 font-medium">
-                              Semana Ilimitada: Solo lunes a viernes
-                            </p>
-                          </div>
-                        )}
+                      <div className="mt-2 text-xs text-gray-500 px-2">
+                        <ul className="flex space-x-4">
+                          <li className="flex items-center">
+                            <span className="w-2.5 h-2.5 rounded-full bg-red-200 mr-1.5"></span>
+                            Lleno
+                          </li>
+                          <li className="flex items-center">
+                            <span className="w-2.5 h-2.5 rounded-full bg-gray-300 opacity-50 mr-1.5"></span>
+                            Pasado
+                          </li>
+                        </ul>
+                        <p className="mt-2 text-brand-sage-dark">
+                          Semana ilimitada: Válida solo de lunes a viernes.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -687,7 +757,7 @@ export default function BookingPage() {
                                   ? 'cursor-not-allowed bg-green-900 border-green-700' // Color verde oscuro para sin cupo
                                   : 'opacity-60 cursor-not-allowed bg-gray-100'
                               }`}
-                              onClick={() => canReserve && handleClassSelection(cls.id)}
+                              onClick={() => canReserve && handleClassSelection(cls)}
                             >
                               <CardContent className="p-4">
                                 <div className="flex justify-between items-center">
@@ -732,7 +802,7 @@ export default function BookingPage() {
                                       {!hasAvailability 
                                         ? 'Clase llena - Sin cupos disponibles'
                                         : !isReservable
-                                        ? 'Reservas cerradas (30 min antes del inicio)'
+                                        ? 'Reservas cerradas (Ya terminó o faltan menos de 5 minutos para su inicio)'
                                         : `${cls.availableSpots} lugar${cls.availableSpots !== 1 ? 'es' : ''} disponible${cls.availableSpots !== 1 ? 's' : ''}`
                                       }
                                     </p>
@@ -845,33 +915,23 @@ export default function BookingPage() {
                     </span>
                   </div>
                   
-                  {/* Mostrar clases disponibles del usuario si está autenticado */}
-                  {isAuthenticated && (
-                    <div className="bg-brand-mint/10 rounded-lg p-3 mt-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-zinc-700 font-medium">Tus clases disponibles:</span>
-                        <span className="font-bold text-xl text-brand-sage">
-                          {isLoadingUserClasses ? "..." : userAvailableClasses}
-                        </span>
-                      </div>
-                      {userAvailableClasses > 0 ? (
-                        <p className="text-sm text-green-700 mt-1">
-                          ✓ Puedes reservar esta clase usando tu paquete
-                        </p>
-                      ) : (
-                        <>
-                          <p className="text-sm text-orange-700 mt-1">
-                            ⚠ Necesitarás pagar para reservar esta clase
-                          </p>
-                          <Button
-                            variant="outline"
-                            className="mt-3 w-full border-brand-sage text-brand-sage hover:bg-brand-sage/10"
-                            onClick={() => router.push('/paquetes')}
-                          >
-                            Comprar Paquetes
-                          </Button>
-                        </>
-                      )}
+                  {/* Mostrar clases disponibles solo si NO se está usando Semana Ilimitada */}
+                  {!canUseUnlimitedForSelectedClass && !isUsingUnlimitedWeek && (
+                    <div className="flex justify-between">
+                      <span className="font-semibold">Tus clases disponibles:</span>
+                      <span
+                        className={`font-bold ${
+                          userAvailableClasses > 0 ? 'text-green-600' : 'text-red-600'
+                        }`}
+                      >
+                        {userAvailableClasses}
+                      </span>
+                    </div>
+                  )}
+
+                  {canUseUnlimitedForSelectedClass && (
+                    <div className="text-green-600 font-semibold border-t pt-2 mt-2">
+                      ✓ Estas reservando con tu paquete de Semana Ilimitada.
                     </div>
                   )}
                 </div>
@@ -886,47 +946,72 @@ export default function BookingPage() {
                   </div>
                 )}
 
-                <Button
-                  className="w-full mt-6 bg-brand-sage/90 hover:bg-brand-sage/100 font-bold text-lg py-6 rounded-full text-white"
-                  disabled={!date || !selectedClass || !selectedTime || !selectedBikeId || isProcessingBooking || !isClassReservable(availableClasses.find(c => c.id === selectedClass))}
-                  onClick={() => {
-                    if (!isAuthenticated) {
-                      setIsAuthModalOpen(true)
-                      return
+                {showWeekendInfoMessage && (
+                  <div className="mt-4 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-md p-3">
+                    <p>
+                      <span className="font-bold">ℹ️ Nota:</span> Tu Semana Ilimitada es
+                      válida solo de lunes a viernes. Para esta clase se usará un crédito
+                      normal.
+                    </p>
+                  </div>
+                )}
+
+                {/* Alerta contextual de reserva */}
+                {bookingAlert && (
+                  <div
+                    className={
+                      bookingAlert.type === 'unlimited'
+                        ? 'mb-4 p-4 bg-blue-50 border border-blue-300 text-blue-900 rounded-lg text-sm'
+                        : bookingAlert.type === 'normal'
+                        ? 'mb-4 p-4 bg-green-50 border border-green-300 text-green-900 rounded-lg text-sm'
+                        : bookingAlert.type === 'individual'
+                        ? 'mb-4 p-4 bg-red-50 border border-red-300 text-red-900 rounded-lg text-sm'
+                        : 'mb-4 p-4 bg-yellow-50 border border-yellow-300 text-yellow-900 rounded-lg text-sm'
                     }
-                    
-                    const classToBook = availableClasses.find(c => c.id === selectedClass)
-                    if (classToBook) {
-                      setSelectedScheduledClassForBooking(classToBook)
-                      
-                      if (userAvailableClasses > 0 || (isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek)) {
-                        handleConfirmBooking()
-                      } else {
-                        setIsPaymentOpen(true)
-                      }
+                  >
+                    {bookingAlert.message}
+                  </div>
+                )}
+
+                <div ref={reservationSummaryRef} className="mt-6 md:mt-0">
+
+                  <Button
+                    onClick={handleConfirmBooking}
+                    disabled={
+                      !selectedBikeId ||
+                      isProcessingBooking ||
+                      isCheckingUnlimitedWeek
                     }
-                  }}
-                >
-                  <span className="flex items-center gap-1">
-                    {isProcessingBooking ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        PROCESANDO...
-                      </>
-                    ) : !isAuthenticated ? (
-                      "INICIAR SESIÓN PARA RESERVAR"
-                    ) : !selectedBikeId ? (
-                      "SELECCIONA BICICLETA PRIMERO"
-                    ) : isUsingUnlimitedWeek && unlimitedWeekValidation?.canUseUnlimitedWeek ? (
-                      "RESERVAR CON SEMANA ILIMITADA"
-                    ) : isAuthenticated && userAvailableClasses > 0 ? (
-                      "USAR PAQUETE - RESERVAR" 
-                    ) : (
-                      "CONFIRMAR RESERVA"
-                    )} 
-                    {!isProcessingBooking && <ChevronRight className="h-4 w-4" />}
-                  </span>
-                </Button>
+                    className="w-full mt-6 bg-brand-sage/90 hover:bg-brand-sage/100 font-bold text-lg py-6 rounded-full text-white"
+                  >
+                    <span className="flex items-center justify-center gap-1">
+                      {isProcessingBooking ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <span>PROCESANDO...</span>
+                        </>
+                      ) : isCheckingUnlimitedWeek ? (
+                        <span>VALIDANDO OPCIONES...</span>
+                      ) : canUseUnlimitedForSelectedClass ? (
+                        'RESERVAR CON SEMANA ILIMITADA'
+                      ) : userAvailableClasses > 0 ? (
+                        `RESERVAR (CLASES: ${userAvailableClasses})`
+                      ) : (
+                        'COMPRAR CLASE PARA RESERVAR'
+                      )}
+                      {!isProcessingBooking && !isCheckingUnlimitedWeek && (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </span>
+                  </Button>
+                  {!selectedBikeId && selectedClass && (
+                    <div className="text-center mt-2">
+                      <p className="text-sm text-gray-500">
+                        Selecciona una bicicleta para continuar
+                      </p>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>

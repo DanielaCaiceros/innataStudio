@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { userId, classId, date, time, package: packageType, paymentMethod, bikeNumber } = body;
+    const { userId, classId, date, time, package: packageType, paymentMethod, bikeNumber, userPackageId } = body;
 
     if (!userId || !classId || !date || !time || !packageType) {
       return NextResponse.json({ error: "Faltan datos requeridos" }, { status: 400 });
@@ -299,64 +299,73 @@ export async function POST(request: NextRequest) {
 
     // Si es un paquete (no un pase individual)
     if (packageType !== "individual") {
-      const packageMap = {
-        "individual": 2,        // PASE INDIVIDUAL
-        "primera-vez": 1,       // PRIMERA VEZ  
-        "semana-ilimitada": 3,  // SEMANA ILIMITADA
-        "10classes": 4,         // PAQUETE 10 CLASES
-      };
-      
-      const packageId = packageMap[packageType as keyof typeof packageMap];
-  
-      if (!packageId) {
-        return NextResponse.json({ error: "Tipo de paquete no válido" }, { status: 400 });
-      }
-
-      const packageInfo = await prisma.package.findUnique({
-        where: { id: packageId }
-      });
-
-      if (!packageInfo) {
-        return NextResponse.json({ error: "Paquete no encontrado" }, { status: 404 });
-      }
-
-      if (packageId === 3) { // Semana Ilimitada
-        // Validar límites y existencia de paquete activo
-        try {
-          // NOTA: Si quieres permitir seleccionar la semana, agrega selectedWeekStart al body y pásalo aquí
-          const existingUnlimited = await validateUnlimitedWeekReservation(userId, scheduledClass.id, body.selectedWeekStart);
-          if (existingUnlimited) {
-            userPackage = existingUnlimited;
-            // Actualizar clases usadas y restantes
-            await prisma.userPackage.update({
-              where: { id: userPackage.id },
-              data: {
-                classesUsed: { increment: 1 },
-                classesRemaining: { decrement: 1 }
-              }
-            });
-          } else {
-            userPackage = await createUnlimitedWeekPackage(userId, packageInfo, paymentMethod, body.selectedWeekStart);
-          }
-        } catch (err: any) {
-          return NextResponse.json({ error: err.message || "Error en validación de semana ilimitada" }, { status: 400 });
+      // Si el admin seleccionó un paquete específico, usarlo
+      if (userPackageId) {
+        userPackage = await prisma.userPackage.findUnique({
+          where: { id: Number(userPackageId) }
+        });
+        if (!userPackage) {
+          return NextResponse.json({ error: "Paquete seleccionado no encontrado" }, { status: 404 });
         }
-      } else {
-        // Para otros paquetes, usar días calendario normales
-        let expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + packageInfo.validityDays);
-        userPackage = await prisma.userPackage.create({
+        // Descontar la clase
+        await prisma.userPackage.update({
+          where: { id: userPackage.id },
           data: {
-            userId: userId,
-            packageId: packageId,
-            expiryDate: expiryDate,
-            classesRemaining: packageInfo.classCount,
-            classesUsed: 1, // Ya estamos usando una clase
-            paymentMethod: paymentMethod === "pending" ? "pending" : paymentMethod,
-            paymentStatus: paymentMethod === "pending" ? "pending" : "paid",
-            isActive: true
+            classesUsed: { increment: 1 },
+            classesRemaining: { decrement: 1 }
           }
         });
+      } else {
+        const packageMap = {
+          "individual": 2,        // PASE INDIVIDUAL
+          "primera-vez": 1,       // PRIMERA VEZ  
+          "semana-ilimitada": 3,  // SEMANA ILIMITADA
+          "10classes": 4,         // PAQUETE 10 CLASES
+        };
+        const packageId = packageMap[packageType as keyof typeof packageMap];
+        if (!packageId) {
+          return NextResponse.json({ error: "Tipo de paquete no válido" }, { status: 400 });
+        }
+        const packageInfo = await prisma.package.findUnique({
+          where: { id: packageId }
+        });
+        if (!packageInfo) {
+          return NextResponse.json({ error: "Paquete no encontrado" }, { status: 404 });
+        }
+        if (packageId === 3) { // Semana Ilimitada
+          try {
+            const existingUnlimited = await validateUnlimitedWeekReservation(userId, scheduledClass.id, body.selectedWeekStart);
+            if (existingUnlimited) {
+              userPackage = existingUnlimited;
+              await prisma.userPackage.update({
+                where: { id: userPackage.id },
+                data: {
+                  classesUsed: { increment: 1 },
+                  classesRemaining: { decrement: 1 }
+                }
+              });
+            } else {
+              userPackage = await createUnlimitedWeekPackage(userId, packageInfo, paymentMethod, body.selectedWeekStart);
+            }
+          } catch (err: any) {
+            return NextResponse.json({ error: err.message || "Error en validación de semana ilimitada" }, { status: 400 });
+          }
+        } else {
+          let expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + packageInfo.validityDays);
+          userPackage = await prisma.userPackage.create({
+            data: {
+              userId: userId,
+              packageId: packageId,
+              expiryDate: expiryDate,
+              classesRemaining: packageInfo.classCount,
+              classesUsed: 1, // Ya estamos usando una clase
+              paymentMethod: paymentMethod === "pending" ? "pending" : paymentMethod,
+              paymentStatus: paymentMethod === "pending" ? "pending" : "paid",
+              isActive: true
+            }
+          });
+        }
       }
     }
 

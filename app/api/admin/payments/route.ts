@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyToken } from "@/lib/jwt"
 import { db } from "@/lib/db"
+import { getUnlimitedWeekExpiryDate } from '@/lib/utils/unlimited-week'
 
 // GET - Obtener todos los pagos
 export async function GET(request: NextRequest) {
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { user_id, amount, userPackageId, notes } = body
+    const { user_id, amount, userPackageId, notes, selectedWeekStart } = body
 
     // Validaciones
     if (!user_id || !amount) {
@@ -128,13 +129,61 @@ export async function POST(request: NextRequest) {
       const userPackageExists = await db.userPackage.findUnique({
         where: { id: userPackageId }
       })
-
       if (!userPackageExists) {
         return NextResponse.json(
           { error: "Paquete de usuario no encontrado" },
           { status: 404 }
         )
       }
+    }
+
+    // Obtener información del paquete
+    let packageData = null;
+    if (body.packageId) {
+      packageData = await db.package.findUnique({ where: { id: body.packageId } });
+      if (!packageData) {
+        return NextResponse.json({ error: "Paquete no encontrado" }, { status: 404 });
+      }
+    }
+
+    // Si es compra de semana ilimitada, calcular la expiración usando la semana seleccionada
+    let purchaseDate = new Date();
+    let expirationDate = new Date();
+    // Para Semana Ilimitada, usar la semana seleccionada
+    if (body.packageId === 3 && selectedWeekStart) {
+      purchaseDate = new Date(selectedWeekStart);
+      expirationDate = getUnlimitedWeekExpiryDate(purchaseDate);
+    } else if (body.packageId === 3) {
+      // Fallback: si no se envía selectedWeekStart, usar la fecha actual
+      purchaseDate = new Date();
+      expirationDate = getUnlimitedWeekExpiryDate(purchaseDate);
+    } else {
+      // Para otros paquetes, usar validityDays del paquete (30 días)
+      if (packageData) {
+        expirationDate.setDate(expirationDate.getDate() + packageData.validityDays);
+      }
+    }
+
+    // Crear el paquete de usuario si es semana ilimitada y no se está usando userPackageId
+    let userPackage = null;
+    if (body.packageId === 3 && !userPackageId) {
+      // Buscar el paquete base de semana ilimitada
+      const unlimitedBase = await db.package.findUnique({ where: { id: 3 } });
+      if (!unlimitedBase) {
+        return NextResponse.json({ error: "Paquete base de semana ilimitada no encontrado" }, { status: 404 });
+      }
+      userPackage = await db.userPackage.create({
+        data: {
+          userId: user_id,
+          packageId: 3,
+          purchaseDate: purchaseDate,
+          expiryDate: expirationDate,
+          classesRemaining: unlimitedBase.classCount,
+          isActive: true,
+          paymentStatus: 'completed',
+          paymentMethod: 'cash',
+        }
+      });
     }
 
     // Crear el pago manual/efectivo usando Prisma
@@ -144,7 +193,7 @@ export async function POST(request: NextRequest) {
         amount: parseFloat(amount),
         paymentMethod: 'cash', // Siempre efectivo desde admin
         status: 'completed', // Los pagos manuales se marcan como completados
-        userPackageId: userPackageId || null,
+        userPackageId: userPackageId || userPackage?.id || null,
         paymentDate: new Date(),
         metadata: notes ? { notes: notes, created_by: "admin" } : { created_by: "admin" }
       },

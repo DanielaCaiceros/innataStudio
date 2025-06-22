@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { cookies } from 'next/headers'
 import Stripe from "stripe"
-import { getUnlimitedWeekExpiryDate } from '@/lib/utils/business-days'
+import { getUnlimitedWeekExpiryDate } from '@/lib/utils/unlimited-week'
 
 const prisma = new PrismaClient()
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
