@@ -1000,16 +1000,7 @@ export default function PaymentsPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                        {selectedUnlimitedWeek && (
-                          <div className="text-xs text-blue-700 mt-1">
-                            {/* Mostrar fechas en formato local y amigable */}
-                            Semana seleccionada: {
-                              format(new Date(selectedUnlimitedWeek.start), 'd MMM yyyy', { locale: es })
-                            } al {
-                              format(new Date(selectedUnlimitedWeek.end), 'd MMM yyyy', { locale: es })
-                            }
-                          </div>
-                        )}
+
                         {!selectedUnlimitedWeek && (
                           <div className="text-xs text-red-600 mt-1">Debes seleccionar una semana para continuar.</div>
                         )}
