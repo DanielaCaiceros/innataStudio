@@ -1,6 +1,6 @@
 // lib/utils/unlimited-week.ts
 
-import { startOfWeek, endOfWeek, addWeeks, isBefore, isAfter, isWithinInterval, format, endOfDay } from 'date-fns';
+import { startOfWeek, endOfWeek, addWeeks, isBefore, isAfter, isWithinInterval, addDays,format, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export interface UnlimitedWeekValidation {
@@ -28,13 +28,22 @@ export interface WeekOption {
  * Siempre termina el viernes de la semana seleccionada
  */
 export function getUnlimitedWeekExpiryDate(startWeekDate: Date): Date {
-  // La semana va de lunes a viernes
-  const mondayOfWeek = startOfWeek(startWeekDate, { weekStartsOn: 1 }); // 1 = lunes
-  const fridayOfWeek = new Date(mondayOfWeek);
-  fridayOfWeek.setDate(mondayOfWeek.getDate() + 4); // +4 días = viernes
+  console.log(`[UTIL_LOG] getUnlimitedWeekExpiryDate: input startWeekDate = ${startWeekDate.toISOString()}`);
+
+  // The startWeekDate coming from the payment API is already guaranteed to be the correct Monday 00:00:00 UTC
+  const mondayOfWeek = startWeekDate; 
+  console.log(`[UTIL_LOG] mondayOfWeek (assigned directly from startWeekDate) = ${mondayOfWeek.toISOString()}`);
+  // It's good practice to use UTC methods if the date is conceptually UTC
+  console.log(`[UTIL_LOG] mondayOfWeek.getUTCDate() = ${mondayOfWeek.getUTCDate()}, mondayOfWeek.getDate() (for comparison) = ${mondayOfWeek.getDate()}`);
+
+  // Using addDays from date-fns for robustness instead of manual setDate
+  const fridayOfWeek = addDays(mondayOfWeek, 4); // New way
+  console.log(`[UTIL_LOG] fridayOfWeek (after addDays(mondayOfWeek, 4)) = ${fridayOfWeek.toISOString()}`);
   
-  // Establecer al final del día viernes para incluir todo el día en las validaciones
-  return endOfDay(fridayOfWeek);
+  const result = endOfDay(fridayOfWeek);
+  console.log(`[UTIL_LOG] endOfDay(fridayOfWeek) result = ${result.toISOString()}`);
+  
+  return result;
 }
 
 /**

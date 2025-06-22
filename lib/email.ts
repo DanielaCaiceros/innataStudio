@@ -121,7 +121,7 @@ export async function sendBookingConfirmationEmail(
               <p style="color: #374151; line-height: 1.6; margin: 0 0 24px 0;">
                 ${
                   details.isUnlimitedWeek
-                    ? "¡Tu reserva con Semana Ilimitada ha sido procesada! Por favor lee atentamente la información sobre confirmación requerida."
+                    ? "¡Tu reserva con  Semana Ilimitada ha sido procesada! Por favor lee atentamente la información sobre confirmación requerida."
                     : "¡Tu reserva ha sido confirmada exitosamente! Te esperamos en el estudio."
                 }
               </p>
@@ -141,7 +141,7 @@ export async function sendBookingConfirmationEmail(
                   </div>
 
                   <div style="margin: 8px 0;">
-                    <span style="color: #6b7280; font-size: 14px;">&nbsp;Fecha:</span>
+                    <span style="color: #6b7280; font-size: 14px;">Fecha:</span>
                     <span style="color: #111827; font-weight: 500; margin-left: 8px;">${details.date}</span>
                   </div>
 
@@ -728,7 +728,7 @@ export async function sendCancellationConfirmationEmail(
           </p>
 
           <p style="color: #374151; line-height: 1.6; margin: 0 0 24px 0;">
-            De acuerdo con nuestra política de cancelación, las cancelaciones realizadas con menos de 12 horas de anticipación no son elegibles para reembolso. Por lo tanto, el crédito de esta clase no ha sido devuelto a tu saldo.
+            De acuerdo con nuestra política de cancelación, las cancelaciones realizadas con menos de 12 horas de anticipación o agendadas con Semana Ilimitada no son elegibles para reembolso. Por lo tanto, el crédito de esta clase no ha sido devuelto a tu saldo.
           </p>
 
           <div style="background-color: #f9fafb; border-radius: 12px; padding: 24px; margin: 24px 0;">

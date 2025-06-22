@@ -394,28 +394,48 @@ export default function PaymentsPage() {
     }
     setIsProcessingPayment(true)
     try {
-      const body: any = {
+      // Log current state values before building the request body
+      console.log('[ADMIN_PAYMENTS_FRONTEND_LOG] States before building request body:');
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedUserId: ${selectedUserId}`);
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   paymentAmount (raw string): ${paymentAmount}`);
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   paymentNotes: ${paymentNotes}`);
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedPackageId: ${selectedPackageId}`);
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedUserPackageId: ${selectedUserPackageId}`);
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedUnlimitedWeek: ${JSON.stringify(selectedUnlimitedWeek)}`);
+      // The `amount` variable is already parsed parseFloat(paymentAmount), log it too for clarity
+      const parsedAmount = parseFloat(paymentAmount); // Re-parse for logging consistency if `amount` isn't used above this log
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   amount (parsed for API): ${parsedAmount}`);
+
+
+      const packageIdToSend = selectedPackageId ? parseInt(selectedPackageId) : null;
+      const userPackageIdToSend = selectedUserPackageId ? parseInt(selectedUserPackageId) : null;
+      
+      // selectedPackage is a derived state variable, let's log its perceived ID too
+      // const currentSelectedPackageDetails = packages.find(p => p.id.toString() === selectedPackageId); // This line is already present
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   Derived selectedPackage?.id: ${selectedPackage?.id}`);
+
+
+      const selectedWeekToSend = (selectedPackage?.id.toString() === "3" && selectedUnlimitedWeek) 
+                                 ? selectedUnlimitedWeek.start 
+                                 : null;
+
+      const apiRequestBody = {
         user_id: parseInt(selectedUserId),
-        amount: amount,
+        amount: parsedAmount, // Use the consistently parsed amount
         notes: paymentNotes.trim() || null,
-      }
-      // Only send userPackageId if NOT creating a new unlimited week package
-      if (!(selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && selectedUnlimitedWeek)) {
-        if (selectedUserPackageId) {
-          body.userPackageId = parseInt(selectedUserPackageId);
-        }
-      }
-      // Si es semana ilimitada y hay semana seleccionada, enviar selectedWeek
-      if (selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && selectedUnlimitedWeek) {
-        body.selectedWeek = selectedUnlimitedWeek.start;
-      }
-      console.log('Admin Payments POST body:', body);
+        packageId: packageIdToSend, 
+        userPackageId: userPackageIdToSend, 
+        selectedWeek: selectedWeekToSend,
+      };
+
+      console.log('[ADMIN_PAYMENTS_FRONTEND_LOG] Creating payment with request body:', JSON.stringify(apiRequestBody, null, 2));
+
       const response = await fetch("/api/admin/payments", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(apiRequestBody),
       })
       const data = await response.json()
       if (response.ok) {
@@ -731,9 +751,29 @@ export default function PaymentsPage() {
                 )}
 
                 {/* Unlimited week if present in metadata */}
-                {metadata.unlimitedWeek && (
-                  <div className="text-xs text-blue-700 mt-1">
-                    Semana Ilimitada: {metadata.unlimitedWeek.start} al {metadata.unlimitedWeek.end}
+                {metadata.unlimitedWeek && metadata.unlimitedWeek.start && metadata.unlimitedWeek.end && (
+                  <div className="text-xs text-blue-700 mt-2 pt-2 border-t border-gray-200">
+                    <span className="font-medium text-gray-700 block mb-0.5">Detalles Semana Ilimitada:</span>
+                    <span className="text-blue-700">
+                      {(() => {
+                        try {
+                          const startDate = new Date(metadata.unlimitedWeek.start + 'T00:00:00Z'); // Ensure UTC parsing
+                          const endDate = new Date(metadata.unlimitedWeek.end + 'T00:00:00Z');   // Ensure UTC parsing
+                          
+                          const formattedStart = startDate.toLocaleDateString('es-ES', {
+                            day: 'numeric', month: 'short', timeZone: 'UTC'
+                          });
+                          const formattedEnd = endDate.toLocaleDateString('es-ES', {
+                            day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC'
+                          });
+                          return `Válida del ${formattedStart} al ${formattedEnd} (UTC)`;
+                        } catch (e) {
+                          console.error("Error formatting metadata unlimitedWeek dates:", e);
+                          // Fallback to raw display if formatting fails
+                          return `Semana: ${metadata.unlimitedWeek.start} al ${metadata.unlimitedWeek.end}`;
+                        }
+                      })()}
+                    </span>
                   </div>
                 )}
               </div>

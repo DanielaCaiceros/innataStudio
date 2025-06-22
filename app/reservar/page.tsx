@@ -123,7 +123,7 @@ export default function BookingPage() {
         12, 0, 0, 0 // noon UTC
       ));
       dates.push(utcDate );
-      currentDate.setUTCDate(currentDate.getUTCDate());
+      currentDate.setUTCDate(currentDate.getUTCDate() +1 );
     }
     return dates;
   }) || [];
