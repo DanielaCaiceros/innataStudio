@@ -143,23 +143,50 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
 
         if (packageData) {
           // Determinar fecha de expiración según el tipo de paquete
-          let expirationDate = new Date()
-          
-          if (packageData.name.toLowerCase().includes('semana ilimitada')) {
-            // Para semana ilimitada: usar validityDays (que debería ser configurado para días hábiles)
-            expirationDate.setDate(expirationDate.getDate() + packageData.validityDays)
+          let calculatedPurchaseDate: Date;
+          let calculatedExpiryDate: Date;
+          let calculatedClassesRemaining: number | null = packageData.classCount; // Default
+
+          // Check if this is the "Semana Ilimitada" package (ID 3) using metadata
+          // and ensure necessary metadata fields are present.
+          if (packageId === 3 && metadata.packageType === 'unlimited-week' && metadata.selectedWeek && metadata.expiryDate) {
+            console.log('[Webhook] Processing Semana Ilimitada specific logic.');
+            console.log('[Webhook] Metadata received:', { 
+              selectedWeek: metadata.selectedWeek, 
+              expiryDateString: metadata.expiryDate 
+            });
+
+            calculatedPurchaseDate = new Date(metadata.selectedWeek as string); // e.g., "2025-07-07"
+            calculatedExpiryDate = new Date(metadata.expiryDate as string);   // ISO string from purchase initiation
+            calculatedClassesRemaining = 25; // Fixed for Semana Ilimitada
+
+            console.log('[Webhook] Calculated dates for Semana Ilimitada:', {
+              purchase: calculatedPurchaseDate.toISOString(),
+              expiry: calculatedExpiryDate.toISOString(),
+              remainingClasses: calculatedClassesRemaining
+            });
+
           } else {
-            // Para otros paquetes: usar validityDays del paquete (30 días)
-            expirationDate.setDate(expirationDate.getDate() + packageData.validityDays)
+            console.log('[Webhook] Processing standard package logic.');
+            // Standard package logic (e.g., 10 class pack)
+            calculatedPurchaseDate = new Date(); // Purchase is now
+            calculatedExpiryDate = new Date();
+            calculatedExpiryDate.setDate(calculatedPurchaseDate.getDate() + packageData.validityDays);
+            // calculatedClassesRemaining remains packageData.classCount
+             console.log('[Webhook] Calculated dates for Standard Package:', {
+              purchase: calculatedPurchaseDate.toISOString(),
+              expiry: calculatedExpiryDate.toISOString(),
+              remainingClasses: calculatedClassesRemaining
+            });
           }
 
           const userPackage = await prisma.userPackage.create({
             data: {
               userId: userId,
               packageId: packageId,
-              purchaseDate: new Date(),
-              expiryDate: expirationDate,
-              classesRemaining: packageData.classCount,
+              purchaseDate: calculatedPurchaseDate,
+              expiryDate: calculatedExpiryDate,
+              classesRemaining: calculatedClassesRemaining,
               isActive: true,
               paymentStatus: 'paid',
               paymentMethod: 'stripe'

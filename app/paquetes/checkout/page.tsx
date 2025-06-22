@@ -20,6 +20,7 @@ export default function PackageCheckoutPage() {
   const [packageData, setPackageData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedUnlimitedWeek, setSelectedUnlimitedWeek] = useState<WeekOption | null>(null)
+  const [waitingConfirmation, setWaitingConfirmation] = useState(false)
 
   // Convert packageId to a number, handling cases where it might be null or malformed
   const numericPackageId = packageId ? Number.parseInt(packageId, 10) : null
@@ -80,7 +81,7 @@ export default function PackageCheckoutPage() {
         alert("Debes seleccionar una semana para tu paquete ilimitado.")
         return
       }
-
+      setWaitingConfirmation(true)
       const body: any = {
         packageId: Number(numericPackageId),
         paymentId,
@@ -108,7 +109,6 @@ export default function PackageCheckoutPage() {
           title: "¡Compra exitosa!",
           description: "Tu paquete ha sido registrado correctamente",
         })
-
         router.push(`/paquetes/confirmacion?session_id=${paymentId}&package_id=${numericPackageId}`)
       } else {
         const errorData = await response.json()
@@ -117,6 +117,7 @@ export default function PackageCheckoutPage() {
           description: errorData.error || "Hubo un problema al registrar tu compra",
           variant: "destructive",
         })
+        setWaitingConfirmation(false)
       }
     } catch (error) {
       console.error("Error al procesar la compra:", error)
@@ -125,6 +126,7 @@ export default function PackageCheckoutPage() {
         description: "Error de conexión al procesar tu compra",
         variant: "destructive",
       })
+      setWaitingConfirmation(false)
     }
   }
 
@@ -150,6 +152,14 @@ export default function PackageCheckoutPage() {
 
   return (
     <div className="min-h-screen bg-white">
+      {waitingConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg p-8 flex flex-col items-center shadow-lg">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+            <p className="text-gray-700 font-medium">Pago procesado, esperando confirmación...</p>
+          </div>
+        </div>
+      )}
       <div className="max-w-6xl mx-auto">
         <div className="grid lg:grid-cols-2 min-h-screen">
           {/* Left Side - Order Summary */}

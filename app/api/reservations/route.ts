@@ -240,48 +240,61 @@ export async function POST(request: NextRequest) {
 
     // **NUEVA LÓGICA: Manejar reserva con Semana Ilimitada**
     if (useUnlimitedWeek) {
-      // Validar elegibilidad para Semana Ilimitada
+      // Validar elegibilidad para Semana Ilimitada (This is a re-validation)
+      console.log(`[API_RESERVATIONS] Re-validating with UnlimitedWeekService for userId: ${userId}, classId: ${scheduledClassId}`);
       const validation = await UnlimitedWeekService.validateUnlimitedWeekReservation(
         userId, 
         Number.parseInt(scheduledClassId)
-      )
+      );
 
       if (!validation.isValid || !validation.canUseUnlimitedWeek) {
+        console.error(`[API_RESERVATIONS] Re-validation FAILED: ${validation.message}, Reason: ${validation.reason}`);
         return NextResponse.json({ 
-          error: validation.message || 'No puedes usar Semana Ilimitada para esta reserva',
+          error: validation.message || 'No puedes usar Semana Ilimitada para esta reserva (re-validation failed)',
           reason: validation.reason,
           weeklyUsage: validation.weeklyUsage
-        }, { status: 400 })
+        }, { status: 400 });
       }
+      console.log(`[API_RESERVATIONS] Re-validation SUCCEEDED.`);
 
       // Obtener el paquete Semana Ilimitada activo para la semana específica de la clase
-      const classDate = new Date(scheduledClass.date)
-      const classWeekStart = startOfWeek(classDate, { weekStartsOn: 1 })
+      const classDateForQuery = new Date(scheduledClass.date); // Date of the class being booked
+      const classWeekStartForQuery = startOfWeek(classDateForQuery, { weekStartsOn: 1 });
       
+      console.log(`[API_RESERVATIONS] classDateForQuery (from scheduledClass.date): ${classDateForQuery.toISOString()}`);
+      console.log(`[API_RESERVATIONS] classWeekStartForQuery (derived for this class): ${classWeekStartForQuery.toISOString()}`);
+
       const unlimitedWeekPackage = await prisma.userPackage.findFirst({
         where: {
           userId,
           packageId: 3, // ID del paquete Semana Ilimitada
           isActive: true,
-          classesRemaining: { gt: 0 },
-          purchaseDate: { lte: classDate },
-          expiryDate: { gte: classDate }
+          classesRemaining: { gt: 0 }, // Ensure package has classes
+          purchaseDate: { lte: classDateForQuery }, // Package must start on or before class date
+          expiryDate: { gte: classDateForQuery }    // Package must end on or after class date
         }
-      })
+      });
 
       if (!unlimitedWeekPackage) {
+        console.error(`[API_RESERVATIONS] CRITICAL FAIL: unlimitedWeekPackage not found in second query for classDate: ${classDateForQuery.toISOString()}`);
         return NextResponse.json({ 
-          error: 'No se encontró un paquete Semana Ilimitada válido' 
-        }, { status: 400 })
+          error: 'No se encontró un paquete Semana Ilimitada válido para esta clase (segunda verificación).' 
+        }, { status: 400 });
       }
+      console.log(`[API_RESERVATIONS] Found unlimitedWeekPackage ID: ${unlimitedWeekPackage.id}, Purchase: ${unlimitedWeekPackage.purchaseDate.toISOString()}, Expiry: ${unlimitedWeekPackage.expiryDate.toISOString()}`);
 
       // Verificar que el paquete sea para la semana correcta
-      const packageWeekStart = startOfWeek(unlimitedWeekPackage.purchaseDate, { weekStartsOn: 1 })
-      if (packageWeekStart.getTime() !== classWeekStart.getTime()) {
+      const packageWeekStartFromDB = startOfWeek(unlimitedWeekPackage.purchaseDate, { weekStartsOn: 1 });
+      console.log(`[API_RESERVATIONS] packageWeekStartFromDB (from found package's purchaseDate): ${packageWeekStartFromDB.toISOString()}`);
+      console.log(`[API_RESERVATIONS] Comparing packageWeekStartFromDB.getTime() [${packageWeekStartFromDB.getTime()}] with classWeekStartForQuery.getTime() [${classWeekStartForQuery.getTime()}]`);
+
+      if (packageWeekStartFromDB.getTime() !== classWeekStartForQuery.getTime()) {
+        console.error(`[API_RESERVATIONS] CRITICAL FAIL: Week start mismatch! Package starts ${packageWeekStartFromDB.toISOString()}, Class week starts ${classWeekStartForQuery.toISOString()}`);
         return NextResponse.json({ 
-          error: 'Tu Semana Ilimitada no es válida para esta semana. Solo puedes reservar en la semana específica que contrataste.' 
-        }, { status: 400 })
+          error: 'Tu Semana Ilimitada no es válida para esta semana (verificación de inicio de semana falló). Solo puedes reservar en la semana específica que contrataste.' 
+        }, { status: 400 });
       }
+      console.log(`[API_RESERVATIONS] Week start match SUCCESS.`);
 
       // Verificar disponibilidad de espacios (aplicable para todos los tipos de reserva)
       if (scheduledClass.availableSpots <= 0) {

@@ -563,9 +563,29 @@ export default function ProfilePage() {
                                 <div className="flex flex-col gap-1 text-xs text-zinc-600 mt-2">
                                   <span>Semana válida:</span>
                                   <span className="font-semibold text-zinc-800">
-                                    {pkg.purchaseDate && pkg.expiryDate ? (
-                                      `${new Date(pkg.purchaseDate).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })} al ${new Date(pkg.expiryDate).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                                    ) : (
+                                    {pkg.purchaseDate ? (() => {
+                                      try {
+                                        const purchaseDateObj = new Date(pkg.purchaseDate); // Should be Monday UTC midnight
+
+                                        // Get day and month for start date using UTC methods
+                                        const startDay = purchaseDateObj.getUTCDate();
+                                        const startMonth = purchaseDateObj.toLocaleDateString('es-ES', { month: 'short' });
+                                        
+                                        // Calculate Friday based on purchaseDate (Monday)
+                                        const fridayDateObj = new Date(purchaseDateObj);
+                                        fridayDateObj.setUTCDate(purchaseDateObj.getUTCDate() + 4);
+                                        
+                                        // Get day, month, and year for end date using UTC methods
+                                        const endDay = fridayDateObj.getUTCDate();
+                                        const endMonth = fridayDateObj.toLocaleDateString('es-ES', { month: 'short' });
+                                        const endYear = fridayDateObj.getUTCFullYear();
+
+                                        return `${startDay} ${startMonth} al ${endDay} ${endMonth} ${endYear}`;
+                                      } catch (e) {
+                                        console.error("Error formatting date for Semana Ilimitada:", e);
+                                        return 'Fechas no disponibles';
+                                      }
+                                    })() : (
                                       'No disponible'
                                     )}
                                   </span>

@@ -122,8 +122,8 @@ export default function BookingPage() {
         currentDate.getUTCDate(),
         12, 0, 0, 0 // noon UTC
       ));
-      dates.push(utcDate);
-      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      dates.push(utcDate );
+      currentDate.setUTCDate(currentDate.getUTCDate());
     }
     return dates;
   }) || [];
@@ -266,8 +266,9 @@ export default function BookingPage() {
     setCanUseUnlimitedForSelectedClass(false) // Reset
     setUnlimitedWeekValidation(null) // Reset
     setShowWeekendInfoMessage(false) // Reset del nuevo estado
+    const hasAnyUnlimitedPackages = weeklyUsage?.allUnlimitedPackages && weeklyUsage.allUnlimitedPackages.length > 0;
 
-    if (hasActiveUnlimitedWeek) {
+    if (hasAnyUnlimitedPackages) { // Check if user has ANY unlimited packages
       setIsCheckingUnlimitedWeek(true)
       try {
         const validation = await validateUnlimitedWeek(scheduledClass.id)
@@ -636,8 +637,8 @@ export default function BookingPage() {
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
-                    <CalendarIcon className="mr-2 h-5 w-5 text-brand-mint" />
-                    <h3 className="text-xl font-bold text-brand-mint-dark">Selecciona Fecha</h3>
+                    <CalendarIcon className="mr-2 h-5 w-5 text-brand-sage" />
+                    <h3 className="text-xl font-bold text-black">Selecciona Fecha</h3>
                   </div>
                   <div className="flex justify-center items-center py-6">
                     <div className="w-full max-w-[280px]">
@@ -772,7 +773,7 @@ export default function BookingPage() {
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
-                    <Clock className="mr-2 h-5 w-5 text-brand-burgundy-dark" />
+                    <Clock className="mr-2 h-5 w-5 text-brand-sage" />
                     <h3 className="text-xl font-bold text-brand-burgundy-dark">Selecciona Clase</h3>
                   </div>
                   <div className="p-4 space-y-2">
@@ -870,8 +871,8 @@ export default function BookingPage() {
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
-                    <Bike className="mr-2 h-5 w-5 text-brand-burgundy" />
-                    <h3 className="text-xl font-bold text-brand-burgundy-dark">Selecciona Bicicleta</h3>
+                    <Bike className="mr-2 h-5 w-5 text-brand-sage" />
+                    <h3 className="text-xl font-bold text-black">Selecciona Bicicleta</h3>
                   </div>
                   <div className="p-4">
                     {selectedClass ? (
@@ -897,21 +898,21 @@ export default function BookingPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Fecha:</span>
-                    <span className="font-medium text-brand-burgundy">
+                    <span className="font-medium text-black">
                       {date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : "No seleccionada"}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Horario:</span>
-                    <span className="font-medium text-brand-burgundy">
+                    <span className="font-medium text-black">
                       {selectedTime ? `${selectedTime} hrs` : "No seleccionado"}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Clase:</span>
-                    <span className="font-medium text-brand-burgundy">
+                    <span className="font-medium text-black">
                       {selectedClass 
                         ? availableClasses.find(c => c.id === selectedClass)?.classType.name 
                         : "No seleccionada"

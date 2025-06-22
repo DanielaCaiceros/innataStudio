@@ -10,7 +10,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-05-28.basil',
 });
 
-console.log('--- API /api/reservations/validate-unlimited-week called ---');
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,23 +38,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
     }
 
-    // Verificar si ya tiene un paquete de semana ilimitada activo
-    const existingPackage = await prisma.userPackage.findFirst({
+    // --- START: Business Rules for Multiple Unlimited Weeks ---
+    const todayForChecks = new Date(); // Use a consistent 'today' for all checks
+    todayForChecks.setUTCHours(0, 0, 0, 0); // Normalize to UTC midnight
+
+    // 1. Check max number of unlimited weeks (e.g., max 2 not fully expired)
+    const unlimitedPackagesCount = await prisma.userPackage.count({
       where: {
         userId: user.user_id,
         packageId: 3, // Semana Ilimitada
-        isActive: true,
-        expiryDate: {
-          gte: new Date()
-        }
-      }
+        // Count packages that are not fully passed (expiry is today or in future)
+        // OR that are isActive:false but paymentStatus:'pending' (cash purchases for future)
+        OR: [
+          { expiryDate: { gte: todayForChecks }, isActive: true },
+          { expiryDate: { gte: todayForChecks }, isActive: false, paymentStatus: 'pending' } 
+        ]
+      },
     });
 
-    if (existingPackage) {
-      return NextResponse.json({ 
-        error: 'Ya tienes un paquete de semana ilimitada activo' 
-      }, { status: 400 });
+    if (unlimitedPackagesCount >= 2) {
+      return NextResponse.json({ error: 'Solo puedes tener un máximo de 2 Semanas Ilimitadas activas o programadas.' }, { status: 400 });
     }
+    
+    // Define dates for the new package being purchased
+    const newPackagePurchaseDate = new Date(selectedWeek); // This is already Monday UTC midnight
+    const newPackageTargetFriday = new Date(newPackagePurchaseDate.valueOf());
+    newPackageTargetFriday.setUTCDate(newPackagePurchaseDate.getUTCDate() + 4); // This is Friday UTC midnight
+
+    // 2. Check for overlap with the selected week for the new package
+    const overlappingPackage = await prisma.userPackage.findFirst({
+      where: {
+        userId: user.user_id,
+        packageId: 3,
+        // Overlap condition: (ExistingStart <= NewEnd) AND (ExistingEnd >= NewStart)
+        purchaseDate: { lte: newPackageTargetFriday }, // Existing package starts before or on the new package's end date
+        expiryDate: { gte: newPackagePurchaseDate },   // Existing package ends after or on the new package's start date
+      },
+    });
+
+    if (overlappingPackage) {
+      return NextResponse.json({ error: 'Ya tienes una Semana Ilimitada programada que se superpone con la semana seleccionada.' }, { status: 400 });
+    }
+    // --- END: Business Rules for Multiple Unlimited Weeks ---
 
     // Obtener información del paquete
     const packageInfo = await prisma.package.findUnique({
@@ -66,16 +90,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Paquete no encontrado' }, { status: 404 });
     }
 
-    // Calcular fecha de expiración basada en la semana seleccionada
-    const weekStartDate = new Date(selectedWeek);
-    const expiryDate = getUnlimitedWeekExpiryDate(weekStartDate);
+    // weekStartDate will be Monday UTC midnight e.g., 2025-06-30T00:00:00.000Z
+    const weekStartDate = new Date(selectedWeek); 
+
+    // Calculate targetFriday (Friday UTC midnight) based on weekStartDate
+    const targetFriday = new Date(weekStartDate.valueOf()); // Clone weekStartDate
+    targetFriday.setUTCDate(weekStartDate.getUTCDate() + 4); // Add 4 days to get to Friday, stays UTC midnight
 
     // Validar que la semana seleccionada sea válida (no en el pasado)
-    const today = new Date();
-    const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const weekStartDateOnly = new Date(weekStartDate.getFullYear(), weekStartDate.getMonth(), weekStartDate.getDate());
-    
-    if (weekStartDateOnly < todayDateOnly) {
+    // todayForChecks (UTC midnight) is already defined above for the max package check
+    const weekStartDateForPastCheck = new Date(weekStartDate.valueOf()); // Clone to avoid mutating weekStartDate
+    weekStartDateForPastCheck.setUTCHours(0,0,0,0); // Ensure UTC midnight for comparison
+        
+    if (weekStartDateForPastCheck < todayForChecks) {
       return NextResponse.json({ 
         error: 'No puedes comprar un paquete para una semana que ya pasó' 
       }, { status: 400 });
@@ -88,8 +115,8 @@ export async function POST(request: NextRequest) {
         data: {
           userId: user.user_id,
           packageId: 3,
-          purchaseDate: weekStartDate, // Fecha de inicio de la semana seleccionada
-          expiryDate: expiryDate,
+          purchaseDate: weekStartDate, // Fecha de inicio de la semana seleccionada (which is newPackagePurchaseDate)
+          expiryDate: targetFriday,   // This is newPackageTargetFriday
           classesRemaining: 25,
           classesUsed: 0,
           paymentMethod: 'cash',
@@ -105,8 +132,8 @@ export async function POST(request: NextRequest) {
           packageId: 3,
           amount: packageInfo.price,
           status: 'pending',
-          requestDate: new Date(),
-          description: `Semana Ilimitada - ${weekStartDate.toLocaleDateString('es-MX')} a ${expiryDate.toLocaleDateString('es-MX')}`
+          //requestDate: new Date(),
+          description: `Semana Ilimitada - ${new Date(selectedWeek).toLocaleDateString('es-MX', { timeZone: 'UTC' })} a ${targetFriday.toLocaleDateString('es-MX', {timeZone: 'UTC'})}`
         }
       });
 
@@ -130,7 +157,7 @@ export async function POST(request: NextRequest) {
               currency: 'mxn',
               product_data: {
                 name: 'Semana Ilimitada',
-                description: `Válida del ${weekStartDate.toLocaleDateString('es-MX')} al ${expiryDate.toLocaleDateString('es-MX')}`,
+                    description: `Válida del ${new Date(selectedWeek).toLocaleDateString('es-MX', { timeZone: 'UTC' })} al ${targetFriday.toLocaleDateString('es-MX', { timeZone: 'UTC' })}`,
                 images: ['https://innata.com/images/unlimited-week-package.jpg'], // Ajustar URL
               },
               unit_amount: Math.round(Number(packageInfo.price) * 100), // Convertir a centavos
@@ -145,8 +172,8 @@ export async function POST(request: NextRequest) {
           userId: user.user_id.toString(),
           packageId: '3',
           packageType: 'unlimited-week',
-          selectedWeek: selectedWeek,
-          expiryDate: expiryDate.toISOString()
+          selectedWeek: selectedWeek, // Monday string, e.g., "2025-06-30"
+          expiryDate: targetFriday.toISOString() // Friday UTC midnight ISO string, e.g., "2025-07-04T00:00:00.000Z"
         },
         customer_email: user.email,
         expires_at: Math.floor(Date.now() / 1000) + (30 * 60), // 30 minutos
