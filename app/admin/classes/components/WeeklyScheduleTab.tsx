@@ -4,10 +4,6 @@ import * as React from "react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { format, addDays, startOfWeek, endOfWeek } from "date-fns"; // Keep only if used directly here
 import { es } from "date-fns/locale";
 import { CalendarIcon, Edit, Trash2, Users, Clock } from "lucide-react"; // Verify icons
@@ -119,6 +115,11 @@ export default function WeeklyScheduleTab({
                               <p className="text-xs text-gray-600">{cls.instructor.user.firstName} {cls.instructor.user.lastName}</p>
                               <div className="flex items-center justify-center gap-1 text-xs text-gray-600 mt-1">
                                 <Users className="h-3 w-3" /><span>{cls.maxCapacity - cls.availableSpots}/{cls.maxCapacity}</span>
+                                {cls.availableSpots === 0 && (
+                                  <span className="ml-1 px-1.5 py-0.5 text-xxs font-semibold bg-red-100 text-red-700 rounded-full">
+                                    LLENO
+                                  </span>
+                                )}
                                 <Clock className="h-3 w-3 ml-1" /><span>{cls.classType.duration}min</span>
                               </div>
                               {cls.waitlist.length > 0 && (<p className="text-xs text-orange-600 mt-1">Lista de espera: {cls.waitlist.length}</p>)}

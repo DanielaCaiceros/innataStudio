@@ -99,12 +99,7 @@ export function SiteHeader() {
                       Mi Cuenta
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/mi-cuenta">
-                      <ChevronRight className="mr-2 h-4 w-4" />
-                      Mis Reservas
-                    </Link>
-                  </DropdownMenuItem>
+
                   {user?.role === 'admin' && (
                     <DropdownMenuItem asChild>
                       <Link href="/admin/reservations">
