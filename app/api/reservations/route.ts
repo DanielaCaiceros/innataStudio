@@ -83,7 +83,6 @@ export async function POST(request: NextRequest) {
 
     // --- BEGIN NEW VALIDATION FOR UNLIMITED WEEK MULTIPLE BOOKINGS ---
     if (useUnlimitedWeek) { // Check specifically for unlimited week attempts
-      console.log(`[API_RESERVATIONS_VALIDATION] Attempting unlimited week booking for userId: ${userId}, scheduledClassId: ${scheduledClassId}`);
       const existingReservationForClass = await prisma.reservation.findFirst({
         where: {
           userId: userId,
@@ -93,12 +92,10 @@ export async function POST(request: NextRequest) {
       });
 
       if (existingReservationForClass) {
-        console.log(`[API_RESERVATIONS_VALIDATION] User ${userId} already has reservation ${existingReservationForClass.id} for class ${scheduledClassId}. Blocking duplicate unlimited booking.`);
         return NextResponse.json({ 
           error: "Ya tienes una reserva confirmada para esta clase. No se permiten múltiples reservas para la misma clase con el paquete Semana Ilimitada." 
         }, { status: 409 }); // 409 Conflict
       }
-      console.log(`[API_RESERVATIONS_VALIDATION] No existing confirmed reservation found for user ${userId} in class ${scheduledClassId}. Proceeding with unlimited booking attempt.`);
     }
     // --- END NEW VALIDATION FOR UNLIMITED WEEK MULTIPLE BOOKINGS ---
 
@@ -276,7 +273,6 @@ export async function POST(request: NextRequest) {
           weeklyUsage: validation.weeklyUsage
         }, { status: 400 });
       }
-      console.log(`[API_RESERVATIONS] Re-validation SUCCEEDED.`);
 
       // Obtener el paquete Semana Ilimitada activo para la semana específica de la clase
       const classDateFromDb = new Date(scheduledClass.date); // e.g., 2025-07-01T00:00:00Z (date from DB is UTC midnight)
@@ -288,11 +284,9 @@ export async function POST(request: NextRequest) {
         classDateFromDb.getUTCDate(),
         12, 0, 0, 0 // Use noon UTC
       ));
-      console.log(`[API_RESERVATIONS] Normalizing class date for startOfWeek: input classDateFromDb=${classDateFromDb.toISOString()}, classDateAtUtcNoon=${classDateAtUtcNoon.toISOString()}`);
       
       // Step 1: Get the start of the week. This might have a time component reflecting local midnight.
       let tempClassWeekStart = startOfWeek(classDateAtUtcNoon, { weekStartsOn: 1 }); 
-      console.log(`[API_RESERVATIONS] tempClassWeekStart (output from startOfWeek): ${tempClassWeekStart.toISOString()}`);
 
       // Step 2: Normalize this to true UTC midnight for that day.
       const classWeekStartForQuery = new Date(Date.UTC(
@@ -301,8 +295,6 @@ export async function POST(request: NextRequest) {
           tempClassWeekStart.getUTCDate(),
           0, 0, 0, 0
       ));
-      console.log(`[API_RESERVATIONS] classDateForQuery (original from scheduledClass.date): ${classDateFromDb.toISOString()}`); // Keeping this log for context
-      console.log(`[API_RESERVATIONS] classWeekStartForQuery (FINAL, normalized to UTC midnight): ${classWeekStartForQuery.toISOString()}`);
 
       const unlimitedWeekPackage = await prisma.userPackage.findFirst({
         where: {
@@ -323,13 +315,10 @@ export async function POST(request: NextRequest) {
           error: 'No se encontró un paquete Semana Ilimitada válido para esta clase (segunda verificación).' 
         }, { status: 400 });
       }
-      console.log(`[API_RESERVATIONS] Found unlimitedWeekPackage ID: ${unlimitedWeekPackage.id}, Purchase: ${unlimitedWeekPackage.purchaseDate.toISOString()}, Expiry: ${unlimitedWeekPackage.expiryDate.toISOString()}`);
 
       // Verificar que el paquete sea para la semana correcta
       // unlimitedWeekPackage.purchaseDate is already the correct Monday UTC 00:00 from the DB
       const packageWeekStartFromDB = unlimitedWeekPackage.purchaseDate; 
-      console.log(`[API_RESERVATIONS] packageWeekStartFromDB (from package's purchaseDate, should be Mon UTC midnight): ${packageWeekStartFromDB.toISOString()}`);
-      console.log(`[API_RESERVATIONS] Comparing packageWeekStartFromDB.getTime() [${packageWeekStartFromDB.getTime()}] with classWeekStartForQuery.getTime() [${classWeekStartForQuery.getTime()}]`);
 
       if (packageWeekStartFromDB.getTime() !== classWeekStartForQuery.getTime()) {
         console.error(`[API_RESERVATIONS] CRITICAL FAIL: Week start mismatch! Package starts ${packageWeekStartFromDB.toISOString()}, Class week starts ${classWeekStartForQuery.toISOString()}`);
@@ -337,7 +326,6 @@ export async function POST(request: NextRequest) {
           error: 'Tu Semana Ilimitada no es válida para esta semana (verificación de inicio de semana falló). Solo puedes reservar en la semana específica que contrataste.' 
         }, { status: 400 });
       }
-      console.log(`[API_RESERVATIONS] Week start match SUCCESS.`);
 
       // Verificar disponibilidad de espacios (aplicable para todos los tipos de reserva)
       if (scheduledClass.availableSpots <= 0) {

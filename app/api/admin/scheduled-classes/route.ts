@@ -113,7 +113,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { classTypeId, instructorId, date, time, maxCapacity } = body
 
-    console.log("Creating scheduled class with data:", body)
 
     // Validar que no haya solapamiento de horarios
     const utcDate = new Date(date + "T00:00:00.000Z");

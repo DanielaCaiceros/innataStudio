@@ -28,20 +28,15 @@ export interface WeekOption {
  * Siempre termina el viernes de la semana seleccionada
  */
 export function getUnlimitedWeekExpiryDate(startWeekDate: Date): Date {
-  console.log(`[UTIL_LOG] getUnlimitedWeekExpiryDate: input startWeekDate = ${startWeekDate.toISOString()}`);
 
   // The startWeekDate coming from the payment API is already guaranteed to be the correct Monday 00:00:00 UTC
   const mondayOfWeek = startWeekDate; 
-  console.log(`[UTIL_LOG] mondayOfWeek (assigned directly from startWeekDate) = ${mondayOfWeek.toISOString()}`);
   // It's good practice to use UTC methods if the date is conceptually UTC
-  console.log(`[UTIL_LOG] mondayOfWeek.getUTCDate() = ${mondayOfWeek.getUTCDate()}, mondayOfWeek.getDate() (for comparison) = ${mondayOfWeek.getDate()}`);
 
   // Using addDays from date-fns for robustness instead of manual setDate
   const fridayOfWeek = addDays(mondayOfWeek, 4); // New way
-  console.log(`[UTIL_LOG] fridayOfWeek (after addDays(mondayOfWeek, 4)) = ${fridayOfWeek.toISOString()}`);
   
   const result = endOfDay(fridayOfWeek);
-  console.log(`[UTIL_LOG] endOfDay(fridayOfWeek) result = ${result.toISOString()}`);
   
   return result;
 }

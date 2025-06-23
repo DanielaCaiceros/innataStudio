@@ -40,7 +40,6 @@ export class UnlimitedWeekService {
     userId: number,
     scheduledClassId: number,
   ): Promise<UnlimitedWeekValidation> {
-    console.log(`[UWService_Trace] Start validation for userId: ${userId}, classId: ${scheduledClassId}`);
     try {
       // 1. Obtener información de la clase
       const scheduledClass = await prisma.scheduledClass.findUnique({
@@ -49,10 +48,8 @@ export class UnlimitedWeekService {
       });
 
       if (!scheduledClass) {
-        console.log('[UWService_Trace] Failed: Class not found.');
         return { isValid: false, canUseUnlimitedWeek: false, reason: 'CLASS_NOT_FOUND', message: 'Clase no encontrada' };
       }
-      console.log(`[UWService_Trace] Found scheduledClass: ID=${scheduledClass.id}, Date=${scheduledClass.date.toISOString()}`);
 
       // Normalize class date to UTC midnight for comparison
       const classDateRaw = scheduledClass.date;
@@ -65,7 +62,6 @@ export class UnlimitedWeekService {
       // console.log('[UWService_Trace] Constructed classDateUTC (for query):', classDateUTC.toISOString()); // Covered by existing log
 
       // 2. Buscar un paquete de Semana Ilimitada válido para la fecha de esta clase
-      console.log(`[UWService_Trace] Check 2: Querying for valid package for userId: ${userId}, classDateUTC: ${classDateUTC.toISOString()}`);
       const validPackageForClass = await prisma.userPackage.findFirst({
         where: {
           userId,
@@ -77,7 +73,6 @@ export class UnlimitedWeekService {
       });
 
       if (!validPackageForClass) {
-        console.log('[UWService_Trace] Initial package query: No package found matching specific date criteria.');
         const anyActiveUnlimitedPackage = await prisma.userPackage.findFirst({
           where: { userId, packageId: this.UNLIMITED_WEEK_PACKAGE_ID, isActive: true },
           orderBy: { purchaseDate: 'desc' },
@@ -111,23 +106,16 @@ export class UnlimitedWeekService {
         console.log(`[UWService_Trace] Failed at Check 2: No valid package for date. Reason: ${finalReason}`);
         return { isValid: false, canUseUnlimitedWeek: false, reason: finalReason, message: finalMessage };
       }
-      console.log(`[UWService_Trace] Found valid package: ID=${validPackageForClass.id}, Purchase=${validPackageForClass.purchaseDate.toISOString()}, Expiry=${validPackageForClass.expiryDate.toISOString()}`);
 
       // 3. Verificar que la clase esté en días hábiles (lunes a viernes)
-      console.log('[UWService_Trace] Check 3: Business day validation...');
       const isBusiness = isBusinessDay(classDateUTC);
-      console.log(`[UWService_Trace] isBusinessDay(${classDateUTC.toISOString()}) result: ${isBusiness}`);
       if (!isBusiness) {
-        console.log('[UWService_Trace] Failed at Check 3: Not a business day.');
         return { isValid: false, canUseUnlimitedWeek: false, reason: 'NON_BUSINESS_DAY', message: 'El paquete Semana Ilimitada solo está disponible de lunes a viernes' };
       }
 
       // 4. Verificar límite de clases (usando el paquete específico)
-      console.log('[UWService_Trace] Check 4: Weekly limit validation...');
       const weeklyValidation = await this.validateWeeklyLimit(userId, validPackageForClass.id);
-      console.log('[UWService_Trace] Weekly limit validation result:', weeklyValidation);
       if (!weeklyValidation.canReserve) {
-        console.log('[UWService_Trace] Failed at Check 4: Weekly limit exceeded.');
         return {
           isValid: false, canUseUnlimitedWeek: false, reason: 'WEEKLY_LIMIT_EXCEEDED',
           message: `Has alcanzado el límite de ${weeklyValidation.limit} clases para esta semana.`,
@@ -136,11 +124,8 @@ export class UnlimitedWeekService {
       }
 
       // 5. Verificar tiempo de anticipación
-      console.log(`[UWService_Trace] Check 5: Time requirements. Class ID ${scheduledClass.id}, scheduledClass.date: ${scheduledClass.date.toISOString()}, scheduledClass.time: ${scheduledClass.time.toISOString()}`);
       const timeValidation = await this.validateTimeRequirements(scheduledClass.date, scheduledClass.time);
-      // console.log('[UWService_Trace] Time validation result:', JSON.stringify(timeValidation, null, 2)); // Covered by existing log
       if (!timeValidation.isValid) {
-        console.log('[UWService_Trace] Failed at Check 5: Insufficient time for booking.');
         return {
           isValid: false, canUseUnlimitedWeek: false, reason: 'INSUFFICIENT_TIME',
           message: timeValidation.message, timeRemaining: timeValidation.timeRemaining,
@@ -148,31 +133,23 @@ export class UnlimitedWeekService {
       }
 
       // 6. Verificar que no exceda 1 mes de anticipación
-      console.log('[UWService_Trace] Check 6: >1 month advance booking validation...');
       const oneMonthFromNow = new Date();
       oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
       const isTooFarInAdvance = convertUTCToLocalDate(classDateUTC.toISOString()) > oneMonthFromNow;
-      console.log(`[UWService_Trace] Is too far in advance (>1 month) result: ${isTooFarInAdvance}`);
       if (isTooFarInAdvance) {
-        console.log('[UWService_Trace] Failed at Check 6: Booking too far in advance.');
         return { isValid: false, canUseUnlimitedWeek: false, reason: 'TOO_FAR_IN_ADVANCE', message: 'No puedes reservar con más de 1 mes de anticipación' };
       }
 
       // 7. Verificar que el usuario no tenga otra reserva para la misma clase
-      console.log('[UWService_Trace] Check 7: Existing reservation validation for this class...');
       const existingReservation = await prisma.reservation.findFirst({
         where: { userId, scheduledClassId, status: { in: ['confirmed', 'pending'] } },
       });
-      console.log(`[UWService_Trace] Existing reservation found: ${existingReservation ? `ID=${existingReservation.id}` : 'None'}`);
       if (existingReservation) {
-        console.log('[UWService_Trace] Failed at Check 7: Already reserved this class.');
         return { isValid: false, canUseUnlimitedWeek: false, reason: 'ALREADY_RESERVED', message: 'Ya tienes una reserva para esta clase' };
       }
 
-      console.log('[UWService_Trace] All validations passed. Granting unlimited week usage.');
       return {
         isValid: true, canUseUnlimitedWeek: true,
-        message: 'Estás reservando con Semana Ilimitada. Para garantizar tu lugar, envía tu confirmación por WhatsApp con al menos 12 horas de anticipación',
       };
     } catch (error) {
       console.error('[UWService_Trace] Error during validation:', error); // Added trace prefix
@@ -210,7 +187,6 @@ export class UnlimitedWeekService {
    * Valida los requerimientos de tiempo
    */
   private static async validateTimeRequirements(classDate: Date | string, classTime: Date | string) {
-    console.log(`[Service TimeCheck]  validating time for classDate: ${classDate}, classTime: ${classTime}`);
     const now = new Date()
     
     // FIX: Combine date and time using UTC methods to prevent timezone corruption.
@@ -248,7 +224,6 @@ export class UnlimitedWeekService {
       const remainingHours = Math.floor(timeUntilClass / 60)
       const remainingMinutes = Math.floor(timeUntilClass % 60)
       
-      console.log('[Service TimeCheck] ❌ Time requirement NOT MET.');
       return {
         isValid: false,
         message: 'No puedes reservar con Semana Ilimitada en este horario. Ya no hay tiempo suficiente para enviar tu confirmación por WhatsApp.',
@@ -259,7 +234,6 @@ export class UnlimitedWeekService {
       }
     }
 
-    console.log('[Service TimeCheck] ✅ Time requirement MET.');
     return {
       isValid: true,
       timeRemaining: {

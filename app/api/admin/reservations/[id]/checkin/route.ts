@@ -92,15 +92,15 @@ export async function POST(
     const timeDiff = now.getTime() - classDateTimeMexico.getTime();
     const minutesDiff = timeDiff / (1000 * 60);
     
-    console.log("=== DEBUG CHECK-IN CORREGIDO ===");
-    console.log("Clase:", reservation.scheduledClass.classType.name);
-    console.log("Fecha clase almacenada (UTC):", classDateTimeStoredUTC.toISOString());
-    console.log("Fecha clase corregida (México):", classDateTimeMexico.toISOString());
-    console.log("Fecha clase corregida (México local):", formatInTimeZone(classDateTimeMexico, mexicoCityTimeZone, 'yyyy-MM-dd HH:mm:ss'));
-    console.log("Fecha actual (UTC):", now.toISOString());
-    console.log("Fecha actual (México):", formatInTimeZone(now, mexicoCityTimeZone, 'yyyy-MM-dd HH:mm:ss'));
-    console.log("Diferencia en minutos:", minutesDiff);
-    console.log("=== FIN DEBUG ===");
+    // console.log("=== DEBUG CHECK-IN CORREGIDO ===");
+    // console.log("Clase:", reservation.scheduledClass.classType.name);
+    // console.log("Fecha clase almacenada (UTC):", classDateTimeStoredUTC.toISOString());
+    // console.log("Fecha clase corregida (México):", classDateTimeMexico.toISOString());
+    // console.log("Fecha clase corregida (México local):", formatInTimeZone(classDateTimeMexico, mexicoCityTimeZone, 'yyyy-MM-dd HH:mm:ss'));
+    // console.log("Fecha actual (UTC):", now.toISOString());
+    // console.log("Fecha actual (México):", formatInTimeZone(now, mexicoCityTimeZone, 'yyyy-MM-dd HH:mm:ss'));
+    // console.log("Diferencia en minutos:", minutesDiff);
+    // console.log("=== FIN DEBUG ===");
     
     // Permitir check-in desde 20 minutos antes hasta 1 hora después de la clase
     if (minutesDiff > 60) { // 1 hora después

@@ -220,7 +220,6 @@ export default function ReservationsPage() {
     }
 
     const createdReservation = await response.json()
-    console.log("Reservación creada:", createdReservation)
     
     alert("Nueva reservación creada con éxito")
 

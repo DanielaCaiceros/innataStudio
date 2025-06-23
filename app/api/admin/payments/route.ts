@@ -96,8 +96,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { user_id, amount, userPackageId, notes, selectedWeek, packageId: bodyPackageId } = body // Destructure packageId as bodyPackageId for clarity
-    console.log('[PAYMENT_API_LOG] Received request. Body:', JSON.stringify(body, null, 2));
-    console.log(`[PAYMENT_API_LOG] Parsed values: userId=${user_id}, amount=${amount}, userPackageId=${userPackageId}, selectedWeek=${selectedWeek}, packageId=${bodyPackageId}`);
 
     // Validaciones
     if (!user_id || !amount) {
@@ -142,23 +140,19 @@ export async function POST(request: NextRequest) {
     // Obtener información del paquete
     let packageData = null;
     if (bodyPackageId) { // Use destructured bodyPackageId
-      console.log(`[PAYMENT_API_LOG] Fetching packageData for packageId: ${bodyPackageId}`);
       packageData = await db.package.findUnique({ where: { id: bodyPackageId } });
       if (!packageData) {
         console.error(`[PAYMENT_API_LOG] Error: Paquete no encontrado con id: ${bodyPackageId}`);
         return NextResponse.json({ error: "Paquete no encontrado" }, { status: 404 });
       }
-      console.log(`[PAYMENT_API_LOG] Found packageData: ${JSON.stringify(packageData, null, 2)}`);
     }
 
     // Si es compra de semana ilimitada, calcular la expiración usando la semana seleccionada
     let purchaseDate = new Date();
     let expirationDate = new Date();
-    console.log(`[PAYMENT_API_LOG] Initial dates: purchaseDate=${purchaseDate.toISOString()}, expirationDate=${expirationDate.toISOString()}`);
 
     // Para Semana Ilimitada, usar la semana seleccionada
     if (bodyPackageId === 3 && selectedWeek) {
-      console.log(`[PAYMENT_API_LOG] Calculating dates for Unlimited Week (packageId 3) with selectedWeek: ${selectedWeek}`);
       const selectedWeekDate = new Date(selectedWeek);
       const mondayUTC = new Date(Date.UTC(
         selectedWeekDate.getUTCFullYear(),
@@ -168,9 +162,7 @@ export async function POST(request: NextRequest) {
       ));
       purchaseDate = mondayUTC;
       expirationDate = getUnlimitedWeekExpiryDate(purchaseDate); // This returns Friday 23:59:59 UTC
-      console.log(`[PAYMENT_API_LOG] Calculated for selectedWeek: purchaseDate=${purchaseDate.toISOString()}, expirationDate=${expirationDate.toISOString()}`);
     } else if (bodyPackageId === 3) {
-      console.log(`[PAYMENT_API_LOG] Calculating dates for Unlimited Week (packageId 3) - FALLBACK (no selectedWeek)`);
       const now = new Date();
       const mondayUTC = new Date(Date.UTC(
         now.getUTCFullYear(),
@@ -180,16 +172,12 @@ export async function POST(request: NextRequest) {
       ));
       purchaseDate = mondayUTC;
       expirationDate = getUnlimitedWeekExpiryDate(purchaseDate);
-      console.log(`[PAYMENT_API_LOG] Calculated for fallback (current week): purchaseDate=${purchaseDate.toISOString()}, expirationDate=${expirationDate.toISOString()}`);
     } else {
-      console.log(`[PAYMENT_API_LOG] Calculating dates for Regular Package (packageId: ${bodyPackageId})`);
       if (packageData) {
         // purchaseDate remains new Date() (today)
         expirationDate = new Date(); // Ensure expirationDate starts from today for this calculation path
         expirationDate.setUTCDate(expirationDate.getUTCDate() + packageData.validityDays);
-        console.log(`[PAYMENT_API_LOG] Calculated for regular package: purchaseDate=${purchaseDate.toISOString()} (today), expirationDate=${expirationDate.toISOString()}`);
       } else {
-        console.log(`[PAYMENT_API_LOG] No packageData for regular package, dates remain as initial: purchaseDate=${purchaseDate.toISOString()}, expirationDate=${expirationDate.toISOString()}`);
       }
     }
 
@@ -199,10 +187,7 @@ export async function POST(request: NextRequest) {
     // It's either the one found by userPackageId (and potentially updated) or a newly created one.
 
     if (bodyPackageId === 3) { // Operations specific to "Semana Ilimitada"
-        console.log(`[PAYMENT_API_LOG] Handling UserPackage for Unlimited Week (packageId 3). userPackageId from body: ${userPackageId}`);
         if (userPackageId) { 
-            console.log(`[PAYMENT_API_LOG] Case 1: Unlimited Week with userPackageId ${userPackageId}. Updating existing UserPackage.`);
-            console.log(`[PAYMENT_API_LOG] Data for UserPackage UPDATE: purchaseDate=${purchaseDate.toISOString()}, expiryDate=${expirationDate.toISOString()}`);
             const updatedUserPackage = await db.userPackage.update({
                 where: { id: userPackageId },
                 data: {
@@ -214,15 +199,11 @@ export async function POST(request: NextRequest) {
                 }
             });
             userPackageForPaymentLink = { id: updatedUserPackage.id };
-            console.log(`[PAYMENT_API_LOG] UserPackage ${userPackageId} updated. ID for payment link: ${updatedUserPackage.id}`);
         } else { 
-            console.log(`[PAYMENT_API_LOG] Case 2: Unlimited Week with NO userPackageId. Creating new UserPackage.`);
             const unlimitedBase = await db.package.findUnique({ where: { id: 3 } });
             if (!unlimitedBase) {
-                console.error(`[PAYMENT_API_LOG] Error: Paquete base de semana ilimitada (id: 3) no encontrado.`);
                 return NextResponse.json({ error: "Paquete base de semana ilimitada no encontrado" }, { status: 404 });
             }
-            console.log(`[PAYMENT_API_LOG] Data for UserPackage CREATE: purchaseDate=${purchaseDate.toISOString()}, expiryDate=${expirationDate.toISOString()}`);
             const newUserPackage = await db.userPackage.create({
                 data: {
                     userId: user_id,
@@ -236,10 +217,8 @@ export async function POST(request: NextRequest) {
                 }
             });
             userPackageForPaymentLink = { id: newUserPackage.id };
-            console.log(`[PAYMENT_API_LOG] New UserPackage created with id ${newUserPackage.id}. ID for payment link: ${newUserPackage.id}`);
         }
     } else if (userPackageId) {
-        console.log(`[PAYMENT_API_LOG] Case 3: Regular Package with userPackageId ${userPackageId}. Updating existing UserPackage.`);
         const updatedUserPackage = await db.userPackage.update({
             where: { id: userPackageId },
             data: {
@@ -248,25 +227,20 @@ export async function POST(request: NextRequest) {
             }
         });
         userPackageForPaymentLink = { id: updatedUserPackage.id };
-        console.log(`[PAYMENT_API_LOG] Regular UserPackage ${userPackageId} updated. ID for payment link: ${updatedUserPackage.id}`);
     } else {
-        console.log(`[PAYMENT_API_LOG] No userPackageId provided and not an Unlimited Week package needing creation. No UserPackage operation performed in this section.`);
     }
     // ----- End of Refactored UserPackage Handling -----
 
     // Populate Payment Metadata
     let paymentMetadata: any = notes ? { notes: notes, created_by: "admin" } : { created_by: "admin" };
-    console.log(`[PAYMENT_API_LOG] Initial paymentMetadata: ${JSON.stringify(paymentMetadata)}`);
     if (bodyPackageId === 3 && selectedWeek) { // For any unlimited week with selectedWeek
         // purchaseDate and expirationDate vars hold the correct dates from selectedWeek logic
         paymentMetadata.unlimitedWeek = {
             start: purchaseDate.toISOString().slice(0,10),
             end: expirationDate.toISOString().slice(0,10)
         };
-        console.log(`[PAYMENT_API_LOG] Added unlimitedWeek to paymentMetadata: ${JSON.stringify(paymentMetadata.unlimitedWeek)}`);
     }
 
-    console.log(`[PAYMENT_API_LOG] Creating Payment record. UserPackageId to link: ${userPackageForPaymentLink ? userPackageForPaymentLink.id : null}`);
     const payment = await db.payment.create({
       data: {
         userId: user_id,
