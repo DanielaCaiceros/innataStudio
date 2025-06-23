@@ -31,7 +31,11 @@ export async function POST(
       where: { id: reservationId },
       include: {
         scheduledClass: true,
-        userPackage: true
+        userPackage: {
+          include: {
+            package: true
+          }
+        }
       }
     });
 
@@ -47,6 +51,10 @@ export async function POST(
     const body = await request.json();
     const { reason = "Cancelado por administrador" } = body;
 
+    // FIXED: Determine if it's a Semana Ilimitada package
+    const isUnlimitedWeek = reservation.userPackage?.package?.id === 3 || 
+                           reservation.userPackage?.package?.name?.toLowerCase().includes('semana ilimitada');
+
     // Iniciar transacción para asegurar que todas las operaciones se completen o ninguna
     const result = await prisma.$transaction(async (prisma) => {
       // 1. Actualizar el estado de la reservación
@@ -56,11 +64,11 @@ export async function POST(
           status: "cancelled",
           cancellationReason: reason,
           cancelledAt: new Date(),
-          canRefund: true
+          canRefund: !isUnlimitedWeek // Only allow refund for non-Semana Ilimitada packages
         }
       });
 
-      // 2. Incrementar espacios disponibles en la clase programada
+      // 2. Incrementar espacios disponibles en la clase
       await prisma.scheduledClass.update({
         where: { id: reservation.scheduledClassId },
         data: {
@@ -70,44 +78,58 @@ export async function POST(
         }
       });
 
-      // 3. Si la reservación usó un paquete de clases, devolver la clase al balance
+      // 3. FIXED: Handle package refund based on package type
       if (reservation.userPackageId) {
-        await prisma.userPackage.update({
-          where: { id: reservation.userPackageId },
-          data: {
-            classesRemaining: {
-              increment: 1
-            },
-            classesUsed: {
-              decrement: 1
+        if (isUnlimitedWeek) {
+          // For Semana Ilimitada: update usage count but don't refund
+          await prisma.userPackage.update({
+            where: { id: reservation.userPackageId },
+            data: {
+              classesUsed: {
+                decrement: 1
+              }
+              // Don't increment classesRemaining - no refund for Semana Ilimitada
             }
-          }
-        });
-
-        // 4. Actualizar el balance de clases del usuario
-        await prisma.userAccountBalance.update({
-          where: { userId: reservation.userId },
-          data: {
-            classesAvailable: {
-              increment: 1
-            },
-            classesUsed: {
-              decrement: 1
+          });
+        } else {
+          // For normal packages: refund the class
+          await prisma.userPackage.update({
+            where: { id: reservation.userPackageId },
+            data: {
+              classesRemaining: {
+                increment: 1
+              },
+              classesUsed: {
+                decrement: 1
+              }
             }
-          }
-        });
+          });
 
-        // 5. Registrar la transacción en el balance del usuario
-        await prisma.balanceTransaction.create({
-          data: {
-            userId: reservation.userId,
-            type: "refund",
-            amount: 1, // Representa una clase devuelta
-            description: `Reembolso por cancelación: ${reason}`,
-            relatedReservationId: reservationId,
-            createdBy: parseInt(payload.userId)
-          }
-        });
+          // 4. Actualizar el balance de clases del usuario (only for normal packages)
+          await prisma.userAccountBalance.update({
+            where: { userId: reservation.userId },
+            data: {
+              classesAvailable: {
+                increment: 1
+              },
+              classesUsed: {
+                decrement: 1
+              }
+            }
+          });
+
+          // 5. Registrar la transacción en el balance del usuario (only for normal packages)
+          await prisma.balanceTransaction.create({
+            data: {
+              userId: reservation.userId,
+              type: "refund",
+              amount: 1, // Representa una clase devuelta
+              description: `Reembolso por cancelación: ${reason}`,
+              relatedReservationId: reservationId,
+              createdBy: parseInt(payload.userId)
+            }
+          });
+        }
       }
 
       // 6. Notificar al usuario
@@ -116,10 +138,11 @@ export async function POST(
           user_id: reservation.userId,
           type: "reservation_cancelled",
           title: "Reservación cancelada",
-          message: `Tu reservación ha sido cancelada. Motivo: ${reason}`,
+          message: `Tu reservación ha sido cancelada. Motivo: ${reason}${isUnlimitedWeek ? ' (Semana Ilimitada: sin reposición)' : ''}`,
           data: {
             reservationId: reservationId,
-            refunded: reservation.userPackageId ? true : false
+            refunded: !isUnlimitedWeek && reservation.userPackageId ? true : false,
+            isUnlimitedWeek: isUnlimitedWeek
           }
         }
       });
@@ -129,13 +152,16 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: "Reservación cancelada con éxito",
+      message: isUnlimitedWeek 
+        ? "Reservación cancelada. Para Semana Ilimitada no hay reposición de clase." 
+        : "Reservación cancelada con éxito",
       reservation: {
         id: result.id,
         status: result.status,
         cancellationReason: result.cancellationReason,
         cancelledAt: result.cancelledAt
-      }
+      },
+      isUnlimitedWeek: isUnlimitedWeek
     });
   } catch (error) {
     console.error("Error al cancelar reservación:", error);

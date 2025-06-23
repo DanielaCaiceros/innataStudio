@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient, Prisma } from "@prisma/client" // Import Prisma
 import { verifyToken } from "@/lib/jwt"
 import { sendBookingConfirmationEmail } from '@/lib/email'
-import { format, addHours, parseISO } from 'date-fns'
+import { format, addHours, parseISO, startOfWeek } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { formatInTimeZone } from 'date-fns-tz'
 import { UnlimitedWeekService } from '@/lib/services/unlimited-week.service'
@@ -80,6 +80,24 @@ export async function POST(request: NextRequest) {
     if (!scheduledClassId) {
       return NextResponse.json({ error: "scheduledClassId es requerido" }, { status: 400 })
     }
+
+    // --- BEGIN NEW VALIDATION FOR UNLIMITED WEEK MULTIPLE BOOKINGS ---
+    if (useUnlimitedWeek) { // Check specifically for unlimited week attempts
+      const existingReservationForClass = await prisma.reservation.findFirst({
+        where: {
+          userId: userId,
+          scheduledClassId: Number(scheduledClassId),
+          status: "confirmed", // Consider other active statuses if necessary
+        }
+      });
+
+      if (existingReservationForClass) {
+        return NextResponse.json({ 
+          error: "Ya tienes una reserva confirmada para esta clase. No se permiten múltiples reservas para la misma clase con el paquete Semana Ilimitada." 
+        }, { status: 409 }); // 409 Conflict
+      }
+    }
+    // --- END NEW VALIDATION FOR UNLIMITED WEEK MULTIPLE BOOKINGS ---
 
     // Validar número de bicicleta
     let parsedBikeNumber = null
@@ -240,35 +258,73 @@ export async function POST(request: NextRequest) {
 
     // **NUEVA LÓGICA: Manejar reserva con Semana Ilimitada**
     if (useUnlimitedWeek) {
-      // Validar elegibilidad para Semana Ilimitada
+      // Validar elegibilidad para Semana Ilimitada (This is a re-validation)
+      console.log(`[API_RESERVATIONS] Re-validating with UnlimitedWeekService for userId: ${userId}, classId: ${scheduledClassId}`);
       const validation = await UnlimitedWeekService.validateUnlimitedWeekReservation(
         userId, 
         Number.parseInt(scheduledClassId)
-      )
+      );
 
       if (!validation.isValid || !validation.canUseUnlimitedWeek) {
+        console.error(`[API_RESERVATIONS] Re-validation FAILED: ${validation.message}, Reason: ${validation.reason}`);
         return NextResponse.json({ 
-          error: validation.message || 'No puedes usar Semana Ilimitada para esta reserva',
+          error: validation.message || 'No puedes usar Semana Ilimitada para esta reserva (re-validation failed)',
           reason: validation.reason,
           weeklyUsage: validation.weeklyUsage
-        }, { status: 400 })
+        }, { status: 400 });
       }
 
-      // Obtener el paquete Semana Ilimitada activo
+      // Obtener el paquete Semana Ilimitada activo para la semana específica de la clase
+      const classDateFromDb = new Date(scheduledClass.date); // e.g., 2025-07-01T00:00:00Z (date from DB is UTC midnight)
+      
+      // Normalize classDateFromDb to its UTC noon to ensure startOfWeek behaves correctly
+      const classDateAtUtcNoon = new Date(Date.UTC(
+        classDateFromDb.getUTCFullYear(),
+        classDateFromDb.getUTCMonth(),
+        classDateFromDb.getUTCDate(),
+        12, 0, 0, 0 // Use noon UTC
+      ));
+      
+      // Step 1: Get the start of the week. This might have a time component reflecting local midnight.
+      let tempClassWeekStart = startOfWeek(classDateAtUtcNoon, { weekStartsOn: 1 }); 
+
+      // Step 2: Normalize this to true UTC midnight for that day.
+      const classWeekStartForQuery = new Date(Date.UTC(
+          tempClassWeekStart.getUTCFullYear(),
+          tempClassWeekStart.getUTCMonth(),
+          tempClassWeekStart.getUTCDate(),
+          0, 0, 0, 0
+      ));
+
       const unlimitedWeekPackage = await prisma.userPackage.findFirst({
         where: {
           userId,
           packageId: 3, // ID del paquete Semana Ilimitada
           isActive: true,
-          classesRemaining: { gt: 0 },
-          expiryDate: { gte: new Date() }
+          classesRemaining: { gt: 0 }, // Ensure package has classes
+          // Ensure the class date falls within the package's purchase and expiry dates
+          // Note: DB dates are DATE type, Prisma handles them as JS Date objects (usually UTC midnight)
+          purchaseDate: { lte: classDateFromDb }, 
+          expiryDate: { gte: classDateFromDb }    
         }
-      })
+      });
 
       if (!unlimitedWeekPackage) {
+        console.error(`[API_RESERVATIONS] CRITICAL FAIL: unlimitedWeekPackage not found for userId ${userId} covering classDate: ${classDateFromDb.toISOString()}`);
         return NextResponse.json({ 
-          error: 'No se encontró un paquete Semana Ilimitada válido' 
-        }, { status: 400 })
+          error: 'No se encontró un paquete Semana Ilimitada válido para esta clase (segunda verificación).' 
+        }, { status: 400 });
+      }
+
+      // Verificar que el paquete sea para la semana correcta
+      // unlimitedWeekPackage.purchaseDate is already the correct Monday UTC 00:00 from the DB
+      const packageWeekStartFromDB = unlimitedWeekPackage.purchaseDate; 
+
+      if (packageWeekStartFromDB.getTime() !== classWeekStartForQuery.getTime()) {
+        console.error(`[API_RESERVATIONS] CRITICAL FAIL: Week start mismatch! Package starts ${packageWeekStartFromDB.toISOString()}, Class week starts ${classWeekStartForQuery.toISOString()}`);
+        return NextResponse.json({ 
+          error: 'Tu Semana Ilimitada no es válida para esta semana (verificación de inicio de semana falló). Solo puedes reservar en la semana específica que contrataste.' 
+        }, { status: 400 });
       }
 
       // Verificar disponibilidad de espacios (aplicable para todos los tipos de reserva)

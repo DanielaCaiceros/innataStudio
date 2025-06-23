@@ -44,6 +44,9 @@ import {
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { Textarea } from "@/components/ui/textarea"
+import { getAvailableWeekOptions } from '@/lib/utils/unlimited-week'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 interface Payment {
   id: number
@@ -118,6 +121,12 @@ export default function PaymentsPage() {
     phone: ""
   })
 
+  // 1. Add state for unlimited week selection
+  const [selectedUnlimitedWeek, setSelectedUnlimitedWeek] = useState<{ start: string, end: string } | null>(null)
+
+  // Nuevo estado para el id del UserPackage
+  const [selectedUserPackageId, setSelectedUserPackageId] = useState<string | null>(null)
+
   // Función para manejar apertura del modal de nuevo pago
   const handleNewPaymentClick = () => {
     // Si viene desde reservaciones, ocultar el banner para distinguir entre acceso directo y click manual
@@ -137,6 +146,7 @@ export default function PaymentsPage() {
   const resetForm = () => {
     setSelectedUserId("")
     setSelectedPackageId("")
+    setSelectedUserPackageId(null)
     setPaymentAmount("")
     setPaymentNotes("")
     setPaymentMethod("efectivo")
@@ -170,11 +180,9 @@ export default function PaymentsPage() {
           title: "Paquete asignado",
           description: `Paquete ${data.userPackage.packageName} asignado correctamente`,
         })
-        
-        // Actualizar el monto del pago con el precio del paquete
         setPaymentAmount(data.userPackage.packagePrice.toString())
-        setSelectedPackageId(data.userPackage.id.toString())
-        
+        setSelectedUserPackageId(data.userPackage.id.toString())
+        setSelectedPackageId(packageId)
         return data.userPackage
       } else {
         throw new Error(data.error || "Error al asignar el paquete")
@@ -365,7 +373,6 @@ export default function PaymentsPage() {
       })
       return
     }
-
     // Validar que el monto sea válido
     const amount = parseFloat(paymentAmount)
     if (isNaN(amount) || amount <= 0) {
@@ -376,46 +383,74 @@ export default function PaymentsPage() {
       })
       return
     }
-
+    // Si es semana ilimitada, debe seleccionar semana
+    if (selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && !selectedUnlimitedWeek) {
+      toast({
+        title: "Error",
+        description: "Debes seleccionar la semana para el paquete ilimitado",
+        variant: "destructive",
+      })
+      return
+    }
     setIsProcessingPayment(true)
-
     try {
+      // Log current state values before building the request body
+      console.log('[ADMIN_PAYMENTS_FRONTEND_LOG] States before building request body:');
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedUserId: ${selectedUserId}`);
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   paymentAmount (raw string): ${paymentAmount}`);
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   paymentNotes: ${paymentNotes}`);
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedPackageId: ${selectedPackageId}`);
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedUserPackageId: ${selectedUserPackageId}`);
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedUnlimitedWeek: ${JSON.stringify(selectedUnlimitedWeek)}`);
+      // The `amount` variable is already parsed parseFloat(paymentAmount), log it too for clarity
+      const parsedAmount = parseFloat(paymentAmount); // Re-parse for logging consistency if `amount` isn't used above this log
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   amount (parsed for API): ${parsedAmount}`);
+
+
+      const packageIdToSend = selectedPackageId ? parseInt(selectedPackageId) : null;
+      const userPackageIdToSend = selectedUserPackageId ? parseInt(selectedUserPackageId) : null;
+      
+      // selectedPackage is a derived state variable, let's log its perceived ID too
+      // const currentSelectedPackageDetails = packages.find(p => p.id.toString() === selectedPackageId); // This line is already present
+      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   Derived selectedPackage?.id: ${selectedPackage?.id}`);
+
+
+      const selectedWeekToSend = (selectedPackage?.id.toString() === "3" && selectedUnlimitedWeek) 
+                                 ? selectedUnlimitedWeek.start 
+                                 : null;
+
+      const apiRequestBody = {
+        user_id: parseInt(selectedUserId),
+        amount: parsedAmount, // Use the consistently parsed amount
+        notes: paymentNotes.trim() || null,
+        packageId: packageIdToSend, 
+        userPackageId: userPackageIdToSend, 
+        selectedWeek: selectedWeekToSend,
+      };
+
+      console.log('[ADMIN_PAYMENTS_FRONTEND_LOG] Creating payment with request body:', JSON.stringify(apiRequestBody, null, 2));
+
       const response = await fetch("/api/admin/payments", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          user_id: parseInt(selectedUserId),
-          userPackageId: selectedPackageId ? parseInt(selectedPackageId) : null,
-          amount: amount,
-          notes: paymentNotes.trim() || null,
-        }),
+        body: JSON.stringify(apiRequestBody),
       })
-
       const data = await response.json()
-
       if (response.ok) {
         toast({
           title: "Pago registrado",
           description: `Pago en efectivo de $${amount} registrado correctamente para ${data.payment.user}`,
         })
-        
-        // Cerrar modal y resetear formulario
         setIsNewPaymentOpen(false)
         resetForm()
-        
-        // Recargar la lista de pagos
         loadPayments()
-        
-        // Si viene desde reservaciones, mostrar opciones adicionales
         if (isFromReservation) {
           toast({
             title: "¡Pago completado!",
             description: "Ahora puedes finalizar la reservación del usuario desde el panel de reservaciones.",
           })
-          
-          // Opcional: redirigir automáticamente después de unos segundos
           setTimeout(() => {
             if (confirm("¿Deseas ir al panel de reservaciones para completar la reservación?")) {
               handleCompleteReservationAfterPayment()
@@ -437,13 +472,12 @@ export default function PaymentsPage() {
     }
   }
 
-  // Buscar usuarios por email
+  // Buscar usuarios por email (simplificado)
   const searchUsersByEmail = async (email: string) => {
     if (!email.trim()) {
       setSearchedUsers([])
       return
     }
-
     setIsSearchingUsers(true)
     try {
       const response = await fetch(`/api/admin/users/search?email=${encodeURIComponent(email)}`)
@@ -587,13 +621,12 @@ export default function PaymentsPage() {
   // Efecto para búsqueda de usuarios con debounce
   useEffect(() => {
     const delayedSearch = setTimeout(() => {
-      if (userSearchEmail.trim() && isValidEmail(userSearchEmail)) {
+      if (userSearchEmail.trim().length >= 2) {
         searchUsersByEmail(userSearchEmail)
       } else {
         setSearchedUsers([])
       }
     }, 300)
-
     return () => clearTimeout(delayedSearch)
   }, [userSearchEmail])
 
@@ -717,9 +750,32 @@ export default function PaymentsPage() {
                   </div>
                 )}
 
-
-
-              
+                {/* Unlimited week if present in metadata */}
+                {metadata.unlimitedWeek && metadata.unlimitedWeek.start && metadata.unlimitedWeek.end && (
+                  <div className="text-xs text-blue-700 mt-2 pt-2 border-t border-gray-200">
+                    <span className="font-medium text-gray-700 block mb-0.5">Detalles Semana Ilimitada:</span>
+                    <span className="text-blue-700">
+                      {(() => {
+                        try {
+                          const startDate = new Date(metadata.unlimitedWeek.start + 'T00:00:00Z'); // Ensure UTC parsing
+                          const endDate = new Date(metadata.unlimitedWeek.end + 'T00:00:00Z');   // Ensure UTC parsing
+                          
+                          const formattedStart = startDate.toLocaleDateString('es-ES', {
+                            day: 'numeric', month: 'short', timeZone: 'UTC'
+                          });
+                          const formattedEnd = endDate.toLocaleDateString('es-ES', {
+                            day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC'
+                          });
+                          return `Válida del ${formattedStart} al ${formattedEnd} (UTC)`;
+                        } catch (e) {
+                          console.error("Error formatting metadata unlimitedWeek dates:", e);
+                          // Fallback to raw display if formatting fails
+                          return `Semana: ${metadata.unlimitedWeek.start} al ${metadata.unlimitedWeek.end}`;
+                        }
+                      })()}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -728,9 +784,16 @@ export default function PaymentsPage() {
     )
   }
 
+  // Limpia selectedUnlimitedWeek si se selecciona otro paquete
+  useEffect(() => {
+    if (selectedPackageId && Number(selectedPackageId) !== 3) {
+      setSelectedUnlimitedWeek(null)
+    }
+  }, [selectedPackageId])
+
   if (loading) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="p-6 bg-white-50 min-h-screen">
         <div className="text-center text-zinc-900">Cargando...</div>
       </div>
     )
@@ -906,23 +969,21 @@ export default function PaymentsPage() {
                     </div>
                   )}
 
-                  {/* Botón para crear nuevo usuario si no se encuentra */}
-                  {userSearchEmail && searchedUsers.length === 0 && !isSearchingUsers && isValidEmail(userSearchEmail) && !selectedUserId && (
+                  {/* En la UI, reemplaza el botón de crear usuario por uno que redirige a /admin/users */}
+                  {userSearchEmail && searchedUsers.length === 0 && !isSearchingUsers && userSearchEmail.trim().length >= 3 && !selectedUserId && (
                     <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
                       <div className="text-sm text-blue-800 mb-2">
-                        No se encontró ningún usuario con ese email.
+                        No se encontró ningún cliente con ese email.<br />
+                        Puedes crear uno en la página de usuarios y regresar para completar el pago.
                       </div>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          setNewUserData(prev => ({ ...prev, email: userSearchEmail }))
-                          setIsUserModalOpen(true)
-                        }}
+                        onClick={() => window.location.href = '/admin/users'}
                         className="text-blue-700 border-blue-300 hover:bg-blue-100"
                       >
-                        Crear nuevo cliente
+                        Ir a crear cliente
                       </Button>
                     </div>
                   )}
@@ -932,8 +993,6 @@ export default function PaymentsPage() {
                 {selectedUserId && (
                   <div className="space-y-2">
                     <Label htmlFor="package-select">Paquete</Label>
-                    
-                    {/* Botón para asignar nuevo paquete - ahora es el principal */}
                     <div className="flex gap-2">
                       <Select onValueChange={(value) => handleAssignPackage(selectedUserId, value)}>
                         <SelectTrigger className="flex-1">
@@ -948,7 +1007,6 @@ export default function PaymentsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-
                     {/* Mostrar paquete seleccionado */}
                     {selectedPackageId && selectedPackageId !== "none" && (
                       <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
@@ -957,6 +1015,35 @@ export default function PaymentsPage() {
                           {packages.find(p => p.id.toString() === selectedPackageId)?.name} - 
                           ${packages.find(p => p.id.toString() === selectedPackageId)?.price}
                         </div>
+                      </div>
+                    )}
+                    {/* Semana ilimitada: picker obligatorio */}
+                    {selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && (
+                      <div className="space-y-2">
+                        <Label htmlFor="unlimited-week-select">Semana Ilimitada *</Label>
+                        <Select value={selectedUnlimitedWeek?.start || ''} onValueChange={value => {
+                          const option = getAvailableWeekOptions().find(opt => opt.value === value)
+                          console.log('Selected week value:', value, 'Label:', option?.label, 'Start:', option?.startDate)
+
+                          if (option) {
+                            setSelectedUnlimitedWeek({ start: option.startDate.toISOString().slice(0, 10), end: option.endDate.toISOString().slice(0, 10) })
+                          }
+                        }}>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Selecciona la semana..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getAvailableWeekOptions().map((week, idx) => (
+                              <SelectItem key={idx} value={week.value}>
+                                {week.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        {!selectedUnlimitedWeek && (
+                          <div className="text-xs text-red-600 mt-1">Debes seleccionar una semana para continuar.</div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1006,7 +1093,7 @@ export default function PaymentsPage() {
                 </AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleCreatePayment}
-                  disabled={isProcessingPayment || !selectedUserId || !paymentAmount}
+                  disabled={isProcessingPayment || !selectedUserId || !paymentAmount || (selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && !selectedUnlimitedWeek)}
                   className="bg-[#4A102A] hover:bg-[#5A1A3A]"
                 >
                   {isProcessingPayment ? (

@@ -3,7 +3,7 @@
 import React from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Clock, AlertTriangle, CheckCircle, MessageCircle, Calendar, Hourglass } from 'lucide-react'
+import { Clock, AlertTriangle, CheckCircle, MessageCircle, Calendar, Hourglass, Info } from 'lucide-react'
 
 interface UnlimitedWeekValidation {
   isValid: boolean
@@ -53,6 +53,10 @@ export function UnlimitedWeekAlert({ validation, className }: UnlimitedWeekAlert
         return <AlertTriangle className="h-4 w-4" />
       case 'NON_BUSINESS_DAY':
         return <Hourglass className="h-4 w-4" />
+      case 'WRONG_WEEK':
+        return <Calendar className="h-4 w-4" />
+      case 'ALREADY_RESERVED':
+        return <AlertTriangle className="h-4 w-4" />
       default:
         return validation.canUseUnlimitedWeek ? 
           <MessageCircle className="h-4 w-4" /> : 
@@ -60,21 +64,116 @@ export function UnlimitedWeekAlert({ validation, className }: UnlimitedWeekAlert
     }
   }
 
+  const getEnhancedMessage = () => {
+    if (validation.reason === 'WRONG_WEEK') {
+      return (
+        <div className="space-y-2">
+          <p className="font-medium text-red-800">{validation.message}</p>
+          <div className="bg-red-50 p-3 rounded-md border border-red-200">
+            <p className="text-sm text-red-700 font-medium mb-1">¡Ups! Recuerda las reglas de Semana Ilimitada:</p>
+            <ul className="text-xs text-red-700 space-y-1">
+              <li>• Solo puedes reservar clases en la semana específica que contrataste</li>
+              <li>• Para otras fechas, usa tus paquetes normales</li>
+              <li>• Cada Semana Ilimitada es válida solo de lunes a viernes</li>
+            </ul>
+          </div>
+        </div>
+      )
+    }
+
+    if (validation.reason === 'INSUFFICIENT_TIME') {
+      return (
+        <div className="space-y-2">
+          <p className="font-medium text-red-800">{validation.message}</p>
+          <div className="bg-red-50 p-3 rounded-md border border-red-200">
+            <p className="text-sm text-red-700 font-medium mb-1">Tiempo requerido para Semana Ilimitada:</p>
+            <ul className="text-xs text-red-700 space-y-1">
+              <li>• Mínimo 12 horas y 30 minutos de anticipación</li>
+              <li>• Necesitas tiempo para confirmar por WhatsApp</li>
+              <li>• Sin confirmación, tu lugar puede ser liberado</li>
+            </ul>
+            {validation.timeRemaining && (
+              <p className="text-xs text-red-600 mt-2">
+                Tiempo disponible: {validation.timeRemaining.hours}h {validation.timeRemaining.minutes}m
+              </p>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    if (validation.reason === 'WEEKLY_LIMIT_EXCEEDED') {
+      return (
+        <div className="space-y-2">
+          <p className="font-medium text-red-800">{validation.message}</p>
+          <div className="bg-red-50 p-3 rounded-md border border-red-200">
+            <p className="text-sm text-red-700 font-medium mb-1">¡Ups! Haz alcanzado tú límite semanal con Semana Ilimitada:</p>
+            <ul className="text-xs text-red-700 space-y-1">
+              <li>• Has usado todas las clases de tu Semana Ilimitada</li>
+              <li>• Para más clases, usa tus paquetes normales</li>
+              <li>• El límite se reinicia cada semana contratada</li>
+            </ul>
+          </div>
+        </div>
+      )
+    }
+
+    if (validation.reason === 'NON_BUSINESS_DAY') {
+      return (
+        <div className="space-y-2">
+          <p className="font-medium text-red-800">{validation.message}</p>
+          <div className="bg-blue-50 p-3 rounded-md border border-blue-200">
+            <p className="text-sm text-blue-700 font-medium mb-1">¡Ups! Recuerda que las reservas con Semana Ilimitada solo son válidas de lunes a viernes.</p>
+            <ul className="text-xs text-blue-700 space-y-1">
+              <li>• Para fines de semana, usa tus paquetes normales</li>
+              <li>• Cada Semana Ilimitada cubre 5 días hábiles</li>
+            </ul>
+          </div>
+        </div>
+      )
+    }
+
+    if (validation.reason === 'ALREADY_RESERVED') {
+      return (
+        <div className="space-y-2">
+          <p className="font-medium text-red-800">{validation.message}</p>
+          <div className="bg-orange-50 p-3 rounded-md border border-orange-200">
+            <p className="text-sm text-orange-700 font-medium mb-1">¡Ups! Ya has reservado un lugar en esta clase.</p>
+            <ul className="text-xs text-orange-700 space-y-1">
+              <li>• Solo 1 reserva por clase con Semana Ilimitada</li>
+              <li>• Diferente a paquetes normales que permiten múltiples reservas</li>
+              <li>• Cancela tu reserva actual si quieres cambiar</li>
+            </ul>
+          </div>
+        </div>
+      )
+    }
+
+    if (validation.isValid && validation.canUseUnlimitedWeek) {
+      return (
+        <div className="space-y-2">
+          <p className="font-medium text-green-800">{validation.message}</p>
+          <div className="bg-green-50 p-3 rounded-md border border-green-200">
+            <p className="text-sm text-green-700 font-medium mb-1">¡Muy bien! tú Semana Ilimitada está activa:</p>
+            <ul className="text-xs text-green-700 space-y-1">
+              <li>• Recuerda confirmar por WhatsApp con 12+ horas de anticipación</li>
+              <li>• Sin confirmación, tu lugar puede ser liberado</li>
+              <li>• Solo válido de lunes a viernes</li>
+            </ul>
+          </div>
+        </div>
+      )
+    }
+
+    return <p className="font-medium">{validation.message}</p>
+  }
+
   return (
     <Alert variant={getAlertVariant()} className={className}>
       {getIcon()}
       <AlertDescription>
         <div className="space-y-2">
-          <p className="font-medium">{validation.message}</p>
-          
-          {/* Mostrar tiempo restante si está disponible */}
-          {validation.timeRemaining && validation.reason === 'INSUFFICIENT_TIME' && (
-            <div className="text-sm">
-              <p>
-                Tiempo hasta la clase: {validation.timeRemaining.hours}h {validation.timeRemaining.minutes}m
-              </p>
-            </div>
-          )}
+          {getEnhancedMessage()}
           
           {/* Mostrar información de validez del paquete */}
           {validation.packageValidity && (

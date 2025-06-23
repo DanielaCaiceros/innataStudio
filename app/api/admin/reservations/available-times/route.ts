@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
 
       return {
         time: formattedTime,
-        classId: scheduledClass.id,
+        scheduledClassId: scheduledClass.id,
         className: scheduledClass.classType.name,
         instructorName: `${scheduledClass.instructor.user.firstName} ${scheduledClass.instructor.user.lastName}`,
         availableSpots: scheduledClass.availableSpots,

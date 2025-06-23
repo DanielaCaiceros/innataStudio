@@ -2,16 +2,19 @@ import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
 import { sendCancellationConfirmationEmail } from '@/lib/email'
-import { format, addHours, parseISO } from 'date-fns'
+import { format, addHours, parseISO, subHours } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { formatInTimeZone } from 'date-fns-tz'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma as prismaSingleton } from '@/lib/prisma'
 
 const prisma = new PrismaClient()
 
 // POST - Cancelar una reservación
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     // Verificar autenticación
@@ -23,6 +26,8 @@ export async function POST(
     const payload = await verifyToken(token)
     const userId = Number.parseInt(payload.userId)
 
+    // Next.js 13/14: await params if needed
+    const { params } = context
     const reservationId = parseInt(params.id)
     if (isNaN(reservationId)) {
       return NextResponse.json({ error: "ID de reservación no válido" }, { status: 400 })
@@ -71,8 +76,13 @@ export async function POST(
     const now = new Date()
     const hoursUntilClass = (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60)
 
-    // Determinar si se puede reembolsar la clase
-    const canRefund = hoursUntilClass >= 12
+    // FIXED: Properly determine if it's a Semana Ilimitada package and handle refund logic
+    const isUnlimitedWeek = reservation.userPackage?.package?.id === 3 || 
+                           reservation.userPackage?.package?.name?.toLowerCase().includes('semana ilimitada');
+    
+    // For Semana Ilimitada: no refund regardless of cancellation time
+    // For normal packages: refund only if cancelled with more than 12 hours notice
+    const canRefund = !isUnlimitedWeek && hoursUntilClass >= 12;
 
     // Obtener datos de la solicitud
     const body = await request.json()
@@ -97,8 +107,9 @@ export async function POST(
       }
     })
 
-    // Si se puede reembolsar y viene de un paquete, devolver la clase al paquete
+    // FIXED: Handle refund logic based on package type
     if (canRefund && reservation.userPackageId) {
+      // Only refund for normal packages (not Semana Ilimitada)
       await prisma.userPackage.update({
         where: { id: reservation.userPackageId },
         data: {
@@ -113,6 +124,15 @@ export async function POST(
         data: {
           classesAvailable: { increment: 1 },
           classesUsed: { decrement: 1 }
+        }
+      })
+    } else if (isUnlimitedWeek && reservation.userPackageId) {
+      // For Semana Ilimitada: update usage count but don't refund
+      await prisma.userPackage.update({
+        where: { id: reservation.userPackageId },
+        data: {
+          classesUsed: { decrement: 1 }
+          // Don't increment classesRemaining - no refund for Semana Ilimitada
         }
       })
     }
@@ -141,7 +161,8 @@ export async function POST(
           date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
           time: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "HH:mm", { locale: es }),
           isRefundable: canRefund,
-          packageName: reservation.userPackage?.package?.name
+          packageName: reservation.userPackage?.package?.name,
+          isUnlimitedWeek: isUnlimitedWeek
         };
 
         await sendCancellationConfirmationEmail(
@@ -159,11 +180,158 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: "Reservación cancelada correctamente",
-      refunded: canRefund
+      message: isUnlimitedWeek 
+        ? "Reservación cancelada. Para Semana Ilimitada no hay reposición de clase." 
+        : "Reservación cancelada correctamente",
+      refunded: canRefund,
+      isUnlimitedWeek: isUnlimitedWeek
     })
   } catch (error) {
     console.error("Error al cancelar reservación:", error)
     return NextResponse.json({ error: "Error al cancelar la reservación" }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const reservationId = parseInt(params.id);
+    const { reason } = await request.json();
+
+    // Obtener información del usuario
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+    }
+
+    // Obtener la reservación
+    const reservation = await prisma.reservation.findUnique({
+      where: { id: reservationId },
+      include: {
+        scheduledClass: {
+          include: {
+            classType: true
+          }
+        },
+        userPackage: {
+          include: {
+            package: true
+          }
+        }
+      }
+    });
+
+    if (!reservation) {
+      return NextResponse.json({ error: 'Reservación no encontrada' }, { status: 404 });
+    }
+
+    // Verificar que la reservación pertenezca al usuario
+    if (reservation.userId !== user.user_id) {
+      return NextResponse.json({ error: 'Sin permisos para cancelar esta reservación' }, { status: 403 });
+    }
+
+    // Verificar que la reservación esté confirmada
+    if (reservation.status !== 'confirmed') {
+      return NextResponse.json({ error: 'Solo se pueden cancelar reservaciones confirmadas' }, { status: 400 });
+    }
+
+    // Verificar tiempo límite para cancelación (12 horas antes)
+    const classDateTime = new Date(reservation.scheduledClass.date);
+    const classTime = new Date(reservation.scheduledClass.time);
+    classDateTime.setHours(classTime.getHours(), classTime.getMinutes());
+    
+    const cancelationDeadline = subHours(classDateTime, 12);
+    const now = new Date();
+
+    if (now > cancelationDeadline) {
+      return NextResponse.json({ 
+        error: 'No puedes cancelar con menos de 12 horas de anticipación' 
+      }, { status: 400 });
+    }
+
+    // Procesar la cancelación
+    const result = await prisma.$transaction(async (tx) => {
+      // Actualizar la reservación
+      const updatedReservation = await tx.reservation.update({
+        where: { id: reservationId },
+        data: {
+          status: 'cancelled',
+          cancellationReason: reason || 'Cancelada por el usuario',
+          cancelledAt: new Date()
+        }
+      });
+
+      // Incrementar espacios disponibles
+      await tx.scheduledClass.update({
+        where: { id: reservation.scheduledClassId },
+        data: {
+          availableSpots: {
+            increment: 1
+          }
+        }
+      });
+
+      // Si es un paquete de semana ilimitada, NO reembolsar la clase
+      // (según las reglas de negocio: sin penalización pero sin reposición)
+      if (reservation.userPackage?.packageId === 3) {
+        // Para semana ilimitada, no se restaura la clase
+        // Solo se actualiza el contador de clases usadas para reflejar la cancelación
+        await tx.userPackage.update({
+          where: { id: reservation.userPackageId! },
+          data: {
+            classesUsed: {
+              decrement: 1
+            }
+            // NO incrementamos classesRemaining porque no hay reposición
+          }
+        });
+      } else if (reservation.userPackage) {
+        // Para otros paquetes, restaurar la clase
+        await tx.userPackage.update({
+          where: { id: reservation.userPackageId! },
+          data: {
+            classesUsed: {
+              decrement: 1
+            },
+            classesRemaining: {
+              increment: 1
+            }
+          }
+        });
+      }
+
+      return updatedReservation;
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: reservation.userPackage?.packageId === 3 
+        ? 'Reservación cancelada. Para semana ilimitada no hay reposición de clase.'
+        : 'Reservación cancelada exitosamente',
+      reservation: {
+        id: result.id,
+        status: result.status,
+        cancelledAt: result.cancelledAt,
+        cancellationReason: result.cancellationReason
+      }
+    });
+
+  } catch (error) {
+    console.error('Error cancelling reservation:', error);
+    return NextResponse.json(
+      { error: 'Error interno del servidor' },
+      { status: 500 }
+    );
   }
 }

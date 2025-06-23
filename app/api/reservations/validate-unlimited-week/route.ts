@@ -5,6 +5,7 @@ import { verifyToken } from '@/lib/auth'
 import { UnlimitedWeekService } from '@/lib/services/unlimited-week.service'
 
 // POST - Validar elegibilidad para Semana Ilimitada
+console.log('--- API /api/reservations/validate-unlimited-week called ---');
 export async function POST(request: NextRequest) {
   try {
     // Verificar autenticación
