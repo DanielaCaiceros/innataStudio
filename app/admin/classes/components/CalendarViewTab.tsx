@@ -124,16 +124,24 @@ export default function CalendarViewTab({
                       {format(convertUtcToLocalDateForDisplay(cls.date), "EEEE, d 'de' MMMM", { locale: es })} - {formatTime(cls.time)}
                     </p>
                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                      <span className="flex items-center gap-1"><Users className="h-4 w-4" />{cls.maxCapacity - cls.availableSpots}/{cls.maxCapacity} inscritos</span>
+                      <span className="flex items-center gap-1">
+                        <Users className="h-4 w-4" />
+                        {cls.maxCapacity - cls.availableSpots}/{cls.maxCapacity} inscritos
+                      </span>
+                      {cls.availableSpots === 0 && (
+                        <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700 rounded-full">
+                          LLENO
+                        </span>
+                      )}
                       <span className="flex items-center gap-1"><Clock className="h-4 w-4" />{cls.classType.duration} minutos</span>
                     </div>
                     {cls.waitlist.length > 0 && (<p className="text-sm text-orange-600 mt-1">Lista de espera: {cls.waitlist.length} personas</p>)}
                   </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="border-gray-200 text-zinc-900 hover:bg-gray-100" 
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-gray-200 text-zinc-900 hover:bg-gray-100"
                       onClick={() => setSelectedClassId(cls.id)}
                     >
                       <Users className="h-4 w-4 mr-1" />
