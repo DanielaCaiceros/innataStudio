@@ -41,12 +41,15 @@ import {
   Copy,
   Clock,
   User,
+  Mail,
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { Textarea } from "@/components/ui/textarea"
 import { getAvailableWeekOptions } from '@/lib/utils/unlimited-week'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+// Removed: import { sendPackagePurchaseConfirmationEmail } from "@/lib/email"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface Payment {
   id: number
@@ -123,6 +126,7 @@ export default function PaymentsPage() {
 
   // 1. Add state for unlimited week selection
   const [selectedUnlimitedWeek, setSelectedUnlimitedWeek] = useState<{ start: string, end: string } | null>(null)
+  const [sendPackageEmail, setSendPackageEmail] = useState(true) // State for sending package email
 
   // Nuevo estado para el id del UserPackage
   const [selectedUserPackageId, setSelectedUserPackageId] = useState<string | null>(null)
@@ -439,13 +443,82 @@ export default function PaymentsPage() {
       })
       const data = await response.json()
       if (response.ok) {
-        toast({
-          title: "Pago registrado",
-          description: `Pago en efectivo de $${amount} registrado correctamente para ${data.payment.user}`,
-        })
+        // Email sending logic
+        if (sendPackageEmail && selectedPackageId) {
+          const userForEmail = users.find(u => u.id.toString() === selectedUserId);
+          const packageForEmail = packages.find(p => p.id.toString() === selectedPackageId);
+
+          if (userForEmail && packageForEmail) {
+            const purchaseDate = new Date();
+            let expiryDate = new Date(purchaseDate);
+            let isUnlimited = packageForEmail.name.toLowerCase().includes("ilimitada");
+
+            if (isUnlimited && selectedUnlimitedWeek?.end) {
+                expiryDate = new Date(selectedUnlimitedWeek.end + "T23:59:59Z"); // Ensure it's end of day UTC
+            } else if (packageForEmail.name.toLowerCase().includes("10 clases")) {
+                expiryDate.setMonth(expiryDate.getMonth() + 3); // Example: 3 months validity
+            } else if (packageForEmail.name.toLowerCase().includes("primera vez") || packageForEmail.name.toLowerCase().includes("pase individual")) {
+                expiryDate.setMonth(expiryDate.getMonth() + 1); // Example: 1 month validity
+            }
+            // Add more specific expiry logic if needed
+
+            const emailDetails = {
+              packageName: packageForEmail.name,
+              classCount: packageForEmail.classCount,
+              // Format dates to dd/MM/yyyy or similar user-friendly format
+              expiryDate: format(expiryDate, "dd/MM/yyyy", { locale: es }),
+              purchaseDate: format(purchaseDate, "dd/MM/yyyy", { locale: es }),
+              price: packageForEmail.price,
+              isUnlimitedWeek: isUnlimited,
+            };
+
+            try {
+              // Call the new API endpoint for sending package email
+              const emailResponse = await fetch('/api/admin/send-package-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userEmail: userForEmail.email,
+                  userName: userForEmail.name,
+                  packageDetails: emailDetails,
+                }),
+              });
+
+              if (emailResponse.ok) {
+                toast({
+                  title: "Pago registrado y correo enviado",
+                  description: `Pago de $${amount} y confirmación de paquete para ${userForEmail.name} procesados.`,
+                });
+              } else {
+                const emailErrorData = await emailResponse.json();
+                throw new Error(emailErrorData.error || "Error al enviar correo de paquete desde API");
+              }
+            } catch (emailError) {
+              console.error("Error during package email sending process:", emailError);
+              toast({
+                title: "Pago registrado, error en correo",
+                description: `El pago se registró, pero falló el proceso de envío del correo de paquete: ${emailError instanceof Error ? emailError.message : String(emailError)}`,
+                variant: "destructive",
+              });
+            }
+          } else {
+            toast({
+              title: "Pago registrado, correo no enviado",
+              description: "El pago se registró, pero faltaron datos para enviar el correo de confirmación del paquete (usuario o paquete no encontrados localmente).",
+              variant: "default",
+            });
+          }
+        } else {
+          toast({
+            title: "Pago registrado",
+            description: `Pago en efectivo de $${amount} registrado correctamente para ${data.payment.user}. Correo no enviado (opción desactivada o sin paquete).`,
+          });
+        }
+        
         setIsNewPaymentOpen(false)
         resetForm()
         loadPayments()
+
         if (isFromReservation) {
           toast({
             title: "¡Pago completado!",
@@ -1084,6 +1157,22 @@ export default function PaymentsPage() {
                   {selectedPackageId && (
                     <div>• Se activará el paquete seleccionado</div>
                   )}
+                </div>
+
+                {/* Opción para enviar correo */}
+                <div className="flex items-center space-x-2 mt-4">
+                  <Checkbox
+                    id="send-package-email-checkbox"
+                    checked={sendPackageEmail}
+                    onCheckedChange={(checked) => setSendPackageEmail(checked as boolean)}
+                    className="border-gray-300"
+                  />
+                  <Label
+                    htmlFor="send-package-email-checkbox"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Enviar correo de confirmación de paquete al cliente
+                  </Label>
                 </div>
               </div>
 

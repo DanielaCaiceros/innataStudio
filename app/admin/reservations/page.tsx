@@ -27,10 +27,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X, AlertCircle, CheckCircle, XCircle, Clock, MoreVertical, Edit, Trash, CreditCard, AlertTriangle } from "lucide-react"
+import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X, AlertCircle, CheckCircle, XCircle, Clock, MoreVertical, Edit, Trash, CreditCard, AlertTriangle, Mail } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatAdminDate } from "@/lib/utils/admin-date"
 import { useRouter } from "next/navigation"
+// Removed: import { sendBookingConfirmationEmail } from "@/lib/email"
+import { Checkbox } from "@/components/ui/checkbox"
+import { formatTimeFromDB } from '@/lib/utils/date';
 
 // Tipos
 interface Reservation {
@@ -102,6 +105,7 @@ export default function ReservationsPage() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("pending")
   const [selectedBike, setSelectedBike] = useState<number | null>(null)
   const [selectedUserPackageId, setSelectedUserPackageId] = useState<string>("")
+  const [sendEmail, setSendEmail] = useState(true) // State for sending email
 
   // Estados para horarios disponibles dinámicos
   const [availableTimes, setAvailableTimes] = useState<AvailableTime[]>([])
@@ -221,8 +225,55 @@ export default function ReservationsPage() {
     }
 
     const createdReservation = await response.json()
-    
-    alert("Nueva reservación creada con éxito")
+
+    if (sendEmail) {
+      try {
+        const user = users.find(u => u.id.toString() === reservationData.userId.toString());
+        const availableTime = availableTimes.find(t => t.time === reservationData.time);
+
+        if (user && availableTime && date) {
+          // Ensure reservationData.date is a Date object before formatting
+          const reservationDateObject = typeof reservationData.date === 'string' ? new Date(reservationData.date.replace(/-/g, '\/')) : reservationData.date;
+          
+          const emailDetails = {
+            className: availableTime.className,
+            date: format(reservationDateObject, "PPP", { locale: es }), // Format date for email
+            time: formatTimeFromDB(availableTime.time), // Format time for email
+            instructor: availableTime.instructorName,
+            confirmationCode: createdReservation.id.toString(),
+            bikeNumber: reservationData.bikeNumber || undefined,
+            // isUnlimitedWeek and graceTimeHours can be omitted if not applicable for admin manual bookings
+            // or set to default values if necessary by the email template.
+          };
+
+          // Call the new API endpoint
+          const emailResponse = await fetch('/api/admin/send-booking-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userEmail: user.email,
+              userName: user.name,
+              details: emailDetails,
+            }),
+          });
+
+          if (emailResponse.ok) {
+            alert("Nueva reservación creada con éxito y correo de confirmación enviado.");
+          } else {
+            const emailErrorData = await emailResponse.json();
+            throw new Error(emailErrorData.error || "Error al enviar correo de confirmación desde API");
+          }
+        } else {
+          // This case should ideally not happen if form validation is robust
+          alert("Nueva reservación creada con éxito, pero faltaron datos cruciales (usuario/horario) para el correo.");
+        }
+      } catch (emailError) {
+        console.error("Error during email sending process:", emailError);
+        alert(`Nueva reservación creada con éxito, pero falló el proceso de envío del correo: ${emailError instanceof Error ? emailError.message : String(emailError)}`);
+      }
+    } else {
+      alert("Nueva reservación creada con éxito (correo no solicitado).");
+    }
 
     // Limpiar el formulario
     setSelectedUser("")
@@ -1146,6 +1197,21 @@ export default function ReservationsPage() {
                         Las bicicletas se cargan después de seleccionar la hora de clase
                       </p>
                     )}
+                  </div>
+
+                  <div className="md:col-span-2 flex items-center space-x-2 mt-4">
+                    <Checkbox
+                      id="send-email-checkbox"
+                      checked={sendEmail}
+                      onCheckedChange={(checked) => setSendEmail(checked as boolean)}
+                      className="border-gray-300"
+                    />
+                    <Label
+                      htmlFor="send-email-checkbox"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Enviar correo de confirmación al cliente
+                    </Label>
                   </div>
                 </div>
               </div>

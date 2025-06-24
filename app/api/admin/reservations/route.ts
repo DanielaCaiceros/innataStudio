@@ -242,9 +242,15 @@ export async function POST(request: NextRequest) {
     let scheduledClass = await prisma.scheduledClass.findFirst({
       where: {
         classTypeId: classId,
-        // Usar las nuevas fechas UTC calculadas
         date: scheduledDateUTC,
         time: scheduledTimeUTC
+      },
+      include: { // Include reservations to accurately check spots
+        reservations: {
+          where: {
+            status: "confirmed"
+          }
+        }
       }
     });
 
@@ -278,18 +284,27 @@ export async function POST(request: NextRequest) {
         }
       });
     } else {
-      // Verificar si hay espacios disponibles
-      if (scheduledClass.availableSpots <= 0) {
-        return NextResponse.json({ error: "No hay espacios disponibles para esta clase" }, { status: 400 });
+      // Verify spots based on actual reservations vs capacity
+      const confirmedReservationsCount = scheduledClass.reservations.length;
+      const trueAvailableSpots = scheduledClass.maxCapacity - confirmedReservationsCount;
+
+      if (trueAvailableSpots <= 0) {
+        // Even if scheduledClass.availableSpots might be > 0 due to staleness,
+        // the real count shows it's full.
+        return NextResponse.json({ error: "No hay espacios disponibles para esta clase (verificado por conteo real)" }, { status: 400 });
       }
 
-      // Actualizar espacios disponibles
+      // If we proceed, decrement the stored availableSpots field.
+      // This attempts to keep the DB field in sync, though the check above is the source of truth.
       await prisma.scheduledClass.update({
         where: { id: scheduledClass.id },
         data: {
           availableSpots: {
             decrement: 1
           }
+          // Note: If this decrement leads to a negative number due to prior staleness,
+          // it highlights the importance of the dynamic check.
+          // Consider adding a DB constraint for availableSpots >= 0 if not already present.
         }
       });
     }

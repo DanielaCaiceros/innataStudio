@@ -5,7 +5,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 import { formatTimeFromDB } from '@/lib/utils/date';
 
 // Interface for booking email details
-interface BookingEmailDetails {
+export interface BookingEmailDetails {
   className: string;
   date: string;
   time: string;
