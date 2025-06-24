@@ -120,6 +120,7 @@ export default function ReservationsPage() {
     }>
   } | null>(null)
   const [isCheckingUserClasses, setIsCheckingUserClasses] = useState(false)
+  const [isCreatingReservation, setIsCreatingReservation] = useState(false) // State for reservation creation loading
 
   // Router para redirecciones
   const router = useRouter()
@@ -811,8 +812,128 @@ export default function ReservationsPage() {
     } else {
       setUserHasClasses(null)
       setUserClassesInfo(null)
+      setSelectedPackage("") // Reset package when user is cleared
+      setSelectedUserPackageId("") // Reset package ID when user is cleared
     }
   }, [selectedUser, isNewReservationOpen])
+
+  // Map package names to the backend's expected packageType strings
+  const packageNameToType = (packageName: string): string => {
+    switch (packageName?.toUpperCase()) {
+      case "PASE INDIVIDUAL":
+        return "individual";
+      case "PRIMERA VEZ":
+        return "primera-vez";
+      case "SEMANA ILIMITADA":
+        return "semana-ilimitada";
+      case "PAQUETE 10 CLASES":
+        return "10classes";
+      default:
+        return ""; // Or handle as an error/unknown package
+    }
+  };
+
+  // Efecto para actualizar selectedPackage cuando cambia la información de clases del usuario o el paquete seleccionado
+  useEffect(() => {
+    if (userHasClasses && userClassesInfo && userClassesInfo.activePackages.length > 0) {
+      if (userClassesInfo.activePackages.length === 1) {
+        // Si solo hay un paquete activo, usar ese
+        const singlePackage = userClassesInfo.activePackages[0];
+        setSelectedPackage(packageNameToType(singlePackage.name));
+        setSelectedUserPackageId(singlePackage.id.toString()); // Auto-select this package
+      } else {
+        // Si hay múltiples paquetes y uno está seleccionado en el dropdown
+        if (selectedUserPackageId) {
+          const chosenPackage = userClassesInfo.activePackages.find(
+            (pkg) => pkg.id.toString() === selectedUserPackageId
+          );
+          if (chosenPackage) {
+            setSelectedPackage(packageNameToType(chosenPackage.name));
+          } else {
+            setSelectedPackage(""); // Reset if selected package ID is somehow invalid
+          }
+        } else {
+          setSelectedPackage(""); // No package selected from multiple options yet
+        }
+      }
+    } else if (userHasClasses === false) {
+      // Si el usuario no tiene clases, podría ser un 'pase individual' si proceden a pago.
+      // Sin embargo, el flujo actual redirige a pagos, y el botón cambia.
+      // Para la lógica del botón de "Crear Reservación", si no hay clases, no debería llegarse a necesitar selectedPackage.
+      // Pero si se quisiera permitir crear una reserva "pendiente de pago" directamente, aquí se podría setear "individual".
+      // Por ahora, lo dejamos así ya que el botón "Crear Reservación" se deshabilita si userHasClasses === false.
+      setSelectedPackage(""); // No specific package context if no classes and not creating individual
+    } else {
+      // No user selected or still loading
+      setSelectedPackage("");
+    }
+  }, [userHasClasses, userClassesInfo, selectedUserPackageId]);
+
+
+  // Adicional: Reset selectedPackage si se deselecciona un paquete del dropdown (cuando hay multiples)
+  useEffect(() => {
+    if (userHasClasses && userClassesInfo && userClassesInfo.activePackages.length > 1 && !selectedUserPackageId) {
+      setSelectedPackage("");
+    }
+  }, [selectedUserPackageId, userHasClasses, userClassesInfo]);
+
+
+  // Estado para la información de la semana ilimitada activa del usuario
+  const [activeUnlimitedWeekInfo, setActiveUnlimitedWeekInfo] = useState<{ start: Date; end: Date; label: string } | null>(null);
+
+  // Efecto para extraer información de la semana ilimitada si está activa y seleccionada
+  useEffect(() => {
+    if (selectedPackage === "semana-ilimitada" && userClassesInfo?.activePackages) {
+      const unlimitedPkg = userClassesInfo.activePackages.find(pkg => packageNameToType(pkg.name) === "semana-ilimitada" && pkg.id.toString() === selectedUserPackageId);
+      if (unlimitedPkg) {
+        // Asumimos que expiryDate es el viernes. Necesitamos calcular el inicio (Lunes).
+        // La API de check-packages debería idealmente devolver el inicio y fin normalizado de la semana.
+        // Por ahora, si tenemos expiryDate (viernes), podemos inferir el lunes.
+        // Esto es una simplificación. La información exacta del periodo de la semana ilimitada debería venir del backend.
+        try {
+          const expiry = new Date(unlimitedPkg.expiryDate);
+          // Adjust to ensure it's the end of the day for comparison purposes if needed.
+          // For now, assuming expiryDate is the Friday.
+          const dayOfWeek = expiry.getUTCDay(); // Sunday = 0, Monday = 1, ..., Friday = 5, Saturday = 6
+          
+          let startDate = new Date(expiry);
+          if (dayOfWeek === 5) { // If expiry is Friday
+            startDate.setUTCDate(expiry.getUTCDate() - 4); // Go back 4 days to get Monday
+          } else {
+            // If expiryDate is not a Friday, this logic might be flawed.
+            // This indicates a need for clearer start/end dates from the API for unlimited packages.
+            // For now, we'll try to make a best guess or show a broader message.
+            // This part needs robust handling of how the package's active week is defined from userClassesInfo.
+            // Let's assume for now userClassesInfo provides a correctly bounded expiryDate (e.g. Friday).
+            // Fallback: if not Friday, perhaps we cannot accurately determine the week for UI.
+             setActiveUnlimitedWeekInfo(null); // Or show a generic message
+             console.warn("Unlimited week expiry date is not a Friday, cannot accurately determine week range for UI display.");
+             return;
+          }
+          
+          // Ensure startDate is set to the beginning of the day in UTC
+          startDate.setUTCHours(0, 0, 0, 0);
+          
+          const endDate = new Date(expiry);
+          endDate.setUTCHours(23,59,59,999); // End of Friday
+
+          setActiveUnlimitedWeekInfo({
+            start: startDate,
+            end: endDate,
+            label: `Semana activa: ${format(startDate, "dd MMM yyyy", { locale: es })} - ${format(endDate, "dd MMM yyyy", { locale: es })}`
+          });
+        } catch (e) {
+          console.error("Error parsing unlimited week dates", e);
+          setActiveUnlimitedWeekInfo(null);
+        }
+      } else {
+        setActiveUnlimitedWeekInfo(null);
+      }
+    } else {
+      setActiveUnlimitedWeekInfo(null);
+    }
+  }, [selectedPackage, selectedUserPackageId, userClassesInfo]);
+
 
   return (
     <div className="p-4">
@@ -973,6 +1094,17 @@ export default function ReservationsPage() {
                     </div>
                   )}
 
+                  {/* Información de Semana Ilimitada y validación de fecha */}
+                  {selectedPackage === "semana-ilimitada" && activeUnlimitedWeekInfo && (
+                    <div className="md:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm">
+                      <p className="font-medium text-blue-700">Paquete Semana Ilimitada Activo</p>
+                      <p className="text-xs text-blue-600">{activeUnlimitedWeekInfo.label}</p>
+                      <p className="text-xs text-blue-600 mt-1">
+                        Las reservaciones solo se pueden hacer de Lunes a Viernes dentro de esta semana.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label htmlFor="bike">Bicicleta (Opcional)</Label>
                     <Select 
@@ -1031,6 +1163,7 @@ export default function ReservationsPage() {
                     setSelectedPackage("")
                     setSelectedBike(null)
                     setSelectedUserPackageId("")
+                    setActiveUnlimitedWeekInfo(null); 
                   }}
                   className="border-gray-200 text-zinc-900 hover:bg-gray-100"
                 >
@@ -1062,9 +1195,10 @@ export default function ReservationsPage() {
                       !selectedPackage ||
                       userHasClasses === false ||
                       (userHasClasses && userClassesInfo && userClassesInfo.activePackages.length > 1 && !selectedUserPackageId) ||
-                      isCheckingUserClasses
+                      isCheckingUserClasses || isCreatingReservation // Disable while creating
                     }
                     onClick={async () => {
+                      setIsCreatingReservation(true); // Set loading true
                       try {
                         if (!selectedUser || !date || !selectedTime || !selectedPackage) {
                           const camposFaltantes = []
@@ -1079,7 +1213,25 @@ export default function ReservationsPage() {
                           return
                         }
 
-                        // Encontrar la clase programada específica basada en el horario seleccionado
+                        // Validations for Unlimited Week package
+                        if (selectedPackage === "semana-ilimitada" && activeUnlimitedWeekInfo && date) {
+                          const localDate = new Date(date); // date state is already a local Date object
+                          const selectedDateUtc = new Date(Date.UTC(localDate.getFullYear(), localDate.getMonth(), localDate.getDate()));
+                          const dayOfWeek = selectedDateUtc.getUTCDay(); 
+
+                          if (dayOfWeek === 0 || dayOfWeek === 6) {
+                            alert("Las reservaciones con Semana Ilimitada solo son válidas de Lunes a Viernes.");
+                            return;
+                          }
+                          if (selectedDateUtc < activeUnlimitedWeekInfo.start || selectedDateUtc > activeUnlimitedWeekInfo.end) {
+                            alert(`La fecha seleccionada (${format(selectedDateUtc, "dd/MM/yyyy", { timeZone: 'UTC' })}) está fuera de la semana ilimitada activa (${activeUnlimitedWeekInfo.label}).`);
+                            return;
+                          }
+                        } else if (selectedPackage === "semana-ilimitada" && !activeUnlimitedWeekInfo && date) {
+                            alert("No se pudo verificar la información de la semana ilimitada. Intente seleccionar el usuario y paquete de nuevo.");
+                            return;
+                        }
+
                         const selectedAvailableTime = availableTimes.find(time => time.time === selectedTime)
                         
                         if (!selectedAvailableTime) {
@@ -1089,18 +1241,17 @@ export default function ReservationsPage() {
 
                         const newReservationData = {
                           userId: Number.parseInt(selectedUser),
-                          classId: selectedAvailableTime.typeId, // Usar el tipo de clase del horario seleccionado
+                          classId: selectedAvailableTime.typeId, 
                           date: date ? formatAdminDate(date) : formatAdminDate(new Date()),
                           time: selectedTime,
                           package: selectedPackage,
-                          paymentMethod: "paid", // Asumir que ya está pagado si tiene clases
-                          bikeNumber: selectedBike, // Agregar número de bicicleta
+                          paymentMethod: "paid", 
+                          bikeNumber: selectedBike, 
+                          userPackageId: (userHasClasses && selectedUserPackageId) ? Number(selectedUserPackageId) : undefined,
                         }
 
-                        // Crear directamente la reservación (ya sabemos que tiene clases)
                         await createReservationWithPackageCheck(newReservationData)
                         
-                        // Limpiar formulario después de éxito
                         setSelectedUser("")
                         setSelectedTime("")
                         setSelectedPackage("")
@@ -1109,19 +1260,27 @@ export default function ReservationsPage() {
                         setUserHasClasses(null)
                         setUserClassesInfo(null)
                         setIsNewReservationOpen(false)
+                        setActiveUnlimitedWeekInfo(null);
                       } catch (error) {
                         console.error("Error al crear la reservación:", error)
                         alert(`Error al crear la reservación: ${error instanceof Error ? error.message : String(error)}`)
+                      } finally {
+                        setIsCreatingReservation(false); // Set loading false
                       }
                     }}
                   >
-                    {isCheckingUserClasses ? (
+                    {isCreatingReservation ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Creando...
+                      </>
+                    ) : isCheckingUserClasses ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                         Verificando...
                       </>
                     ) : userHasClasses === false ? (
-                      "Usuario sin clases"
+                      "Usuario sin clases" // This case is for the other button "Ir a Pagos"
                     ) : (
                       "Crear Reservación"
                     )}
@@ -1593,8 +1752,6 @@ export default function ReservationsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Package Assignment Modal */}
-      {/* Removido - se usa redirección a página de pagos en su lugar */}
     </div>
   )
 }
