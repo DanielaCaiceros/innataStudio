@@ -107,11 +107,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "El número de bicicleta debe estar entre 1 y 10" }, { status: 400 })
       }
 
-      // Verificar si la bicicleta ya está reservada para esta clase
+      // Verificar si la bicicleta ya está reservada para esta clase (parsedBikeNumber is a number here)
       const existingBikeReservation = await prisma.reservation.findFirst({
         where: {
           scheduledClassId: Number.parseInt(scheduledClassId),
-          bikeNumber: parsedBikeNumber,
+          bikeNumber: parsedBikeNumber, // Check for the specific bike
           status: "confirmed"
         }
       })
@@ -119,9 +119,29 @@ export async function POST(request: NextRequest) {
       if (existingBikeReservation) {
         return NextResponse.json({ error: "Esta bicicleta ya está reservada para esta clase" }, { status: 400 })
       }
+    } else {
+      // bikeNumber was not provided, so parsedBikeNumber is null.
+      // NEW CHECK: Verify if the "no-bike" slot (bikeNumber: null) is already taken for this class by ANY user.
+      const existingNullBikeSlotReservation = await prisma.reservation.findFirst({
+        where: {
+          scheduledClassId: Number.parseInt(scheduledClassId),
+          bikeNumber: null, 
+          status: "confirmed"
+        }
+      });
+
+      if (existingNullBikeSlotReservation) {
+        // The check at lines 62-75 (if useUnlimitedWeek is true) is designed to prevent the *current user*
+        // from booking the same class twice with an unlimited package.
+        // The check at lines 148-153 (hasReservationWithoutBike) handles the *current user* trying to make
+        // multiple non-unlimited bookings where one of them is a "no-bike" slot.
+        // This new check here is to prevent a unique constraint violation if *another user* has the "no-bike" slot,
+        // or if the current user is making a single non-unlimited "no-bike" booking and that slot is taken.
+        return NextResponse.json({ error: "El puesto para reserva sin bicicleta específica ya está ocupado para esta clase." }, { status: 400 });
+      }
     }
 
-    // Verificar reservas existentes para esta clase
+    // Check for multiple reservations by the CURRENT USER (this block was previously here and handles user's own conflicting reservations)
     const existingReservations = await prisma.reservation.findMany({
       where: {
         userId,
@@ -489,41 +509,120 @@ export async function POST(request: NextRequest) {
 
     // **LÓGICA MODIFICADA para reservas normales con múltiples reservas permitidas**
     
-    // Si se proporciona un ID de paquete, verificar que sea válido
-    // Si no se proporciona pero tampoco hay paymentId, buscar automáticamente un paquete disponible
-    let userPackage = null
+    let userPackage = null;
+
     if (userPackageId) {
+      // Si se proporciona un ID de paquete específico, usar ese.
       userPackage = await prisma.userPackage.findFirst({
         where: {
           id: userPackageId,
           userId,
           isActive: true,
           classesRemaining: { gt: 0 },
-          expiryDate: { gte: new Date() },
+          expiryDate: { gte: new Date() }, // Ensure it's not expired generally
         },
-      })
+        include: {
+          package: true // Include package details to check its type
+        }
+      });
 
       if (!userPackage) {
-        return NextResponse.json({ error: "Paquete no válido o sin clases disponibles" }, { status: 400 })
+        return NextResponse.json({ error: "Paquete especificado no válido, expirado o sin clases disponibles." }, { status: 400 });
+      }
+
+      // Si el paquete especificado es Semana Ilimitada, validar sus reglas específicas para esta clase
+      if (userPackage.packageId === 3) { // 3 is the ID for Unlimited Week package
+        const classDateForValidation = new Date(scheduledClass.date); // UTC Date from DB
+        const classDay = classDateForValidation.getUTCDay(); // 0 (Sunday) - 6 (Saturday)
+
+        // Check 1: Must be a weekday (Monday to Friday)
+        if (classDay === 0 || classDay === 6) {
+          return NextResponse.json({ error: "El paquete Semana Ilimitada especificado solo es válido de Lunes a Viernes." }, { status: 400 });
+        }
+
+        // Check 2: The class must fall within the specific week of the unlimited package
+        // purchaseDate for unlimited packages is the Monday (UTC midnight) of their valid week.
+        const packageWeekStart = userPackage.purchaseDate;
+        const classWeekStart = startOfWeek(classDateForValidation, { weekStartsOn: 1 }); // Monday of class week
+
+        // Normalize classWeekStart to UTC midnight for accurate comparison
+        const normalizedClassWeekStart = new Date(Date.UTC(
+          classWeekStart.getUTCFullYear(),
+          classWeekStart.getUTCMonth(),
+          classWeekStart.getUTCDate(),
+          0, 0, 0, 0
+        ));
+
+        if (packageWeekStart.getTime() !== normalizedClassWeekStart.getTime()) {
+          return NextResponse.json({ error: "La clase no cae dentro de la semana específica de tu paquete Semana Ilimitada." }, { status: 400 });
+        }
       }
     } else if (!paymentId) {
-      // No se proporcionó paquete específico ni paymentId, buscar automáticamente un paquete disponible
-      userPackage = await prisma.userPackage.findFirst({
+      // No se proporcionó paquete específico ni paymentId, buscar automáticamente un paquete disponible.
+      // Esta es la lógica que necesita la corrección principal.
+
+      const availablePackages = await prisma.userPackage.findMany({
         where: {
           userId,
           isActive: true,
           classesRemaining: { gt: 0 },
           expiryDate: { gte: new Date() },
         },
-        orderBy: {
-          expiryDate: 'asc' // Usar primero el que expire antes
+        include: {
+          package: true // Necesitamos package.id para la lógica de filtrado
+        },
+        orderBy: [
+          { package: { id: 'asc' } }, // Prioritize non-unlimited packages if dates are same
+          { expiryDate: 'asc' }
+        ]
+      });
+
+      if (!availablePackages || availablePackages.length === 0) {
+        return NextResponse.json({ 
+          error: "No tienes clases disponibles en tus paquetes. Necesitas comprar un paquete o pagar por esta clase individual." 
+        }, { status: 400 });
+      }
+
+      // Filtrar los paquetes:
+      // - Paquetes normales son siempre elegibles si activos y con clases.
+      // - Paquetes Semana Ilimitada (ID 3) solo son elegibles si la clase es L-V y es de LA semana del paquete.
+      const classDateForFiltering = new Date(scheduledClass.date); // UTC date from DB
+      const classDay = classDateForFiltering.getUTCDay(); // 0 (Sunday) - 6 (Saturday)
+      const isClassOnWeekday = classDay >= 1 && classDay <= 5;
+
+      const classWeekStartForFiltering = startOfWeek(classDateForFiltering, { weekStartsOn: 1 });
+      const normalizedClassWeekStartForFiltering = new Date(Date.UTC(
+        classWeekStartForFiltering.getUTCFullYear(),
+        classWeekStartForFiltering.getUTCMonth(),
+        classWeekStartForFiltering.getUTCDate(),
+        0,0,0,0
+      ));
+
+      let chosenPackage = null;
+      for (const pkg of availablePackages) {
+        if (pkg.packageId === 3) { // Es un paquete de Semana Ilimitada
+          if (isClassOnWeekday) {
+            // purchaseDate for unlimited packages is the Monday UTC midnight of their valid week.
+            const packageSpecificWeekStart = pkg.purchaseDate; 
+            if (packageSpecificWeekStart.getTime() === normalizedClassWeekStartForFiltering.getTime()) {
+              chosenPackage = pkg;
+              break; // Encontramos un paquete de semana ilimitada válido
+            }
+          }
+          // Si no es día hábil o no es la semana correcta, este paquete de semana ilimitada no es elegible.
+        } else {
+          // Es un paquete normal, es elegible.
+          chosenPackage = pkg;
+          break; // Encontramos un paquete normal elegible, lo preferimos o es el único.
         }
-      })
+      }
+      
+      userPackage = chosenPackage;
 
       if (!userPackage) {
         return NextResponse.json({ 
-          error: "No tienes clases disponibles en tus paquetes. Necesitas comprar un paquete o pagar por esta clase individual." 
-        }, { status: 400 })
+          error: "No se encontró un paquete adecuado para esta clase. Los paquetes de Semana Ilimitada solo son válidos de Lunes a Viernes para la semana comprada." 
+        }, { status: 400 });
       }
     }
 
