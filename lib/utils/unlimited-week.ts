@@ -21,6 +21,13 @@ export interface WeekOption {
   endDate: Date;
   label: string;
   value: string;
+  isAlreadyPurchased?: boolean;
+}
+
+// Simplified type for existing packages passed from the frontend
+export interface ExistingUserUnlimitedPackage {
+  purchaseDate: string; // Expecting ISO string date 'YYYY-MM-DD' (Monday of the week)
+  packageId: number;
 }
 
 /**
@@ -46,35 +53,52 @@ export function getUnlimitedWeekExpiryDate(startWeekDate: Date): Date {
  * Puedes elegir cualquier semana dentro de las próximas 3 semanas
  * Una vez elegida, solo puedes reservar clases de lunes a viernes de ESA semana específica
  */
-export function getAvailableWeekOptions(): WeekOption[] {
+export function getAvailableWeekOptions(
+  existingUserPackages?: ExistingUserUnlimitedPackage[]
+): WeekOption[] {
   const today = new Date();
   const currentDay = today.getDay(); // 0 = domingo, 1 = lunes, ..., 6 = sábado
   const weeks: WeekOption[] = [];
-  
+
   // Determinar desde qué semana empezar
   let startWeek = 0;
-  
+
   // Si es sábado (6) o domingo (0), no puede comprar para la semana actual
   if (currentDay === 0 || currentDay === 6) {
     startWeek = 1; // Empezar desde la próxima semana
   }
-  
-  // Generar las opciones de semana (máximo 3 semanas hacia adelante)
+
+  // Generar las opciones de semana (máximo 4 semanas hacia adelante, e.g. current + 3 more)
   for (let i = startWeek; i < startWeek + 4; i++) {
     const weekStart = startOfWeek(addWeeks(today, i), { weekStartsOn: 1 });
-    const weekEnd = getUnlimitedWeekExpiryDate(weekStart);
-    
+    const weekEnd = getUnlimitedWeekExpiryDate(weekStart); // This is Friday end of day
+
     const label = `Semana del ${format(weekStart, 'd MMM', { locale: es })} al ${format(weekEnd, 'd MMM yyyy', { locale: es })}`;
-    const value = format(weekStart, 'yyyy-MM-dd');
-    
+    const value = format(weekStart, 'yyyy-MM-dd'); // Monday as 'YYYY-MM-DD'
+
+    let isAlreadyPurchased = false;
+    if (existingUserPackages && existingUserPackages.length > 0) {
+      for (const pkg of existingUserPackages) {
+        if (pkg.packageId === 3) { // Only check unlimited packages
+          // pkg.purchaseDate is already 'YYYY-MM-DD' string (Monday of purchased week)
+          // The 'value' is also 'YYYY-MM-DD' string (Monday of the current week option)
+          if (pkg.purchaseDate === value) {
+            isAlreadyPurchased = true;
+            break;
+          }
+        }
+      }
+    }
+
     weeks.push({
-      startDate: weekStart,
-      endDate: weekEnd,
+      startDate: weekStart, // Monday, start of day
+      endDate: weekEnd,     // Friday, end of day
       label,
-      value
+      value,
+      isAlreadyPurchased,
     });
   }
-  
+
   return weeks;
 }
 

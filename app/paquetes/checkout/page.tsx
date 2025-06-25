@@ -7,9 +7,20 @@ import { ArrowLeft, Package, Clock, Users, CheckCircle } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { getAvailableWeekOptions } from "@/lib/utils/unlimited-week"
-import type { WeekOption } from "@/lib/utils/unlimited-week"
+import type { WeekOption, ExistingUserUnlimitedPackage } from "@/lib/utils/unlimited-week" // Import ExistingUserUnlimitedPackage
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+
+// Define a simplified type for what we expect from /api/user/packages GET endpoint
+interface UserPackageAPIResponse {
+  id: number;
+  packageId: number;
+  name: string;
+  classesRemaining: number | null;
+  expiryDate: string;
+  purchaseDate: string | null; // This will be key for unlimited weeks (Monday of the week)
+  isActive: boolean;
+}
 
 export default function PackageCheckoutPage() {
   const router = useRouter()
@@ -21,6 +32,8 @@ export default function PackageCheckoutPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedUnlimitedWeek, setSelectedUnlimitedWeek] = useState<WeekOption | null>(null)
   const [waitingConfirmation, setWaitingConfirmation] = useState(false)
+  const [userExistingUnlimitedWeeks, setUserExistingUnlimitedWeeks] = useState<ExistingUserUnlimitedPackage[]>([])
+  const [availableWeekOptions, setAvailableWeekOptions] = useState<WeekOption[]>([])
 
   // Convert packageId to a number, handling cases where it might be null or malformed
   const numericPackageId = packageId ? Number.parseInt(packageId, 10) : null
@@ -35,32 +48,61 @@ export default function PackageCheckoutPage() {
   // Cargar los datos del paquete seleccionado
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoading(true) // Start loading
       try {
-        // Verificar si el usuario ya ha comprado el paquete PRIMERA VEZ
-        if (numericPackageId === 1) {
-          const response = await fetch("/api/user/has-purchased-first-time-package")
-          const data = await response.json()
+        // Fetch package details first
+        if (numericPackageId) {
+          const packageDetailsResponse = await fetch(`/api/packages/${numericPackageId}`)
+          if (!packageDetailsResponse.ok) {
+            throw new Error("Error al cargar los datos del paquete")
+          }
+          const fetchedPackageData = await packageDetailsResponse.json()
+          setPackageData(fetchedPackageData)
 
-          if (data.hasPurchased) {
-            toast({
-              title: "Paquete no disponible",
-              description: "El paquete PRIMERA VEZ solo puede ser adquirido una vez por usuario.",
-              variant: "destructive",
-            })
-            router.push("/paquetes")
-            return
+          // If it's an unlimited week package, fetch user's existing unlimited weeks
+          if (numericPackageId === 3 && isAuthenticated) {
+            try {
+              const userPackagesResponse = await fetch("/api/user/packages")
+              if (userPackagesResponse.ok) {
+                const userPackagesData: { packages: UserPackageAPIResponse[] } = await userPackagesResponse.json()
+                const unlimitedWeeks = userPackagesData.packages
+                  .filter(pkg => pkg.packageId === 3 && pkg.purchaseDate)
+                  .map(pkg => ({
+                    purchaseDate: pkg.purchaseDate!, // purchaseDate is 'YYYY-MM-DD' string for start of week
+                    packageId: pkg.packageId,
+                  }))
+                setUserExistingUnlimitedWeeks(unlimitedWeeks)
+                // Generate available week options after fetching existing ones
+                setAvailableWeekOptions(getAvailableWeekOptions(unlimitedWeeks))
+              } else {
+                console.error("Error fetching user's unlimited weeks")
+                // Fallback to default options if fetch fails
+                setAvailableWeekOptions(getAvailableWeekOptions()) 
+              }
+            } catch (e) {
+                console.error("Error fetching user's unlimited weeks:", e)
+                setAvailableWeekOptions(getAvailableWeekOptions())
+            }
+          } else if (numericPackageId === 3) {
+            // Not authenticated but viewing unlimited week, show default options
+            setAvailableWeekOptions(getAvailableWeekOptions())
+          }
+
+          // Verification for "PRIMERA VEZ" package
+          if (numericPackageId === 1) {
+            const firstTimeCheckResponse = await fetch("/api/user/has-purchased-first-time-package")
+            const firstTimeData = await firstTimeCheckResponse.json()
+            if (firstTimeData.hasPurchased) {
+              toast({
+                title: "Paquete no disponible",
+                description: "El paquete PRIMERA VEZ solo puede ser adquirido una vez por usuario.",
+                variant: "destructive",
+              })
+              router.push("/paquetes")
+              return // Stop further processing
+            }
           }
         }
-
-        // Cargar los datos del paquete desde la API
-        const response = await fetch(`/api/packages/${numericPackageId}`)
-        if (!response.ok) {
-          throw new Error("Error al cargar los datos del paquete")
-        }
-
-        const packageData = await response.json()
-        setPackageData(packageData)
-        setIsLoading(false)
       } catch (error) {
         console.error("Error al cargar los datos del paquete:", error)
         toast({
@@ -68,12 +110,50 @@ export default function PackageCheckoutPage() {
           description: "Error de conexión al cargar los datos del paquete",
           variant: "destructive",
         })
-        setIsLoading(false)
+      } finally {
+        setIsLoading(false) // End loading
       }
     }
 
-    fetchData()
-  }, [numericPackageId, router, toast])
+    if (isAuthenticated === null) return; // Wait until auth status is known
+
+    if (isAuthenticated === false && numericPackageId ) { // if not authenticated but trying to checkout
+       // For unlimited week, we can still show default week options
+       if (numericPackageId === 3) {
+        setAvailableWeekOptions(getAvailableWeekOptions());
+      }
+      // Fetch general package data even if not authenticated
+       const fetchPackageDataOnly = async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch(`/api/packages/${numericPackageId}`);
+            if (!response.ok) throw new Error("Error al cargar los datos del paquete");
+            const pkgData = await response.json();
+            setPackageData(pkgData);
+        } catch (error) {
+            console.error("Error al cargar los datos del paquete:", error);
+            toast({ title: "Error", description: "Error de conexión.", variant: "destructive" });
+        } finally {
+            setIsLoading(false);
+        }
+       };
+       fetchPackageDataOnly();
+       // Redirect to login will be handled by the other useEffect
+    } else if (isAuthenticated) { // if authenticated
+        fetchData()
+    }
+
+
+  }, [numericPackageId, router, toast, isAuthenticated])
+  
+  // Regenerate week options if existingUserUnlimitedWeeks changes (e.g. after a purchase elsewhere)
+  // Or if numericPackageId changes to 3
+  useEffect(() => {
+    if (numericPackageId === 3) {
+      setAvailableWeekOptions(getAvailableWeekOptions(userExistingUnlimitedWeeks));
+    }
+  }, [userExistingUnlimitedWeeks, numericPackageId]);
+
 
   const handlePaymentSuccess = async (paymentId: string) => {
     try {
@@ -112,21 +192,20 @@ export default function PackageCheckoutPage() {
         router.push(`/paquetes/confirmacion?session_id=${paymentId}&package_id=${numericPackageId}`)
       } else {
         const errorData = await response.json()
-        toast({
-          title: "Error",
-          description: errorData.error || "Hubo un problema al registrar tu compra",
-          variant: "destructive",
-        })
-        setWaitingConfirmation(false)
+        console.log('Entering error block in handlePaymentSuccess. Response not OK.');
+        console.log('Error data from response:', errorData);
+        setWaitingConfirmation(false); 
+        const errorDescription = errorData.error || "Hubo un problema al registrar tu compra";
+        console.log('Attempting to show alert with error description:', errorDescription);
+        alert('API Error: ' + errorDescription);
       }
     } catch (error) {
-      console.error("Error al procesar la compra:", error)
-      toast({
-        title: "Error",
-        description: "Error de conexión al procesar tu compra",
-        variant: "destructive",
-      })
-      setWaitingConfirmation(false)
+      console.error("Error al procesar la compra:", error) // Original console.error
+      console.log('Entering catch block in handlePaymentSuccess. Error:', error); // New diagnostic log
+      const description = error instanceof Error ? error.message : "Error de conexión al procesar tu compra";
+      setWaitingConfirmation(false);
+      console.log('Attempting to show alert due to caught error. Description:', description); // New diagnostic log
+      alert('Purchase Processing Error: ' + description);
     }
   }
 
@@ -213,14 +292,30 @@ export default function PackageCheckoutPage() {
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     value={selectedUnlimitedWeek?.value || ""}
                     onChange={(e) => {
-                      const option = getAvailableWeekOptions().find((opt) => opt.value === e.target.value)
+                      const option = availableWeekOptions.find((opt) => opt.value === e.target.value)
+                      // Do not allow selecting an already purchased week, even if somehow enabled
+                      if (option && option.isAlreadyPurchased) {
+                        toast({
+                          title: "Semana no disponible",
+                          description: "Ya has adquirido un paquete para esta semana.",
+                          variant: "destructive"
+                        })
+                        setSelectedUnlimitedWeek(null); // Or keep previous valid selection
+                        e.target.value = selectedUnlimitedWeek?.value || ""; // Reset dropdown
+                        return;
+                      }
                       setSelectedUnlimitedWeek(option || null)
                     }}
                   >
                     <option value="">Selecciona una semana...</option>
-                    {getAvailableWeekOptions().map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
+                    {availableWeekOptions.map((opt) => (
+                      <option 
+                        key={opt.value} 
+                        value={opt.value} 
+                        disabled={opt.isAlreadyPurchased}
+                        className={opt.isAlreadyPurchased ? "text-gray-400" : ""}
+                      >
+                        {opt.label}{opt.isAlreadyPurchased ? " (Ya adquirido)" : ""}
                       </option>
                     ))}
                   </select>
