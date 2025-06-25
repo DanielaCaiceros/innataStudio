@@ -238,7 +238,7 @@ export default function ReservationsPage() {
           const emailDetails = {
             className: availableTime.className,
             date: format(reservationDateObject, "PPP", { locale: es }), // Format date for email
-            time: formatTimeFromDB(availableTime.time), // Format time for email
+            time: availableTime.time, // Time is already formatted as HH:mm by the API
             instructor: availableTime.instructorName,
             confirmationCode: createdReservation.id.toString(),
             bikeNumber: reservationData.bikeNumber || undefined,
@@ -1313,7 +1313,7 @@ export default function ReservationsPage() {
                           package: selectedPackage,
                           paymentMethod: "paid", 
                           bikeNumber: selectedBike, 
-                          userPackageId: (userHasClasses && selectedUserPackageId) ? Number(selectedUserPackageId) : undefined,
+                          userPackageId: (userHasClasses && selectedUserPackageId && selectedUserPackageId !== "") ? Number(selectedUserPackageId) : undefined,
                         }
 
                         await createReservationWithPackageCheck(newReservationData)
