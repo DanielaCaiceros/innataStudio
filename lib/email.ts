@@ -55,7 +55,7 @@ export async function sendBookingConfirmationEmail(
             </ul>
 
             <div style="text-align: center; margin: 20px 0;">
-              <a href="https://wa.me/527753571894?text=${encodeURIComponent(`Hola! Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${details.date} Hora: ${details.time}`)}" style="background-color: #25D366; color: #ffffff; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: 600; display: inline-block;">
+              <a href="https://wa.me/527753571894?text=${encodeURIComponent(`Hola! Soy ${name} Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${details.date} Hora: ${details.time}`)}" style="background-color: #25D366; color: #ffffff; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: 600; display: inline-block;">
                 Confirmar por WhatsApp
               </a>
             </div>

@@ -122,7 +122,9 @@ export default function BookingPage() {
         currentDate.getUTCDate(),
         12, 0, 0, 0 // noon UTC
       ));
-      dates.push(utcDate );
+      if (isBusinessDay(utcDate)) { // Only include business days
+        dates.push(utcDate);
+      }
       currentDate.setUTCDate(currentDate.getUTCDate() +1 );
     }
     return dates;

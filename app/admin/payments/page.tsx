@@ -464,13 +464,18 @@ export default function PaymentsPage() {
 
             const emailDetails = {
               packageName: packageForEmail.name,
-              classCount: packageForEmail.classCount,
+              classCount: typeof packageForEmail.classCount === 'number' ? packageForEmail.classCount : 0, // Ensure number, default to 0
               // Format dates to dd/MM/yyyy or similar user-friendly format
               expiryDate: format(expiryDate, "dd/MM/yyyy", { locale: es }),
               purchaseDate: format(purchaseDate, "dd/MM/yyyy", { locale: es }),
-              price: packageForEmail.price,
+              price: parseFloat(packageForEmail.price as any), // Ensure number
               isUnlimitedWeek: isUnlimited,
             };
+
+            // Log the prepared emailDetails to verify types before sending
+            console.log('[ADMIN_PAYMENTS_FRONTEND_LOG] Prepared emailDetails:', JSON.stringify(emailDetails, null, 2));
+            console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   typeof emailDetails.price: ${typeof emailDetails.price}`);
+            console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   typeof emailDetails.classCount: ${typeof emailDetails.classCount}`);
 
             try {
               // Call the new API endpoint for sending package email

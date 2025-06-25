@@ -408,8 +408,7 @@ export async function POST(request: NextRequest) {
             packageId: packageId,
             expiryDate: expiryDate,
             // classesRemaining should be classCount - 1 because one is used now
-            classesRemaining: packageInfo.classCount > 0 ? packageInfo.classCount - 1 : 0, 
-            classesUsed: 1,
+            classesRemaining: (packageInfo.classCount ?? 0) > 0 ? packageInfo.classCount! - 1 : 0,            classesUsed: 1,
             paymentMethod: paymentMethod === "pending" ? "pending" : paymentMethod,
             paymentStatus: paymentMethod === "pending" ? "pending" : "paid",
             isActive: true
