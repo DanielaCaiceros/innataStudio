@@ -122,6 +122,12 @@ export default function ReservationsPage() {
   const [isCheckingUserClasses, setIsCheckingUserClasses] = useState(false)
   const [isCreatingReservation, setIsCreatingReservation] = useState(false) // State for reservation creation loading
 
+  // States for cancellation confirmation modal
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false)
+  const [reservationToCancel, setReservationToCancel] = useState<number | null>(null)
+  const [sendCancelEmail, setSendCancelEmail] = useState(true)
+  const [isCancellingReservation, setIsCancellingReservation] = useState(false)
+
   // Router para redirecciones
   const router = useRouter()
 
@@ -464,40 +470,51 @@ export default function ReservationsPage() {
     }
   }
 
-  const handleCancelReservation = async (reservationId: number) => {
+  const handleCancelReservation = (reservationId: number) => {
+    // Find the reservation to ensure it exists, though the primary logic is in the modal
     const reservation = reservations.find((r) => r.id === reservationId)
+    if (reservation) {
+      setReservationToCancel(reservationId)
+      // It's good practice to reset the checkbox to its default when opening the modal
+      setSendCancelEmail(true) 
+      setIsCancelConfirmOpen(true)
+    } else {
+      alert("Error: No se encontró la reservación para cancelar.")
+    }
+  }
 
-    if (
-      reservation &&
-      confirm(
-        `¿Estás seguro de que deseas cancelar la reservación de ${reservation.user} para la clase ${reservation.class}?`,
-      )
-    ) {
-      try {
-        const response = await fetch(`/api/admin/reservations/${reservationId}/cancel`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            reason: "Cancelado por administrador",
-          }),
-        })
+  // This new function will handle the actual cancellation after modal confirmation
+  const processCancellation = async (reservationId: number) => {
+    setIsCancellingReservation(true)
+    try {
+      const response = await fetch(`/api/admin/reservations/${reservationId}/cancel`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          reason: "Cancelado por administrador",
+          sendEmail: sendCancelEmail, // Pass the state of the checkbox
+        }),
+      })
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || "Error al cancelar la reservación")
-        }
-
-        setReservations((prevReservations) =>
-          prevReservations.map((r) => (r.id === reservationId ? { ...r, status: "cancelled" } : r)),
-        )
-
-        alert("Reservación cancelada con éxito")
-      } catch (error) {
-        console.error("Error al cancelar la reservación:", error)
-        alert(`Error al cancelar la reservación: ${error instanceof Error ? error.message : String(error)}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error al cancelar la reservación")
       }
+
+      setReservations((prevReservations) =>
+        prevReservations.map((r) => (r.id === reservationId ? { ...r, status: "cancelled" } : r)),
+      )
+
+      alert("Reservación cancelada con éxito")
+    } catch (error) {
+      console.error("Error al cancelar la reservación:", error)
+      alert(`Error al cancelar la reservación: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsCancellingReservation(false)
+      setIsCancelConfirmOpen(false)
+      setReservationToCancel(null)
     }
   }
 
@@ -1491,21 +1508,18 @@ export default function ReservationsPage() {
                             <div className="text-xs text-gray-400">{reservation.phone}</div>
                           )}
                           {/* Penalización Semana Ilimitada */}
-                          {reservation.package === 'SEMANA ILIMITADA' && reservation.status === 'cancelled' && reservation.cancelledAt && (() => {
-                            const classDateTime = new Date(`${reservation.date}T${reservation.time}:00`)
-                            const cancelledAt = new Date(reservation.cancelledAt)
-                            const diffMs = classDateTime.getTime() - cancelledAt.getTime()
-                            const diffHours = diffMs / (1000 * 60 * 60)
-                            if (diffHours < 12) {
-                              return (
-                                <div className="mt-1 p-2 bg-yellow-100 border-l-4 border-yellow-400 text-yellow-800 text-xs rounded">
-                                  <AlertTriangle className="inline h-3 w-3 mr-1 text-yellow-600" />
-                                  Penalización pendiente: Cancela manualmente la siguiente clase de este usuario esta semana.
-                                </div>
-                              )
-                            }
-                            return null
-                          })()}
+                          {(reservation.package === 'SEMANA ILIMITADA') &&
+                           (reservation.status === 'cancelled_late_unlimited' || reservation.status === 'no_show') && (
+                            <div className="mt-1 p-2 bg-yellow-100 border-l-4 border-yellow-400 text-yellow-800 text-xs rounded">
+                              <AlertTriangle className="inline h-4 w-4 mr-1 text-yellow-700" />
+                              {reservation.status === 'cancelled_late_unlimited' && (
+                                "Advertencia (Cancelación Tardía): Usuario canceló con <12h. Considere aplicar penalización."
+                              )}
+                              {reservation.status === 'no_show' && (
+                                "Advertencia (No Asistencia): Usuario no se presentó. Considere aplicar penalización."
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="py-2.5 px-3">
@@ -1814,6 +1828,84 @@ export default function ReservationsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Cancellation Confirmation Modal */}
+      <Dialog open={isCancelConfirmOpen} onOpenChange={setIsCancelConfirmOpen}>
+        <DialogContent className="bg-white border-gray-200 text-zinc-900">
+          <DialogHeader>
+            <DialogTitle className="text-[#4A102A]">Confirmar Cancelación</DialogTitle>
+            <DialogDescription className="text-gray-600">
+              ¿Estás seguro de que deseas cancelar esta reservación? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Important Notes Section */}
+          <div className="py-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <h4 className="font-semibold text-amber-800 mb-2">Notas Importantes sobre la Cancelación por parte del Administrador:</h4>
+              <ul className="text-sm text-amber-700 space-y-1">
+                <li className="flex items-start">
+                  <span className="font-medium mr-1">•</span>
+                  <span><strong>Acción Permanente:</strong> La cancelación elimina la clase del paquete del usuario. Esta acción es definitiva.</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="font-medium mr-1">•</span>
+                  <span><strong>Reembolsos Manuales:</strong> Esta cancelación NO emite un reembolso automáticamente. Si corresponde un reembolso, por favor procésalo manualmente.</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="font-medium mr-1">•</span>
+                  <span><strong>Omite las Reglas:</strong> Las cancelaciones realizadas por el administrador omiten las reglas de reserva estándar (por ejemplo, ventanas de cancelación).</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="font-medium mr-1">•</span>
+                  <span><strong>Sin Penalizaciones Automáticas:</strong> Esta acción no activa el sistema de penalizaciones de "Semana Ilimitada".</span>
+                </li>
+              </ul>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="send-cancel-email-checkbox"
+                checked={sendCancelEmail}
+                onCheckedChange={(checked) => setSendCancelEmail(checked as boolean)}
+                className="border-gray-300"
+              />
+              <Label
+                htmlFor="send-cancel-email-checkbox"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Enviar correo de cancelación al cliente
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsCancelConfirmOpen(false)
+                setReservationToCancel(null)
+              }}
+              disabled={isCancellingReservation}
+              className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+            >
+              Volver
+            </Button>
+            <Button
+              onClick={() => reservationToCancel && processCancellation(reservationToCancel)}
+              disabled={isCancellingReservation}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isCancellingReservation ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Cancelando...
+                </>
+              ) : (
+                "Confirmar Cancelación"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

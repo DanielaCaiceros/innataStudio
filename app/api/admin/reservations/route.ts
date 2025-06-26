@@ -329,152 +329,164 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar o crear el paquete de usuario
-    let userPackage;
+    let userPackage: any = null; // Explicitly type as any to cover all possible states
     let processedUserPackage = false; // Flag to indicate if a UserPackage was used or created
 
-    // Si se proporcionó un userPackageId, significa que el admin seleccionó un paquete existente (incluido un "pase individual" si existe como UserPackage)
-    if (userPackageId) {
-      userPackage = await prisma.userPackage.findUnique({
-        where: { id: Number(userPackageId) },
-        include: { package: true } // Include package info for remaining classes calculation
-      });
+    // Wrap the entire reservation creation process in a transaction
+    let result;
+    try {
+      result = await prisma.$transaction(async (tx) => {
+        // Si se proporcionó un userPackageId, significa que el admin seleccionó un paquete existente (incluido un "pase individual" si existe como UserPackage)
+        if (userPackageId) {
+          userPackage = await tx.userPackage.findUnique({
+            where: { id: Number(userPackageId) },
+            include: { package: true } // Include package info for remaining classes calculation
+          });
 
-      if (!userPackage) {
-        return NextResponse.json({ error: "Paquete seleccionado no encontrado" }, { status: 404 });
-      }
-      if (userPackage.classesRemaining === null || userPackage.classesRemaining <= 0) {
-        return NextResponse.json({ error: "El paquete seleccionado no tiene clases restantes" }, { status: 400 });
-      }
-
-      // Descontar la clase del paquete existente
-      userPackage = await prisma.userPackage.update({
-        where: { id: userPackage.id },
-        data: {
-          classesUsed: { increment: 1 },
-          classesRemaining: { decrement: 1 }
-        },
-        include: { package: true } // Re-include for updated remainingClasses
-      });
-      processedUserPackage = true;
-    } 
-    // Si no se proporcionó userPackageId, Y NO es un pase individual pagado directamente (sin UserPackage)
-    // entonces podría ser un paquete nuevo que se crea (ej. Primera Vez, Semana Ilimitada, 10 Clases)
-    else if (packageType !== "individual") {
-      const packageMap = {
-        // "individual": 2, // No se crea UserPackage nuevo para "individual" aquí, se maneja por userPackageId si existe
-        "primera-vez": 1,
-        "semana-ilimitada": 3,
-        "10classes": 4,
-      };
-      const packageId = packageMap[packageType as keyof typeof packageMap];
-
-      if (!packageId) {
-        return NextResponse.json({ error: `Tipo de paquete '${packageType}' no válido para creación automática` }, { status: 400 });
-      }
-
-      const packageInfo = await prisma.package.findUnique({ where: { id: packageId } });
-      if (!packageInfo) {
-        return NextResponse.json({ error: "Definición de paquete no encontrada" }, { status: 404 });
-      }
-
-      if (packageId === 3) { // Semana Ilimitada
-        try {
-          const existingUnlimited = await validateUnlimitedWeekReservation(userId, scheduledClass.id, body.selectedWeekStart);
-          if (existingUnlimited) {
-            userPackage = existingUnlimited; // Ya tiene uno, se usa ese
-            // Decrement (handled by userPackageId block if it was selected, otherwise this is a new reservation against existing unlimited)
-             userPackage = await prisma.userPackage.update({
-                where: { id: userPackage.id },
-                data: {
-                  classesUsed: { increment: 1 },
-                  // classesRemaining for unlimited might not be strict, but good to track usage
-                  classesRemaining: (userPackage.classesRemaining ?? 0) > 0 ? { decrement: 1 } : 0 
-                },
-                include: { package: true }
-              });
-
-          } else {
-            userPackage = await createUnlimitedWeekPackage(userId, packageInfo, paymentMethod, body.selectedWeekStart);
+          if (!userPackage) {
+            throw new Error("Paquete seleccionado no encontrado");
           }
-        } catch (err: any) {
-          return NextResponse.json({ error: err.message || "Error en validación de semana ilimitada" }, { status: 400 });
+          if (userPackage.classesRemaining === null || userPackage.classesRemaining <= 0) {
+            throw new Error("El paquete seleccionado no tiene clases restantes");
+          }
+
+          // Descontar la clase del paquete existente
+          userPackage = await tx.userPackage.update({
+            where: { id: userPackage.id },
+            data: {
+              classesUsed: { increment: 1 },
+              classesRemaining: { decrement: 1 }
+            },
+            include: { package: true } // Re-include for updated remainingClasses
+          });
+          processedUserPackage = true;
+        } 
+        // Si no se proporcionó userPackageId, Y NO es un pase individual pagado directamente (sin UserPackage)
+        // entonces podría ser un paquete nuevo que se crea (ej. Primera Vez, Semana Ilimitada, 10 Clases)
+        else if (packageType !== "individual") {
+          const packageMap = {
+            // "individual": 2, // No se crea UserPackage nuevo para "individual" aquí, se maneja por userPackageId si existe
+            "primera-vez": 1,
+            "semana-ilimitada": 3,
+            "10classes": 4,
+          };
+          const packageId = packageMap[packageType as keyof typeof packageMap];
+
+          if (!packageId) {
+            throw new Error(`Tipo de paquete '${packageType}' no válido para creación automática`);
+          }
+
+          const packageInfo = await tx.package.findUnique({ where: { id: packageId } });
+          if (!packageInfo) {
+            throw new Error("Definición de paquete no encontrada");
+          }
+
+          if (packageId === 3) { // Semana Ilimitada
+            try {
+              const existingUnlimited = await validateUnlimitedWeekReservation(userId, scheduledClass.id, body.selectedWeekStart);
+              if (existingUnlimited) {
+                userPackage = existingUnlimited; // Ya tiene uno, se usa ese
+                // Decrement (handled by userPackageId block if it was selected, otherwise this is a new reservation against existing unlimited)
+                 userPackage = await tx.userPackage.update({
+                    where: { id: userPackage.id },
+                    data: {
+                      classesUsed: { increment: 1 },
+                      // classesRemaining for unlimited might not be strict, but good to track usage
+                      classesRemaining: (userPackage.classesRemaining ?? 0) > 0 ? { decrement: 1 } : 0 
+                    },
+                    include: { package: true }
+                  });
+
+              } else {
+                userPackage = await createUnlimitedWeekPackage(userId, packageInfo, paymentMethod, body.selectedWeekStart);
+              }
+            } catch (err: any) {
+              throw new Error(err.message || "Error en validación de semana ilimitada");
+            }
+          } else { // Para "primera-vez" o "10classes" si no se pasó userPackageId
+            let expiryDate = new Date();
+            expiryDate.setDate(expiryDate.getDate() + packageInfo.validityDays);
+            userPackage = await tx.userPackage.create({
+              data: {
+                userId: userId,
+                packageId: packageId,
+                expiryDate: expiryDate,
+                // classesRemaining should be classCount - 1 because one is used now
+                classesRemaining: (packageInfo.classCount ?? 0) > 0 ? packageInfo.classCount! - 1 : 0,            classesUsed: 1,
+                paymentMethod: paymentMethod === "pending" ? "pending" : paymentMethod,
+                paymentStatus: paymentMethod === "pending" ? "pending" : "paid",
+                isActive: true
+              },
+              include: { package: true }
+            });
+          }
+          processedUserPackage = true;
         }
-      } else { // Para "primera-vez" o "10classes" si no se pasó userPackageId
-        let expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + packageInfo.validityDays);
-        userPackage = await prisma.userPackage.create({
+        // Si es 'individual' y NO se pasó userPackageId, significa que es un pago directo, no se usa UserPackage.
+        // userPackage remains undefined in this case.
+
+        // Crear la reserva
+        const reservation = await tx.reservation.create({
           data: {
             userId: userId,
-            packageId: packageId,
-            expiryDate: expiryDate,
-            // classesRemaining should be classCount - 1 because one is used now
-            classesRemaining: (packageInfo.classCount ?? 0) > 0 ? packageInfo.classCount! - 1 : 0,            classesUsed: 1,
-            paymentMethod: paymentMethod === "pending" ? "pending" : paymentMethod,
-            paymentStatus: paymentMethod === "pending" ? "pending" : "paid",
-            isActive: true
+            scheduledClassId: scheduledClass.id,
+            userPackageId: userPackage?.id, // Asocia si un UserPackage fue procesado o encontrado
+            status: "confirmed",
+            // Si se procesó un UserPackage, el método de pago de la reserva es 'package'.
+            // Sino, es el método de pago directo (e.g. 'cash', 'stripe' para un pase individual sin UserPackage).
+            paymentMethod: processedUserPackage ? "package" : paymentMethod,
+            bikeNumber: parsedBikeNumber,
           },
-          include: { package: true }
+          include: {
+            user: { select: { firstName: true, lastName: true, email: true, phone: true } },
+            scheduledClass: { include: { classType: true } },
+            userPackage: { include: { package: true } }
+          }
         });
-      }
-      processedUserPackage = true;
-    }
-    // Si es 'individual' y NO se pasó userPackageId, significa que es un pago directo, no se usa UserPackage.
-    // userPackage remains undefined in this case.
 
-    // Crear la reserva
-    const reservation = await prisma.reservation.create({
-      data: {
-        userId: userId,
-        scheduledClassId: scheduledClass.id,
-        userPackageId: userPackage?.id, // Asocia si un UserPackage fue procesado o encontrado
-        status: "confirmed",
-        // Si se procesó un UserPackage, el método de pago de la reserva es 'package'.
-        // Sino, es el método de pago directo (e.g. 'cash', 'stripe' para un pase individual sin UserPackage).
-        paymentMethod: processedUserPackage ? "package" : paymentMethod,
-        bikeNumber: parsedBikeNumber,
-      },
-      include: {
-        user: { select: { firstName: true, lastName: true, email: true, phone: true } },
-        scheduledClass: { include: { classType: true } },
-        userPackage: { include: { package: true } }
-      }
-    });
-
-    // Actualizar el balance de clases del usuario si se procesó un UserPackage
-    if (processedUserPackage && userPackage) {
-      await prisma.userAccountBalance.upsert({
-        where: { userId: userId },
-        update: {
-          classesUsed: { increment: 1 },
-          classesAvailable: { decrement: 1 }
-        },
-        create: {
-          userId: userId,
-          // totalClassesPurchased should reflect the original count of the package
-          totalClassesPurchased: userPackage.package.classCount, 
-          classesUsed: 1,
-          classesAvailable: userPackage.classesRemaining // This is already decremented
+        // Actualizar el balance de clases del usuario si se procesó un UserPackage
+        if (processedUserPackage && userPackage) {
+          await tx.userAccountBalance.upsert({
+            where: { userId: userId },
+            update: {
+              classesUsed: { increment: 1 },
+              classesAvailable: { decrement: 1 }
+            },
+            create: {
+              userId: userId,
+              // totalClassesPurchased should reflect the original count of the package
+              totalClassesPurchased: userPackage.packageId === 1 ? 1 : (userPackage.packageId === 2 ? 1 : (userPackage.packageId === 3 ? 25 : (userPackage.packageId === 4 ? 10 : 1))), 
+              classesUsed: 1,
+              classesAvailable: userPackage.classesRemaining // This is already decremented
+            }
+          });
         }
+
+        return { reservation, userPackage, processedUserPackage };
       });
+    } catch (error) {
+      console.error("Error en transacción de creación de reservación:", error);
+      const errorMessage = error instanceof Error ? error.message : "Error desconocido en la creación de la reservación";
+      return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
 
     // Formatear la respuesta
     const formattedReservation = {
-      id: reservation.id,
-      user: `${reservation.user.firstName} ${reservation.user.lastName}`,
-      email: reservation.user.email,
-      phone: reservation.user.phone || "",
-      class: reservation.scheduledClass.classType.name,
-      date: formatAdminDate(reservation.scheduledClass.date),
-      time: formatAdminTime(reservation.scheduledClass.time),
-      status: reservation.status,
-      package: reservation.userPackage?.package.name || "PASE INDIVIDUAL",
-      remainingClasses: reservation.userPackage?.classesRemaining || 0,
-      paymentStatus: reservation.userPackage?.paymentStatus || (paymentMethod === "pending" ? "pending" : "paid"),
-      paymentMethod: reservation.userPackage?.paymentMethod || paymentMethod,
+      id: result.reservation.id,
+      user: `${result.reservation.user.firstName} ${result.reservation.user.lastName}`,
+      email: result.reservation.user.email,
+      phone: result.reservation.user.phone || "",
+      class: result.reservation.scheduledClass.classType.name,
+      date: formatAdminDate(result.reservation.scheduledClass.date),
+      time: formatAdminTime(result.reservation.scheduledClass.time),
+      status: result.reservation.status,
+      package: result.userPackage?.package.name || "PASE INDIVIDUAL",
+      remainingClasses: result.userPackage?.classesRemaining || 0,
+      paymentStatus: result.userPackage?.paymentStatus || (paymentMethod === "pending" ? "pending" : "paid"),
+      paymentMethod: result.userPackage?.paymentMethod || paymentMethod,
       checkedIn: false, // Nueva reserva, no ha hecho check-in
       checkedInAt: null, // Nueva reserva, no ha hecho check-in
-      bikeNumber: reservation.bikeNumber || null // Incluir el número de bicicleta en la respuesta
+      bikeNumber: result.reservation.bikeNumber || null // Incluir el número de bicicleta en la respuesta
     };
 
     return NextResponse.json(formattedReservation);

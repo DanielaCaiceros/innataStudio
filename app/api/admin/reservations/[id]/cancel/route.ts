@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { verifyToken } from "@/lib/jwt";
+import { sendCancellationConfirmationEmail } from "@/lib/email";
 
 const prisma = new PrismaClient();
 
@@ -21,7 +22,9 @@ export async function POST(
       return NextResponse.json({ error: "No tiene permisos de administrador" }, { status: 403 });
     }
 
-    const reservationId = parseInt(params.id);
+    // FIXED: Await params for Next.js 15+
+    const resolvedParams = await params;
+    const reservationId = parseInt(resolvedParams.id);
     if (isNaN(reservationId)) {
       return NextResponse.json({ error: "ID de reservación no válido" }, { status: 400 });
     }
@@ -30,7 +33,28 @@ export async function POST(
     const reservation = await prisma.reservation.findUnique({
       where: { id: reservationId },
       include: {
-        scheduledClass: true,
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        scheduledClass: {
+          include: {
+            classType: true,
+            instructor: {
+              include: {
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true
+                  }
+                }
+              }
+            }
+          }
+        },
         userPackage: {
           include: {
             package: true
@@ -49,7 +73,7 @@ export async function POST(
 
     // Obtener datos adicionales del cuerpo de la solicitud
     const body = await request.json();
-    const { reason = "Cancelado por administrador" } = body;
+    const { reason = "Cancelado por administrador", sendEmail = true } = body;
 
     // FIXED: Determine if it's a Semana Ilimitada package
     const isUnlimitedWeek = reservation.userPackage?.package?.id === 3 || 
@@ -150,6 +174,38 @@ export async function POST(
       return updatedReservation;
     });
 
+    // Send cancellation email if requested
+    if (sendEmail && reservation.user?.email) {
+      try {
+        // Fix date formatting to avoid timezone issues
+        const classDate = new Date(reservation.scheduledClass.date);
+        const formattedDate = classDate.toLocaleDateString('es-ES', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+
+        const emailDetails = {
+          className: reservation.scheduledClass.classType.name,
+          date: formattedDate,
+          time: reservation.scheduledClass.time.toTimeString().slice(0, 5),
+          isRefundable: false, // Admin cancellations don't automatically refund credits
+          packageName: reservation.userPackage?.package?.name
+        };
+
+        await sendCancellationConfirmationEmail(
+          reservation.user.email,
+          `${reservation.user.firstName} ${reservation.user.lastName}`,
+          emailDetails
+        );
+
+        console.log("Cancellation email sent successfully");
+      } catch (emailError) {
+        console.error("Error sending cancellation email:", emailError);
+        // Don't fail the cancellation if email fails
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: isUnlimitedWeek 
@@ -161,7 +217,8 @@ export async function POST(
         cancellationReason: result.cancellationReason,
         cancelledAt: result.cancelledAt
       },
-      isUnlimitedWeek: isUnlimitedWeek
+      isUnlimitedWeek: isUnlimitedWeek,
+      emailSent: sendEmail
     });
   } catch (error) {
     console.error("Error al cancelar reservación:", error);
