@@ -157,11 +157,11 @@ export default function Home() {
         <CardContent className="relative p-6 sm:p-8">
           <div className="flex items-center mb-4">
             <Calendar className="h-7 w-7 sm:h-8 sm:w-8 text-studio-orange mr-3" />
-            <h4 className="text-lg sm:text-xl font-semibold text-studio-charcoal drop-shadow-sm">
+            <h4 className="text-lg sm:text-xl font-semibold text-brand-gray drop-shadow-sm">
               Duración & Vigencia
             </h4>
           </div>
-          <ul className="space-y-3 text-sm sm:text-base text-studio-charcoal-light">
+          <ul className="space-y-3 text-sm sm:text-base text-brand-gray-light">
             <li className="flex items-start">
               <CheckCircle className="h-5 w-5 text-brand-sage mr-2 mt-0.5 flex-shrink-0" />
               <span>Válido por <strong>5 días</strong> (Lunes a Viernes)</span>
@@ -189,11 +189,11 @@ export default function Home() {
         <CardContent className="relative p-6 sm:p-8">
           <div className="flex items-center mb-4">
             <Users className="h-7 w-7 sm:h-8 sm:w-8 text-studio-orange mr-3" />
-            <h4 className="text-lg sm:text-xl font-semibold text-studio-charcoal drop-shadow-sm">
+            <h4 className="text-lg sm:text-xl font-semibold text-brand-gray drop-shadow-sm">
               Límites
             </h4>
           </div>
-          <ul className="space-y-3 text-sm sm:text-base text-studio-charcoal-light">
+          <ul className="space-y-3 text-sm sm:text-base text-brand-gray-light">
             <li className="flex items-start">
               <CheckCircle className="h-5 w-5 text-brand-sage mr-2 mt-0.5 flex-shrink-0" />
               <span><strong>25 clases</strong> por semana</span>
@@ -213,11 +213,11 @@ export default function Home() {
         <CardContent className="relative p-6 sm:p-8">
           <div className="flex items-center mb-4">
             <Clock className="h-7 w-7 sm:h-8 sm:w-8 text-studio-orange mr-3" />
-            <h4 className="text-lg sm:text-xl font-semibold text-studio-charcoal drop-shadow-sm">
+            <h4 className="text-lg sm:text-xl font-semibold text-brand-gray drop-shadow-sm">
               Reservas & Penalizaciones
             </h4>
           </div>
-          <ul className="space-y-3 text-sm sm:text-base text-studio-charcoal-light">
+          <ul className="space-y-3 text-sm sm:text-base text-brand-gray">
             <li className="flex items-start">
               <CheckCircle className="h-5 w-5 text-brand-sage mr-2 mt-0.5 flex-shrink-0" />
               <span>Debes cancelar con <strong>mínimo 12h de anticipación</strong></span>
