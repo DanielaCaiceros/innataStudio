@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { verifyToken } from "@/lib/jwt";
 import { sendCancellationConfirmationEmail } from "@/lib/email";
+import { formatInTimeZone } from 'date-fns-tz';
+import { es } from 'date-fns/locale';
 
 const prisma = new PrismaClient();
 
@@ -88,7 +90,8 @@ export async function POST(
           status: "cancelled",
           cancellationReason: reason,
           cancelledAt: new Date(),
-          canRefund: !isUnlimitedWeek // Only allow refund for non-Semana Ilimitada packages
+          canRefund: !isUnlimitedWeek, // Only allow refund for non-Semana Ilimitada packages
+          bikeNumber: null // Set bike_number to null on cancellation
         }
       });
 
@@ -177,18 +180,30 @@ export async function POST(
     // Send cancellation email if requested
     if (sendEmail && reservation.user?.email) {
       try {
-        // Fix date formatting to avoid timezone issues
-        const classDate = new Date(reservation.scheduledClass.date);
-        const formattedDate = classDate.toLocaleDateString('es-ES', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        });
+        const scheduledClassDate = reservation.scheduledClass.date; // Date object (e.g., 2025-06-28T00:00:00.000Z)
+        const scheduledClassTimeSource = reservation.scheduledClass.time; // Date object or string "HH:mm:ss"
+
+        const year = scheduledClassDate.getUTCFullYear();
+        const month = scheduledClassDate.getUTCMonth(); // 0-indexed
+        const day = scheduledClassDate.getUTCDate();
+
+        // Assuming scheduledClass.time is a Date object where UTC hours/minutes are correct from Prisma
+        // If it's a string like "HH:mm:ss", parse it. If it's a Date, get UTC parts.
+        const hours = scheduledClassTimeSource.getUTCHours();
+        const minutes = scheduledClassTimeSource.getUTCMinutes();
+        // Fallback if time is not available or not in expected format, though ideally it should be.
+        // For now, this relies on hours and minutes being correctly parsed or extracted.
+
+        const classDateTimeUTC = new Date(Date.UTC(year, month, day, hours, minutes));
+
+        const timeZone = 'America/Mexico_City';
+        const formattedDateEmail = formatInTimeZone(classDateTimeUTC, timeZone, "dd 'de' MMMM 'de' yyyy", { locale: es });
+        const formattedTimeEmail = formatInTimeZone(classDateTimeUTC, timeZone, "HH:mm 'hrs'");
 
         const emailDetails = {
           className: reservation.scheduledClass.classType.name,
-          date: formattedDate,
-          time: reservation.scheduledClass.time.toTimeString().slice(0, 5),
+          date: formattedDateEmail,
+          time: formattedTimeEmail,
           isRefundable: false, // Admin cancellations don't automatically refund credits
           packageName: reservation.userPackage?.package?.name
         };
