@@ -117,11 +117,7 @@ export default function ReservationsPage() {
   const [userHasClasses, setUserHasClasses] = useState<boolean | null>(null)
   const [userClassesInfo, setUserClassesInfo] = useState<{
     totalAvailableClasses: number
-    activePackages: Array<{
-      name: string
-      classesRemaining: number
-      expiryDate: string
-    }>
+    activePackages: UserPackage[]
   } | null>(null)
   const [isCheckingUserClasses, setIsCheckingUserClasses] = useState(false)
   const [isCreatingReservation, setIsCreatingReservation] = useState(false) // State for reservation creation loading
@@ -1290,7 +1286,7 @@ export default function ReservationsPage() {
                             return;
                           }
                           if (selectedDateUtc < activeUnlimitedWeekInfo.start || selectedDateUtc > activeUnlimitedWeekInfo.end) {
-                            alert(`La fecha seleccionada (${format(selectedDateUtc, "dd/MM/yyyy", { timeZone: 'UTC' })}) está fuera de la semana ilimitada activa (${activeUnlimitedWeekInfo.label}).`);
+                            alert(`La fecha seleccionada (${format(selectedDateUtc, "dd/MM/yyyy")}) está fuera de la semana ilimitada activa (${activeUnlimitedWeekInfo.label}).`);
                             return;
                           }
                         } else if (selectedPackage === "semana-ilimitada" && !activeUnlimitedWeekInfo && date) {
@@ -1524,11 +1520,11 @@ export default function ReservationsPage() {
                       <td className="py-2.5 px-3">
                         <div className="max-w-[100px]">
                           <div className="text-sm text-gray-900 truncate font-medium">{reservation.package}</div>
-                          {typeof reservation.remainingClasses === 'number' && (
+                          {/* {typeof reservation.remainingClasses === 'number' && (
                             <div className="text-xs text-gray-500">
                               {reservation.remainingClasses} restantes
                             </div>
-                          )}
+                          )} */}
                         </div>
                       </td>
                       <td className="py-2.5 px-3">

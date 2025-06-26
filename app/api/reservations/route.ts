@@ -46,11 +46,11 @@ function isClassBookable(dateString: string, timeString: string): boolean {
     return false
   }
   
-  // Si faltan menos de 30 minutos para la clase
-  const THIRTY_MIN = 30 * 60 * 1000
+  // Si faltan menos de 1 minuto  para la clase
+  const ONE_MINUTE = 1 * 60 * 1000
   const timeDifference = classDateTime.getTime() - now.getTime()
   
-  if (timeDifference < THIRTY_MIN) {
+  if (timeDifference < ONE_MINUTE) {
     return false
   }
   
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       } else {
         return NextResponse.json({ 
-          error: "No puedes reservar una clase que está por iniciar en menos de 30 minutos."
+          error: "No puedes reservar una clase que está por iniciar en menos de 1 minuto."
         }, { status: 400 })
       }
     }

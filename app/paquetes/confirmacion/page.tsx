@@ -49,7 +49,7 @@ function ConfirmationContent() {
   };
 
   const handleBookClass = () => {
-    router.push('/reservas');
+    router.push('/reservar');
   };
 
   const handleGoHome = () => {
@@ -149,7 +149,7 @@ function ConfirmationContent() {
                 onClick={handleBookClass}
                 className="w-full bg-blue-600 hover:bg-blue-700"
               >
-                Reservar mi primera clase
+                Reservar clase
               </Button>
               
               <Button 

@@ -220,8 +220,11 @@ export default function ClassReservationsModal({
             Lista de Clientes Registrados
           </DialogTitle>
           {classInfo && (
-            <DialogDescription className="text-gray-600 text-sm">
-              <div className="space-y-1">
+            <>
+              <DialogDescription className="text-gray-600 text-sm">
+                {classInfo.className} - {formatClassDateTime(classInfo.date, classInfo.time)}
+              </DialogDescription>
+              <div className="space-y-1 mt-1">
                 <div className="font-medium text-[#4A102A]">{classInfo.className}</div>
                 <div className="text-sm">Instructor: {classInfo.instructor}</div>
                 <div className="text-sm">{formatClassDateTime(classInfo.date, classInfo.time)}</div>
@@ -240,7 +243,7 @@ export default function ClassReservationsModal({
                   </div>
                 )}
               </div>
-            </DialogDescription>
+            </>
           )}
         </DialogHeader>
 

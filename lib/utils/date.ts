@@ -145,10 +145,10 @@ export function isClassReservable(dateString: string, timeString: string): boole
     }
     
     // Si faltan menos de 30 minutos para la clase
-    const THIRTY_MIN = 30 * 60 * 1000
+    const ONE_MINUTE = 1 * 60 * 1000
     const timeDifference = classDateTime.getTime() - now.getTime()
     
-    if (timeDifference < THIRTY_MIN) {
+    if (timeDifference < ONE_MINUTE) {
       return false
     }
     

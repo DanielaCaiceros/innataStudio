@@ -37,15 +37,15 @@ export interface ExistingUserUnlimitedPackage {
 export function getUnlimitedWeekExpiryDate(startWeekDate: Date): Date {
 
   // The startWeekDate coming from the payment API is already guaranteed to be the correct Monday 00:00:00 UTC
-  const mondayOfWeek = startWeekDate; 
-  // It's good practice to use UTC methods if the date is conceptually UTC
+  const mondayOfWeek = startWeekDate; // This is expected to be Monday 00:00:00 UTC
 
-  // Using addDays from date-fns for robustness instead of manual setDate
-  const fridayOfWeek = addDays(mondayOfWeek, 4); // New way
+  // Calculate Friday based on the UTC Monday
+  let fridayOfWeek = addDays(mondayOfWeek, 4); // This will be Friday 00:00:00 UTC
+
+  // Set the time to the end of that Friday in UTC
+  fridayOfWeek.setUTCHours(23, 59, 59, 999);
   
-  const result = endOfDay(fridayOfWeek);
-  
-  return result;
+  return fridayOfWeek; // Now returns Friday 23:59:59.999 UTC
 }
 
 /**

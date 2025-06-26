@@ -449,26 +449,38 @@ export default function PaymentsPage() {
           const packageForEmail = packages.find(p => p.id.toString() === selectedPackageId);
 
           if (userForEmail && packageForEmail) {
-            const purchaseDate = new Date();
-            let expiryDate = new Date(purchaseDate);
+            let emailPurchaseDate: Date;
+            let emailExpiryDate: Date;
             let isUnlimited = packageForEmail.name.toLowerCase().includes("ilimitada");
 
-            if (isUnlimited && selectedUnlimitedWeek?.end) {
-                expiryDate = new Date(selectedUnlimitedWeek.end + "T23:59:59Z"); // Ensure it's end of day UTC
-            } else if (packageForEmail.name.toLowerCase().includes("10 clases")) {
-                expiryDate.setMonth(expiryDate.getMonth() + 3); // Example: 3 months validity
-            } else if (packageForEmail.name.toLowerCase().includes("primera vez") || packageForEmail.name.toLowerCase().includes("pase individual")) {
-                expiryDate.setMonth(expiryDate.getMonth() + 1); // Example: 1 month validity
+            if (isUnlimited && selectedUnlimitedWeek?.start && selectedUnlimitedWeek?.end) {
+              // For unlimited week, use the selected start and end dates.
+              // These are "YYYY-MM-DD" strings representing local calendar dates.
+              // Parse them into Date objects representing midnight local time for that calendar date.
+              const [pYear, pMonth, pDay] = selectedUnlimitedWeek.start.split('-').map(Number);
+              emailPurchaseDate = new Date(pYear, pMonth - 1, pDay); // Month is 0-indexed for Date constructor
+
+              const [eYear, eMonth, eDay] = selectedUnlimitedWeek.end.split('-').map(Number);
+              emailExpiryDate = new Date(eYear, eMonth - 1, eDay); 
+            } else {
+              // For other packages, default to current date as purchase date
+              emailPurchaseDate = new Date();
+              emailExpiryDate = new Date(emailPurchaseDate); // Start with purchase date for expiry calculation
+
+              if (packageForEmail.name.toLowerCase().includes("10 clases")) {
+                emailExpiryDate.setMonth(emailExpiryDate.getMonth() + 3); // Example: 3 months validity
+              } else if (packageForEmail.name.toLowerCase().includes("primera vez") || packageForEmail.name.toLowerCase().includes("pase individual")) {
+                emailExpiryDate.setMonth(emailExpiryDate.getMonth() + 1); // Example: 1 month validity
+              }
+              // Add more specific expiry logic if needed for other non-unlimited packages
             }
-            // Add more specific expiry logic if needed
 
             const emailDetails = {
               packageName: packageForEmail.name,
-              classCount: typeof packageForEmail.classCount === 'number' ? packageForEmail.classCount : 0, // Ensure number, default to 0
-              // Format dates to dd/MM/yyyy or similar user-friendly format
-              expiryDate: format(expiryDate, "dd/MM/yyyy", { locale: es }),
-              purchaseDate: format(purchaseDate, "dd/MM/yyyy", { locale: es }),
-              price: parseFloat(packageForEmail.price as any), // Ensure number
+              classCount: typeof packageForEmail.classCount === 'number' ? packageForEmail.classCount : 0,
+              expiryDate: format(emailExpiryDate, "dd/MM/yyyy", { locale: es }),
+              purchaseDate: format(emailPurchaseDate, "dd/MM/yyyy", { locale: es }),
+              price: parseFloat(packageForEmail.price as any),
               isUnlimitedWeek: isUnlimited,
             };
 
