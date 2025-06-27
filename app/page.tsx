@@ -161,7 +161,7 @@ export default function Home() {
               Duración & Vigencia
             </h4>
           </div>
-          <ul className="space-y-3 text-sm sm:text-base text-brand-gray-light">
+          <ul className="space-y-3 text-sm sm:text-base text-brand-gray">
             <li className="flex items-start">
               <CheckCircle className="h-5 w-5 text-brand-sage mr-2 mt-0.5 flex-shrink-0" />
               <span>Válido por <strong>5 días</strong> (Lunes a Viernes)</span>
@@ -193,7 +193,7 @@ export default function Home() {
               Límites
             </h4>
           </div>
-          <ul className="space-y-3 text-sm sm:text-base text-brand-gray-light">
+          <ul className="space-y-3 text-sm sm:text-base text-brand-gray">
             <li className="flex items-start">
               <CheckCircle className="h-5 w-5 text-brand-sage mr-2 mt-0.5 flex-shrink-0" />
               <span><strong>25 clases</strong> por semana</span>
