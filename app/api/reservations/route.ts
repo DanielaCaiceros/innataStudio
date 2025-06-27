@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient, Prisma } from "@prisma/client" // Import Prisma
 import { verifyToken } from "@/lib/jwt"
 import { sendBookingConfirmationEmail } from '@/lib/email'
+import { formatTimeFromDB } from '@/lib/utils/date'; // Added import
 import { format, addHours, parseISO, startOfWeek } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { formatInTimeZone } from 'date-fns-tz'
@@ -474,7 +475,7 @@ export async function POST(request: NextRequest) {
           const emailDetails = {
             className: reservationWithDetails.scheduledClass.classType.name,
             date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
-            time: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "HH:mm", { locale: es }),
+            time: formatTimeFromDB(reservationWithDetails.scheduledClass.time.toISOString()),
             instructor: `${reservationWithDetails.scheduledClass.instructor.user.firstName} ${reservationWithDetails.scheduledClass.instructor.user.lastName}`,
             confirmationCode: reservationWithDetails.id.toString().padStart(6, '0'),
             bikeNumber: reservationWithDetails.bikeNumber || undefined,
@@ -796,7 +797,7 @@ export async function POST(request: NextRequest) {
         const emailDetails = {
           className: reservationWithDetails.scheduledClass.classType.name,
           date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
-          time: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "HH:mm", { locale: es }),
+          time: formatTimeFromDB(reservationWithDetails.scheduledClass.time.toISOString()),
           instructor: `${reservationWithDetails.scheduledClass.instructor.user.firstName} ${reservationWithDetails.scheduledClass.instructor.user.lastName}`,
           confirmationCode: reservationWithDetails.id.toString().padStart(6, '0'),
           bikeNumber: reservationWithDetails.bikeNumber || undefined

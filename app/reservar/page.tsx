@@ -847,7 +847,7 @@ export default function BookingPage() {
                                         ? 'Clase llena - Sin cupos disponibles'
                                         : !isReservable
                                         ? 'Reservas cerradas (Ya terminó o faltan menos de 1 minuto para su inicio)'
-                                        : `${cls.availableSpots} lugar${cls.availableSpots !== 1 ? 'es' : ''} disponible${cls.availableSpots !== 1 ? 's' : ''}`
+                                        : `Aún hay espacios disponibles`
                                       }
                                     </p>
                                   </div>
