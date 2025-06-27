@@ -357,16 +357,30 @@ export default function PackageCheckoutPage() {
 
           {/* Right Side - Payment Form */}
           <div className="bg-white p-8 lg:p-12">
-            <StripeCheckout
-              amount={Number.parseFloat(packageData.price)}
-              description={`Paquete ${packageData.name} - ${packageData.classCount} clases`}
-              onSuccess={handlePaymentSuccess}
-              onCancel={handlePaymentCancel}
-              name={user?.name}
-              email={user?.email || ""}
-              firstName={user?.firstName}
-              lastName={user?.lastName}
-            />
+            {numericPackageId === 3 && !selectedUnlimitedWeek ? (
+              <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center">
+                <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
+                  <Clock className="h-8 w-8 text-yellow-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Selecciona una semana
+                </h3>
+                <p className="text-gray-600 max-w-sm">
+                  Para continuar con el pago, primero debes seleccionar la semana en la que quieres usar tu paquete ilimitado.
+                </p>
+              </div>
+            ) : (
+              <StripeCheckout
+                amount={Number.parseFloat(packageData.price)}
+                description={`Paquete ${packageData.name} - ${packageData.classCount} clases`}
+                onSuccess={handlePaymentSuccess}
+                onCancel={handlePaymentCancel}
+                name={user?.name}
+                email={user?.email || ""}
+                firstName={user?.firstName}
+                lastName={user?.lastName}
+              />
+            )}
           </div>
         </div>
       </div>

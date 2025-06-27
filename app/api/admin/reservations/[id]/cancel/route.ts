@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { verifyToken } from "@/lib/jwt";
 import { sendCancellationConfirmationEmail } from "@/lib/email";
-import { formatInTimeZone } from 'date-fns-tz';
+import { formatInTimeZone, format } from 'date-fns-tz';
 import { es } from 'date-fns/locale';
 
 const prisma = new PrismaClient();
@@ -158,8 +158,9 @@ export async function POST(
       return updatedReservation;
     });
 
-    // Send cancellation email if requested
-    if (sendEmail && reservation.user?.email) {
+
+
+      if (sendEmail && reservation.user?.email) {
       try {
         const scheduledClassDate = reservation.scheduledClass.date;
         const scheduledClassTimeSource = reservation.scheduledClass.time;
@@ -175,9 +176,11 @@ export async function POST(
         const minuteStr = intendedLocalMinute.toString().padStart(2, '0');
         const formattedTimeEmail = `${hourStr}:${minuteStr}`;
         
-        const dateOnlyForFormatting = new Date(year, month, day);
-        const timeZone = 'America/Mexico_City';
-        const formattedDateEmail = formatInTimeZone(dateOnlyForFormatting, timeZone, "dd 'de' MMMM 'de' yyyy", { locale: es });
+        // Use UTC-based formatting to avoid timezone issues
+        const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 
+                       'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        
+        const formattedDateEmail = `${day.toString().padStart(2, '0')} de ${months[month]} de ${year}`;
         
         const emailDetails = {
           className: reservation.scheduledClass.classType.name,
@@ -192,8 +195,6 @@ export async function POST(
           reservation.user.firstName,
           emailDetails
         );
-        
-        console.log("Cancellation email sent successfully (admin cancel).");
       } catch (emailError) {
         console.error("Error preparing cancellation email (admin cancel):", emailError);
       }
