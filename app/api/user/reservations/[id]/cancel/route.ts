@@ -95,7 +95,8 @@ export async function POST(
         status: "cancelled",
         cancellationReason: reason,
         cancelledAt: new Date(),
-        canRefund
+        canRefund,
+        bikeNumber: null // Clear bike number
       }
     })
 
