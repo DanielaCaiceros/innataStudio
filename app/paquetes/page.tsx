@@ -269,7 +269,7 @@ export default function PackagesPage() {
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-[#727D73]">¿Hay lista de espera?</h3>
               <p className="text-zinc-600">
-                Sí, contamos con lista de espera. Si una persona reservada no llega antes del inicio de la segunda canción, su lugar se cederá a quienes estén en lista de espera.
+                Sí, contamos con lista de espera. Si una persona reservada no llega antes del inicio de la segunda canción, su lugar se liberará en la plataforma.
               </p>
             </div>
           </div>
