@@ -95,7 +95,8 @@ export async function POST(
         status: "cancelled",
         cancellationReason: reason,
         cancelledAt: new Date(),
-        canRefund
+        canRefund,
+        bikeNumber: null // Clear bike number
       }
     })
 
@@ -107,35 +108,71 @@ export async function POST(
       }
     })
 
-    // FIXED: Handle refund logic based on package type
-    if (canRefund && reservation.userPackageId) {
-      // Only refund for normal packages (not Semana Ilimitada)
+    // Handle refund, package updates, and penalization logic
+    let isPenalized = false;
+
+    if (isUnlimitedWeek && reservation.userPackageId) {
+      // Unlimited Week Package Cancellation
+      if (hoursUntilClass < 12) {
+        // Cancellation < 12 hours: Apply Penalty, no refund, class is lost
+        isPenalized = true;
+        // TODO: Implement actual penalty logic here.
+        // This could involve:
+        // 1. Flagging the user or userPackage for a penalty.
+        // 2. Creating a penalty record.
+        // 3. Triggering the "cancel next class" logic (complex, needs careful implementation).
+        // For now, we'll mark as penalized and ensure the class is not returned to the package count.
+        // The class was already "used" when booked. By not incrementing classesRemaining
+        // and not decrementing classesUsed on the UserPackage, the class slot is effectively lost.
+        // We should also ensure UserAccountBalance.classesUsed is NOT decremented.
+        console.log(`[UNLIMITED CANCELLATION] User ${userId} penalized for late cancellation of reservation ${reservationId}.`);
+        // No changes to UserPackage or UserAccountBalance in terms of class counts for penalty.
+        // The class is simply lost. classesUsed on UserPackage already reflects usage.
+
+      } else {
+        // Cancellation >= 12 hours: No Penalty, no refund, but "free up" the slot in the unlimited week package.
+        // This means decrementing classesUsed on the UserPackage so they can use that slot for another class
+        // within the same unlimited week.
+        await prisma.userPackage.update({
+          where: { id: reservation.userPackageId },
+          data: {
+            classesUsed: { decrement: 1 }
+            // classesRemaining is not touched for unlimited week.
+          }
+        });
+        // Also decrement general UserAccountBalance.classesUsed
+        await prisma.userAccountBalance.update({
+          where: { userId },
+          data: {
+            classesUsed: { decrement: 1 }
+            // classesAvailable is not incremented as it's not a general refund.
+          }
+        });
+        console.log(`[UNLIMITED CANCELLATION] User ${userId} cancelled reservation ${reservationId} (early) for unlimited week. Slot freed in package.`);
+      }
+    } else if (canRefund && reservation.userPackageId) {
+      // Normal Package Cancellation with Refund (> 12 hours)
       await prisma.userPackage.update({
         where: { id: reservation.userPackageId },
         data: {
           classesRemaining: { increment: 1 },
           classesUsed: { decrement: 1 }
         }
-      })
-
-      // Actualizar balance general del usuario
+      });
       await prisma.userAccountBalance.update({
         where: { userId },
         data: {
           classesAvailable: { increment: 1 },
           classesUsed: { decrement: 1 }
         }
-      })
-    } else if (isUnlimitedWeek && reservation.userPackageId) {
-      // For Semana Ilimitada: update usage count but don't refund
-      await prisma.userPackage.update({
-        where: { id: reservation.userPackageId },
-        data: {
-          classesUsed: { decrement: 1 }
-          // Don't increment classesRemaining - no refund for Semana Ilimitada
-        }
-      })
+      });
+      console.log(`[NORMAL CANCELLATION] User ${userId} cancelled reservation ${reservationId} with refund.`);
+    } else if (!canRefund && reservation.userPackageId) {
+      // Normal Package Cancellation with No Refund (< 12 hours)
+      // No changes to UserPackage or UserAccountBalance needed, class is lost.
+      console.log(`[NORMAL CANCELLATION] User ${userId} cancelled reservation ${reservationId} late, no refund.`);
     }
+    // If !reservation.userPackageId (e.g. single class purchase), no package logic applies.
 
     // Enviar correo de confirmación de cancelación
     if (reservation.user && reservation.scheduledClass.classType) {

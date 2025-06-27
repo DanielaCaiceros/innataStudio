@@ -122,7 +122,9 @@ export default function BookingPage() {
         currentDate.getUTCDate(),
         12, 0, 0, 0 // noon UTC
       ));
-      dates.push(utcDate );
+      if (isBusinessDay(utcDate)) { // Only include business days
+        dates.push(utcDate);
+      }
       currentDate.setUTCDate(currentDate.getUTCDate() +1 );
     }
     return dates;
@@ -330,7 +332,7 @@ export default function BookingPage() {
       } else {
         toast({
           title: 'Anticipación insuficiente',
-          description: 'Las reservas normales deben hacerse con al menos 5 minutos de anticipación.',
+          description: 'Las reservas normales deben hacerse con al menos 1 minuto de anticipación.',
           variant: 'destructive',
         });
       }
@@ -356,14 +358,15 @@ export default function BookingPage() {
     if (userAvailableClasses > 0) {
       await proceedWithBooking()
     } else {
-      // Si no tiene créditos, abrir modal de pago para una sola clase
-      const classToBook = availableClasses.find(c => c.id === selectedClass)
-      if (classToBook) {
-        setSelectedScheduledClassForBooking(classToBook)
-        setIsPaymentOpen(true)
-      } else {
-        toast({ title: 'Error', description: 'No se encontró la clase seleccionada.'})
-      }
+      // Si no tiene créditos, redirigir a la página de compra del paquete individual (ID 2)
+      router.push('/paquetes/checkout?packageId=2');
+      // const classToBook = availableClasses.find(c => c.id === selectedClass)
+      // if (classToBook) {
+      //   setSelectedScheduledClassForBooking(classToBook)
+      //   // setIsPaymentOpen(true) // Original logic: opens modal
+      // } else {
+      //   toast({ title: 'Error', description: 'No se encontró la clase seleccionada.'})
+      // }
     }
   }
 
@@ -535,7 +538,7 @@ export default function BookingPage() {
     } else if (selectedClass && userAvailableClasses > 0) {
       setBookingAlert({
         type: 'normal',
-        message: 'Estás reservando usando tus créditos de paquete normal. Puedes reservar hasta 5 minutos antes del inicio de la clase.'
+        message: 'Estás reservando usando tus créditos de paquete normal. Puedes reservar hasta 1 minuto antes del inicio de la clase.'
       });
     } else if (selectedClass && userAvailableClasses === 0) {
       setBookingAlert({
@@ -578,7 +581,7 @@ export default function BookingPage() {
                   </div>
                   <div className="flex-1">
                     <h3 className="text-xl font-bold text-blue-900 mb-2">
-                      Tú Semana Ilimitada esta activada
+                      ¡Tú Semana Ilimitada esta activada!
                     </h3>
                     <p className="text-blue-800 mb-3">
                       Todas tus reservas se realizarán automáticamente con tu paquete Semana Ilimitada. 
@@ -843,7 +846,7 @@ export default function BookingPage() {
                                       {!hasAvailability 
                                         ? 'Clase llena - Sin cupos disponibles'
                                         : !isReservable
-                                        ? 'Reservas cerradas (Ya terminó o faltan menos de 5 minutos para su inicio)'
+                                        ? 'Reservas cerradas (Ya terminó o faltan menos de 1 minuto para su inicio)'
                                         : `${cls.availableSpots} lugar${cls.availableSpots !== 1 ? 'es' : ''} disponible${cls.availableSpots !== 1 ? 's' : ''}`
                                       }
                                     </p>
@@ -1141,7 +1144,7 @@ export default function BookingPage() {
                 <p className="text-amber-900 text-sm">Para garantizar tu lugar, confirma tu asistencia por WhatsApp con al menos 12 horas de anticipación.</p>
                 <a
                   href={`https://wa.me/527753571894?text=${encodeURIComponent(
-                    `Hola! Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : ""} Hora: ${selectedTime || ""} Clase: ${selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""} Bicicleta: #${selectedBikeId}`
+                    `Hola! Soy ${user} Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : ""} Hora: ${selectedTime || ""} Clase: ${selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""} Bicicleta: #${selectedBikeId}`
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -1160,7 +1163,7 @@ export default function BookingPage() {
                     className="border-amber-300 text-amber-800"
                     onClick={() => {
                       navigator.clipboard.writeText(
-                        `Hola! Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : ""} Hora: ${selectedTime || ""} Clase: ${selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""} Bicicleta: #${selectedBikeId}`
+                        `Hola! Soy ${user?.firstName || ""}. Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : ""} Hora: ${selectedTime || ""} Clase: ${selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""} Bicicleta: #${selectedBikeId}`
                       );
                       toast({
                         title: 'Mensaje copiado',
@@ -1304,7 +1307,7 @@ export default function BookingPage() {
                   </p>
                   <a 
                     href={`https://wa.me/527753571894?text=${encodeURIComponent(
-                      `Hola! Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. ` + 
+                      `Hola! Soy ${user?.firstName || ""}. Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. ` + 
                       `Fecha: ${date ? format(date, "EEEE, d 'de' MMMM", { locale: es }) : ""} ` + 
                       `Hora: ${selectedTime || ""} ` + 
                       `Clase: ${selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""} ` +

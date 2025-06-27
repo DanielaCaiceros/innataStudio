@@ -161,7 +161,7 @@ const ClassReservationCard = ({
                     reservation.status === 'confirmed' ? 'default' :
                     reservation.status === 'cancelled' ? 'secondary' : 'outline'
                   }
-                  className="text-xs bg-brand-sage"
+                  className="text-xs bg-brand-sage text-white hover:to-brand-gray"
                 >
                   {reservation.status === 'confirmed' ? 'Confirmada' :
                    reservation.status === 'cancelled' ? 'Cancelada' : reservation.status}

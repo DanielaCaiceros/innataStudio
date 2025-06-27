@@ -40,6 +40,7 @@ export interface ScheduledClass {
       lastName: string;
       email: string;
     };
+    status?: string;
   }>;
   waitlist: Array<{
     user: {
@@ -49,6 +50,7 @@ export interface ScheduledClass {
     };
   }>;
   cancelledReservations?: number; // Añadido campo opcional para las cancelaciones
+  totalReservations: number; // Total non-cancelled reservations
 }
 
 export const timeSlots = [

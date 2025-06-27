@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const scheduledClasses = await prisma.scheduledClass.findMany({
+    const scheduledClassesRaw = await prisma.scheduledClass.findMany({
       where: {
         ...queryDateObject,
       },
@@ -55,9 +55,7 @@ export async function GET(request: NextRequest) {
           },
         },
         reservations: {
-          where: {
-            status: "confirmed",
-          },
+          // Fetch ALL reservations, not just confirmed
           include: {
             user: {
               select: {
@@ -82,6 +80,19 @@ export async function GET(request: NextRequest) {
       },
       orderBy: [{ date: "asc" }, { time: "asc" }],
     })
+
+    // Calculate totalReservations, cancelledReservations, availableSpots for each class
+    const scheduledClasses = scheduledClassesRaw.map(cls => {
+      const totalReservations = cls.reservations.filter(r => r.status !== 'cancelled').length;
+      const cancelledReservations = cls.reservations.filter(r => r.status === 'cancelled').length;
+      const availableSpots = cls.maxCapacity - totalReservations;
+      return {
+        ...cls,
+        totalReservations,
+        cancelledReservations,
+        availableSpots,
+      };
+    });
 
     return NextResponse.json(scheduledClasses)
   } catch (error) {

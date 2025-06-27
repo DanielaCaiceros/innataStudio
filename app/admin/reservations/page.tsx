@@ -27,10 +27,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X, AlertCircle, CheckCircle, XCircle, Clock, MoreVertical, Edit, Trash, CreditCard, AlertTriangle } from "lucide-react"
+import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X, AlertCircle, CheckCircle, XCircle, Clock, MoreVertical, Edit, Trash, CreditCard, AlertTriangle, Mail } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatAdminDate } from "@/lib/utils/admin-date"
 import { useRouter } from "next/navigation"
+// Removed: import { sendBookingConfirmationEmail } from "@/lib/email"
+import { Checkbox } from "@/components/ui/checkbox"
+import { formatTimeFromDB } from '@/lib/utils/date';
 
 // Tipos
 interface Reservation {
@@ -102,6 +105,7 @@ export default function ReservationsPage() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("pending")
   const [selectedBike, setSelectedBike] = useState<number | null>(null)
   const [selectedUserPackageId, setSelectedUserPackageId] = useState<string>("")
+  const [sendEmail, setSendEmail] = useState(true) // State for sending email
 
   // Estados para horarios disponibles dinámicos
   const [availableTimes, setAvailableTimes] = useState<AvailableTime[]>([])
@@ -113,13 +117,16 @@ export default function ReservationsPage() {
   const [userHasClasses, setUserHasClasses] = useState<boolean | null>(null)
   const [userClassesInfo, setUserClassesInfo] = useState<{
     totalAvailableClasses: number
-    activePackages: Array<{
-      name: string
-      classesRemaining: number
-      expiryDate: string
-    }>
+    activePackages: UserPackage[]
   } | null>(null)
   const [isCheckingUserClasses, setIsCheckingUserClasses] = useState(false)
+  const [isCreatingReservation, setIsCreatingReservation] = useState(false) // State for reservation creation loading
+
+  // States for cancellation confirmation modal
+  const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false)
+  const [reservationToCancel, setReservationToCancel] = useState<number | null>(null)
+  const [sendCancelEmail, setSendCancelEmail] = useState(true)
+  const [isCancellingReservation, setIsCancellingReservation] = useState(false)
 
   // Router para redirecciones
   const router = useRouter()
@@ -220,8 +227,55 @@ export default function ReservationsPage() {
     }
 
     const createdReservation = await response.json()
-    
-    alert("Nueva reservación creada con éxito")
+
+    if (sendEmail) {
+      try {
+        const user = users.find(u => u.id.toString() === reservationData.userId.toString());
+        const availableTime = availableTimes.find(t => t.time === reservationData.time);
+
+        if (user && availableTime && date) {
+          // Ensure reservationData.date is a Date object before formatting
+          const reservationDateObject = typeof reservationData.date === 'string' ? new Date(reservationData.date.replace(/-/g, '\/')) : reservationData.date;
+          
+          const emailDetails = {
+            className: availableTime.className,
+            date: format(reservationDateObject, "PPP", { locale: es }), // Format date for email
+            time: availableTime.time, // Time is already formatted as HH:mm by the API
+            instructor: availableTime.instructorName,
+            confirmationCode: createdReservation.id.toString(),
+            bikeNumber: reservationData.bikeNumber || undefined,
+            // isUnlimitedWeek and graceTimeHours can be omitted if not applicable for admin manual bookings
+            // or set to default values if necessary by the email template.
+          };
+
+          // Call the new API endpoint
+          const emailResponse = await fetch('/api/admin/send-booking-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userEmail: user.email,
+              userName: user.name,
+              details: emailDetails,
+            }),
+          });
+
+          if (emailResponse.ok) {
+            alert("Nueva reservación creada con éxito y correo de confirmación enviado.");
+          } else {
+            const emailErrorData = await emailResponse.json();
+            throw new Error(emailErrorData.error || "Error al enviar correo de confirmación desde API");
+          }
+        } else {
+          // This case should ideally not happen if form validation is robust
+          alert("Nueva reservación creada con éxito, pero faltaron datos cruciales (usuario/horario) para el correo.");
+        }
+      } catch (emailError) {
+        console.error("Error during email sending process:", emailError);
+        alert(`Nueva reservación creada con éxito, pero falló el proceso de envío del correo: ${emailError instanceof Error ? emailError.message : String(emailError)}`);
+      }
+    } else {
+      alert("Nueva reservación creada con éxito (correo no solicitado).");
+    }
 
     // Limpiar el formulario
     setSelectedUser("")
@@ -416,40 +470,51 @@ export default function ReservationsPage() {
     }
   }
 
-  const handleCancelReservation = async (reservationId: number) => {
+  const handleCancelReservation = (reservationId: number) => {
+    // Find the reservation to ensure it exists, though the primary logic is in the modal
     const reservation = reservations.find((r) => r.id === reservationId)
+    if (reservation) {
+      setReservationToCancel(reservationId)
+      // It's good practice to reset the checkbox to its default when opening the modal
+      setSendCancelEmail(true) 
+      setIsCancelConfirmOpen(true)
+    } else {
+      alert("Error: No se encontró la reservación para cancelar.")
+    }
+  }
 
-    if (
-      reservation &&
-      confirm(
-        `¿Estás seguro de que deseas cancelar la reservación de ${reservation.user} para la clase ${reservation.class}?`,
-      )
-    ) {
-      try {
-        const response = await fetch(`/api/admin/reservations/${reservationId}/cancel`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            reason: "Cancelado por administrador",
-          }),
-        })
+  // This new function will handle the actual cancellation after modal confirmation
+  const processCancellation = async (reservationId: number) => {
+    setIsCancellingReservation(true)
+    try {
+      const response = await fetch(`/api/admin/reservations/${reservationId}/cancel`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          reason: "Cancelado por administrador",
+          sendEmail: sendCancelEmail, // Pass the state of the checkbox
+        }),
+      })
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || "Error al cancelar la reservación")
-        }
-
-        setReservations((prevReservations) =>
-          prevReservations.map((r) => (r.id === reservationId ? { ...r, status: "cancelled" } : r)),
-        )
-
-        alert("Reservación cancelada con éxito")
-      } catch (error) {
-        console.error("Error al cancelar la reservación:", error)
-        alert(`Error al cancelar la reservación: ${error instanceof Error ? error.message : String(error)}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error al cancelar la reservación")
       }
+
+      setReservations((prevReservations) =>
+        prevReservations.map((r) => (r.id === reservationId ? { ...r, status: "cancelled" } : r)),
+      )
+
+      alert("Reservación cancelada con éxito")
+    } catch (error) {
+      console.error("Error al cancelar la reservación:", error)
+      alert(`Error al cancelar la reservación: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsCancellingReservation(false)
+      setIsCancelConfirmOpen(false)
+      setReservationToCancel(null)
     }
   }
 
@@ -811,8 +876,128 @@ export default function ReservationsPage() {
     } else {
       setUserHasClasses(null)
       setUserClassesInfo(null)
+      setSelectedPackage("") // Reset package when user is cleared
+      setSelectedUserPackageId("") // Reset package ID when user is cleared
     }
   }, [selectedUser, isNewReservationOpen])
+
+  // Map package names to the backend's expected packageType strings
+  const packageNameToType = (packageName: string): string => {
+    switch (packageName?.toUpperCase()) {
+      case "PASE INDIVIDUAL":
+        return "individual";
+      case "PRIMERA VEZ":
+        return "primera-vez";
+      case "SEMANA ILIMITADA":
+        return "semana-ilimitada";
+      case "PAQUETE 10 CLASES":
+        return "10classes";
+      default:
+        return ""; // Or handle as an error/unknown package
+    }
+  };
+
+  // Efecto para actualizar selectedPackage cuando cambia la información de clases del usuario o el paquete seleccionado
+  useEffect(() => {
+    if (userHasClasses && userClassesInfo && userClassesInfo.activePackages.length > 0) {
+      if (userClassesInfo.activePackages.length === 1) {
+        // Si solo hay un paquete activo, usar ese
+        const singlePackage = userClassesInfo.activePackages[0];
+        setSelectedPackage(packageNameToType(singlePackage.name));
+        setSelectedUserPackageId(singlePackage.id.toString()); // Auto-select this package
+      } else {
+        // Si hay múltiples paquetes y uno está seleccionado en el dropdown
+        if (selectedUserPackageId) {
+          const chosenPackage = userClassesInfo.activePackages.find(
+            (pkg) => pkg.id.toString() === selectedUserPackageId
+          );
+          if (chosenPackage) {
+            setSelectedPackage(packageNameToType(chosenPackage.name));
+          } else {
+            setSelectedPackage(""); // Reset if selected package ID is somehow invalid
+          }
+        } else {
+          setSelectedPackage(""); // No package selected from multiple options yet
+        }
+      }
+    } else if (userHasClasses === false) {
+      // Si el usuario no tiene clases, podría ser un 'pase individual' si proceden a pago.
+      // Sin embargo, el flujo actual redirige a pagos, y el botón cambia.
+      // Para la lógica del botón de "Crear Reservación", si no hay clases, no debería llegarse a necesitar selectedPackage.
+      // Pero si se quisiera permitir crear una reserva "pendiente de pago" directamente, aquí se podría setear "individual".
+      // Por ahora, lo dejamos así ya que el botón "Crear Reservación" se deshabilita si userHasClasses === false.
+      setSelectedPackage(""); // No specific package context if no classes and not creating individual
+    } else {
+      // No user selected or still loading
+      setSelectedPackage("");
+    }
+  }, [userHasClasses, userClassesInfo, selectedUserPackageId]);
+
+
+  // Adicional: Reset selectedPackage si se deselecciona un paquete del dropdown (cuando hay multiples)
+  useEffect(() => {
+    if (userHasClasses && userClassesInfo && userClassesInfo.activePackages.length > 1 && !selectedUserPackageId) {
+      setSelectedPackage("");
+    }
+  }, [selectedUserPackageId, userHasClasses, userClassesInfo]);
+
+
+  // Estado para la información de la semana ilimitada activa del usuario
+  const [activeUnlimitedWeekInfo, setActiveUnlimitedWeekInfo] = useState<{ start: Date; end: Date; label: string } | null>(null);
+
+  // Efecto para extraer información de la semana ilimitada si está activa y seleccionada
+  useEffect(() => {
+    if (selectedPackage === "semana-ilimitada" && userClassesInfo?.activePackages) {
+      const unlimitedPkg = userClassesInfo.activePackages.find(pkg => packageNameToType(pkg.name) === "semana-ilimitada" && pkg.id.toString() === selectedUserPackageId);
+      if (unlimitedPkg) {
+        // Asumimos que expiryDate es el viernes. Necesitamos calcular el inicio (Lunes).
+        // La API de check-packages debería idealmente devolver el inicio y fin normalizado de la semana.
+        // Por ahora, si tenemos expiryDate (viernes), podemos inferir el lunes.
+        // Esto es una simplificación. La información exacta del periodo de la semana ilimitada debería venir del backend.
+        try {
+          const expiry = new Date(unlimitedPkg.expiryDate);
+          // Adjust to ensure it's the end of the day for comparison purposes if needed.
+          // For now, assuming expiryDate is the Friday.
+          const dayOfWeek = expiry.getUTCDay(); // Sunday = 0, Monday = 1, ..., Friday = 5, Saturday = 6
+          
+          let startDate = new Date(expiry);
+          if (dayOfWeek === 5) { // If expiry is Friday
+            startDate.setUTCDate(expiry.getUTCDate() - 4); // Go back 4 days to get Monday
+          } else {
+            // If expiryDate is not a Friday, this logic might be flawed.
+            // This indicates a need for clearer start/end dates from the API for unlimited packages.
+            // For now, we'll try to make a best guess or show a broader message.
+            // This part needs robust handling of how the package's active week is defined from userClassesInfo.
+            // Let's assume for now userClassesInfo provides a correctly bounded expiryDate (e.g. Friday).
+            // Fallback: if not Friday, perhaps we cannot accurately determine the week for UI.
+             setActiveUnlimitedWeekInfo(null); // Or show a generic message
+             console.warn("Unlimited week expiry date is not a Friday, cannot accurately determine week range for UI display.");
+             return;
+          }
+          
+          // Ensure startDate is set to the beginning of the day in UTC
+          startDate.setUTCHours(0, 0, 0, 0);
+          
+          const endDate = new Date(expiry);
+          endDate.setUTCHours(23,59,59,999); // End of Friday
+
+          setActiveUnlimitedWeekInfo({
+            start: startDate,
+            end: endDate,
+            label: `Semana activa: ${format(startDate, "dd MMM yyyy", { locale: es })} - ${format(endDate, "dd MMM yyyy", { locale: es })}`
+          });
+        } catch (e) {
+          console.error("Error parsing unlimited week dates", e);
+          setActiveUnlimitedWeekInfo(null);
+        }
+      } else {
+        setActiveUnlimitedWeekInfo(null);
+      }
+    } else {
+      setActiveUnlimitedWeekInfo(null);
+    }
+  }, [selectedPackage, selectedUserPackageId, userClassesInfo]);
+
 
   return (
     <div className="p-4">
@@ -973,6 +1158,17 @@ export default function ReservationsPage() {
                     </div>
                   )}
 
+                  {/* Información de Semana Ilimitada y validación de fecha */}
+                  {selectedPackage === "semana-ilimitada" && activeUnlimitedWeekInfo && (
+                    <div className="md:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm">
+                      <p className="font-medium text-blue-700">Paquete Semana Ilimitada Activo</p>
+                      <p className="text-xs text-blue-600">{activeUnlimitedWeekInfo.label}</p>
+                      <p className="text-xs text-blue-600 mt-1">
+                        Las reservaciones solo se pueden hacer de Lunes a Viernes dentro de esta semana.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label htmlFor="bike">Bicicleta (Opcional)</Label>
                     <Select 
@@ -1015,6 +1211,21 @@ export default function ReservationsPage() {
                       </p>
                     )}
                   </div>
+
+                  <div className="md:col-span-2 flex items-center space-x-2 mt-4">
+                    <Checkbox
+                      id="send-email-checkbox"
+                      checked={sendEmail}
+                      onCheckedChange={(checked) => setSendEmail(checked as boolean)}
+                      className="border-gray-300"
+                    />
+                    <Label
+                      htmlFor="send-email-checkbox"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Enviar correo de confirmación al cliente
+                    </Label>
+                  </div>
                 </div>
               </div>
 
@@ -1031,6 +1242,7 @@ export default function ReservationsPage() {
                     setSelectedPackage("")
                     setSelectedBike(null)
                     setSelectedUserPackageId("")
+                    setActiveUnlimitedWeekInfo(null); 
                   }}
                   className="border-gray-200 text-zinc-900 hover:bg-gray-100"
                 >
@@ -1062,9 +1274,10 @@ export default function ReservationsPage() {
                       !selectedPackage ||
                       userHasClasses === false ||
                       (userHasClasses && userClassesInfo && userClassesInfo.activePackages.length > 1 && !selectedUserPackageId) ||
-                      isCheckingUserClasses
+                      isCheckingUserClasses || isCreatingReservation // Disable while creating
                     }
                     onClick={async () => {
+                      setIsCreatingReservation(true); // Set loading true
                       try {
                         if (!selectedUser || !date || !selectedTime || !selectedPackage) {
                           const camposFaltantes = []
@@ -1079,7 +1292,25 @@ export default function ReservationsPage() {
                           return
                         }
 
-                        // Encontrar la clase programada específica basada en el horario seleccionado
+                        // Validations for Unlimited Week package
+                        if (selectedPackage === "semana-ilimitada" && activeUnlimitedWeekInfo && date) {
+                          const localDate = new Date(date); // date state is already a local Date object
+                          const selectedDateUtc = new Date(Date.UTC(localDate.getFullYear(), localDate.getMonth(), localDate.getDate()));
+                          const dayOfWeek = selectedDateUtc.getUTCDay(); 
+
+                          if (dayOfWeek === 0 || dayOfWeek === 6) {
+                            alert("Las reservaciones con Semana Ilimitada solo son válidas de Lunes a Viernes.");
+                            return;
+                          }
+                          if (selectedDateUtc < activeUnlimitedWeekInfo.start || selectedDateUtc > activeUnlimitedWeekInfo.end) {
+                            alert(`La fecha seleccionada (${format(selectedDateUtc, "dd/MM/yyyy")}) está fuera de la semana ilimitada activa (${activeUnlimitedWeekInfo.label}).`);
+                            return;
+                          }
+                        } else if (selectedPackage === "semana-ilimitada" && !activeUnlimitedWeekInfo && date) {
+                            alert("No se pudo verificar la información de la semana ilimitada. Intente seleccionar el usuario y paquete de nuevo.");
+                            return;
+                        }
+
                         const selectedAvailableTime = availableTimes.find(time => time.time === selectedTime)
                         
                         if (!selectedAvailableTime) {
@@ -1089,18 +1320,17 @@ export default function ReservationsPage() {
 
                         const newReservationData = {
                           userId: Number.parseInt(selectedUser),
-                          classId: selectedAvailableTime.typeId, // Usar el tipo de clase del horario seleccionado
+                          classId: selectedAvailableTime.typeId, 
                           date: date ? formatAdminDate(date) : formatAdminDate(new Date()),
                           time: selectedTime,
                           package: selectedPackage,
-                          paymentMethod: "paid", // Asumir que ya está pagado si tiene clases
-                          bikeNumber: selectedBike, // Agregar número de bicicleta
+                          paymentMethod: "paid", 
+                          bikeNumber: selectedBike, 
+                          userPackageId: (userHasClasses && selectedUserPackageId && selectedUserPackageId !== "") ? Number(selectedUserPackageId) : undefined,
                         }
 
-                        // Crear directamente la reservación (ya sabemos que tiene clases)
                         await createReservationWithPackageCheck(newReservationData)
                         
-                        // Limpiar formulario después de éxito
                         setSelectedUser("")
                         setSelectedTime("")
                         setSelectedPackage("")
@@ -1109,19 +1339,27 @@ export default function ReservationsPage() {
                         setUserHasClasses(null)
                         setUserClassesInfo(null)
                         setIsNewReservationOpen(false)
+                        setActiveUnlimitedWeekInfo(null);
                       } catch (error) {
                         console.error("Error al crear la reservación:", error)
                         alert(`Error al crear la reservación: ${error instanceof Error ? error.message : String(error)}`)
+                      } finally {
+                        setIsCreatingReservation(false); // Set loading false
                       }
                     }}
                   >
-                    {isCheckingUserClasses ? (
+                    {isCreatingReservation ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Creando...
+                      </>
+                    ) : isCheckingUserClasses ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                         Verificando...
                       </>
                     ) : userHasClasses === false ? (
-                      "Usuario sin clases"
+                      "Usuario sin clases" // This case is for the other button "Ir a Pagos"
                     ) : (
                       "Crear Reservación"
                     )}
@@ -1270,21 +1508,18 @@ export default function ReservationsPage() {
                             <div className="text-xs text-gray-400">{reservation.phone}</div>
                           )}
                           {/* Penalización Semana Ilimitada */}
-                          {reservation.package === 'SEMANA ILIMITADA' && reservation.status === 'cancelled' && reservation.cancelledAt && (() => {
-                            const classDateTime = new Date(`${reservation.date}T${reservation.time}:00`)
-                            const cancelledAt = new Date(reservation.cancelledAt)
-                            const diffMs = classDateTime.getTime() - cancelledAt.getTime()
-                            const diffHours = diffMs / (1000 * 60 * 60)
-                            if (diffHours < 12) {
-                              return (
-                                <div className="mt-1 p-2 bg-yellow-100 border-l-4 border-yellow-400 text-yellow-800 text-xs rounded">
-                                  <AlertTriangle className="inline h-3 w-3 mr-1 text-yellow-600" />
-                                  Penalización pendiente: Cancela manualmente la siguiente clase de este usuario esta semana.
-                                </div>
-                              )
-                            }
-                            return null
-                          })()}
+                          {(reservation.package === 'SEMANA ILIMITADA') &&
+                           (reservation.status === 'cancelled_late_unlimited' || reservation.status === 'no_show') && (
+                            <div className="mt-1 p-2 bg-yellow-100 border-l-4 border-yellow-400 text-yellow-800 text-xs rounded">
+                              <AlertTriangle className="inline h-4 w-4 mr-1 text-yellow-700" />
+                              {reservation.status === 'cancelled_late_unlimited' && (
+                                "Advertencia (Cancelación Tardía): Usuario canceló con <12h. Considere aplicar penalización."
+                              )}
+                              {reservation.status === 'no_show' && (
+                                "Advertencia (No Asistencia): Usuario no se presentó. Considere aplicar penalización."
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="py-2.5 px-3">
@@ -1299,11 +1534,11 @@ export default function ReservationsPage() {
                       <td className="py-2.5 px-3">
                         <div className="max-w-[100px]">
                           <div className="text-sm text-gray-900 truncate font-medium">{reservation.package}</div>
-                          {typeof reservation.remainingClasses === 'number' && (
+                          {/* {typeof reservation.remainingClasses === 'number' && (
                             <div className="text-xs text-gray-500">
                               {reservation.remainingClasses} restantes
                             </div>
-                          )}
+                          )} */}
                         </div>
                       </td>
                       <td className="py-2.5 px-3">
@@ -1593,8 +1828,84 @@ export default function ReservationsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Package Assignment Modal */}
-      {/* Removido - se usa redirección a página de pagos en su lugar */}
+      {/* Cancellation Confirmation Modal */}
+      <Dialog open={isCancelConfirmOpen} onOpenChange={setIsCancelConfirmOpen}>
+        <DialogContent className="bg-white border-gray-200 text-zinc-900">
+          <DialogHeader>
+            <DialogTitle className="text-[#4A102A]">Confirmar Cancelación</DialogTitle>
+            <DialogDescription className="text-gray-600">
+              ¿Estás seguro de que deseas cancelar esta reservación? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Important Notes Section */}
+          <div className="py-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <h4 className="font-semibold text-amber-800 mb-2">Notas Importantes sobre la Cancelación por parte del Administrador:</h4>
+              <ul className="text-sm text-amber-700 space-y-1">
+                <li className="flex items-start">
+                  <span className="font-medium mr-1">•</span>
+                  <span><strong>Acción Permanente:</strong> La cancelación elimina la clase del paquete del usuario. Esta acción es definitiva.</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="font-medium mr-1">•</span>
+                  <span><strong>Reembolsos Manuales:</strong> Esta cancelación NO emite un reembolso automáticamente. Si corresponde un reembolso, por favor procésalo manualmente.</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="font-medium mr-1">•</span>
+                  <span><strong>Omite las Reglas:</strong> Las cancelaciones realizadas por el administrador omiten las reglas de reserva estándar (por ejemplo, ventanas de cancelación).</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="font-medium mr-1">•</span>
+                  <span><strong>Sin Penalizaciones Automáticas:</strong> Esta acción no activa el sistema de penalizaciones de "Semana Ilimitada".</span>
+                </li>
+              </ul>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="send-cancel-email-checkbox"
+                checked={sendCancelEmail}
+                onCheckedChange={(checked) => setSendCancelEmail(checked as boolean)}
+                className="border-gray-300"
+              />
+              <Label
+                htmlFor="send-cancel-email-checkbox"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Enviar correo de cancelación al cliente
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsCancelConfirmOpen(false)
+                setReservationToCancel(null)
+              }}
+              disabled={isCancellingReservation}
+              className="border-gray-200 text-zinc-900 hover:bg-gray-100"
+            >
+              Volver
+            </Button>
+            <Button
+              onClick={() => reservationToCancel && processCancellation(reservationToCancel)}
+              disabled={isCancellingReservation}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isCancellingReservation ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Cancelando...
+                </>
+              ) : (
+                "Confirmar Cancelación"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

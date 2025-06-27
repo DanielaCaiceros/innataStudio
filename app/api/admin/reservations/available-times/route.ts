@@ -54,6 +54,11 @@ export async function GET(request: NextRequest) {
               }
             }
           }
+        },
+        reservations: { // Include confirmed reservations to calculate spots
+          where: {
+            status: "confirmed"
+          }
         }
       },
       orderBy: {
@@ -68,12 +73,16 @@ export async function GET(request: NextRequest) {
       const minutes = classTime.getUTCMinutes().toString().padStart(2, '0');
       const formattedTime = `${hours}:${minutes}`;
 
+      const confirmedReservationsCount = scheduledClass.reservations.length;
+      const calculatedAvailableSpots = scheduledClass.maxCapacity - confirmedReservationsCount;
+
       return {
         time: formattedTime,
         scheduledClassId: scheduledClass.id,
         className: scheduledClass.classType.name,
         instructorName: `${scheduledClass.instructor.user.firstName} ${scheduledClass.instructor.user.lastName}`,
-        availableSpots: scheduledClass.availableSpots,
+        // Use the calculated available spots, ensuring it's not negative
+        availableSpots: Math.max(0, calculatedAvailableSpots), 
         maxCapacity: scheduledClass.maxCapacity,
         typeId: scheduledClass.classTypeId
       };

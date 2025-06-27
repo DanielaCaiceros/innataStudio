@@ -79,10 +79,12 @@ export async function POST(request: NextRequest) {
     const { packageId, paymentId, selectedWeekStartDate } = body
 
     if (!packageId || !paymentId) {
-      return NextResponse.json({ 
-        error: "Faltan datos requeridos: packageId y/o paymentId" 
+      return NextResponse.json({
+        error: "Faltan datos requeridos: packageId y/o paymentId"
       }, { status: 400 })
     }
+
+    const numericPackageId = Number(packageId)
 
     // Obtener información del paquete
     const packageInfo = await prisma.package.findUnique({
@@ -113,13 +115,91 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // --- BEGIN VALIDATION FOR UNLIMITED WEEKS (packageId 3) ---
+    if (numericPackageId === 3) {
+      if (!selectedWeekStartDate) {
+        return NextResponse.json({ error: "Debe seleccionar una semana para el paquete ilimitado." }, { status: 400 });
+      }
+
+      const newSelectedWeekStart = new Date(selectedWeekStartDate);
+      const newSelectedWeekEnd = getUnlimitedWeekExpiryDate(newSelectedWeekStart); // Friday of the selected week
+
+      // Fetch user's existing/future unlimited weeks
+      const existingUnlimitedUserPackages = await prisma.userPackage.findMany({
+        where: {
+          userId: userId,
+          packageId: 3, // Unlimited week package ID
+          OR: [
+            { expiryDate: { gte: new Date() } }, // Active or future
+            { purchaseDate: { gte: new Date() } } // Specifically future-dated (purchaseDate is Monday)
+          ]
+        },
+        orderBy: {
+          purchaseDate: 'asc'
+        }
+      });
+
+      // 1. Overlap Prevention
+      // Ensure newSelectedWeekStart is at UTC midnight for consistent comparison
+      const normalizedNewSelectedWeekStart = new Date(Date.UTC(
+        newSelectedWeekStart.getUTCFullYear(),
+        newSelectedWeekStart.getUTCMonth(),
+        newSelectedWeekStart.getUTCDate()
+      ));
+
+      for (const existingPkg of existingUnlimitedUserPackages) {
+        // Ensure existingPkg.purchaseDate is also treated as UTC midnight for comparison
+        const normalizedExistingPkgPurchaseDate = new Date(Date.UTC(
+          existingPkg.purchaseDate.getUTCFullYear(),
+          existingPkg.purchaseDate.getUTCMonth(),
+          existingPkg.purchaseDate.getUTCDate()
+        ));
+
+        if (normalizedExistingPkgPurchaseDate.getTime() === normalizedNewSelectedWeekStart.getTime()) {
+          return NextResponse.json({
+            error: "Ya tienes un paquete de semana ilimitada comprado para la semana seleccionada."
+          }, { status: 400 });
+        }
+      }
+
+      // 2. Advance Purchase Limitation (Max 2 future weeks if one is currently active)
+      const today = new Date();
+      let activeUnlimitedWeek: { purchaseDate: Date, expiryDate: Date } | null = null;
+      let futureUnlimitedWeeksCount = 0;
+
+      for (const pkg of existingUnlimitedUserPackages) {
+        // purchaseDate is Monday, expiryDate is Friday
+        if (today >= pkg.purchaseDate && today <= pkg.expiryDate) {
+          activeUnlimitedWeek = { purchaseDate: pkg.purchaseDate, expiryDate: pkg.expiryDate };
+        }
+      }
+
+      if (activeUnlimitedWeek) {
+        for (const pkg of existingUnlimitedUserPackages) {
+          // If the package's start date (Monday) is after the current active week's end date (Friday)
+          if (pkg.purchaseDate > activeUnlimitedWeek.expiryDate) {
+            futureUnlimitedWeeksCount++;
+          }
+        }
+
+        // If trying to buy another future week when already having 2 or more future ones
+        if (futureUnlimitedWeeksCount >= 2 && newSelectedWeekStart > activeUnlimitedWeek.expiryDate) {
+          return NextResponse.json({
+            error: "Solo puedes comprar hasta 2 semanas ilimitadas por adelantado mientras tienes una activa."
+          }, { status: 400 });
+        }
+      }
+    }
+    // --- END VALIDATION FOR UNLIMITED WEEKS ---
+
     // Calcular fecha de expiración
     let purchaseDate = new Date()
     let expiryDate: Date
-    if (Number(packageId) === 3 && selectedWeekStartDate) {
+    if (numericPackageId === 3 && selectedWeekStartDate) { // Use numericPackageId
       purchaseDate = new Date(selectedWeekStartDate)
       expiryDate = getUnlimitedWeekExpiryDate(purchaseDate)
-    } else if (Number(packageId) === 3) {
+    } else if (numericPackageId === 3) { // Use numericPackageId
+      // This case should ideally not be hit if selectedWeekStartDate is now mandatory for packageId 3
       expiryDate = getUnlimitedWeekExpiryDate(purchaseDate)
     } else {
       expiryDate = new Date()
@@ -132,7 +212,7 @@ export async function POST(request: NextRequest) {
       const createdUserPackage = await tx.userPackage.create({
         data: {
           userId: userId as number,
-          packageId: Number(packageId),
+          packageId: numericPackageId, // Use numericPackageId
           purchaseDate,
           expiryDate,
           classesRemaining: packageInfo.classCount || 0,
@@ -179,7 +259,7 @@ export async function POST(request: NextRequest) {
           userId: userId as number,
           type: "purchase",
           amount: packageInfo.classCount || 0,
-          description: `Compra de paquete: ${packageInfo.name}${Number(packageId) === 3 ? ' (5 días hábiles)' : ''}`,
+           description: `Compra de paquete: ${packageInfo.name}${numericPackageId === 3 ? ' (5 días hábiles)' : ''}`, // Use numericPackageId
           relatedPaymentId: createdPayment.id
         }
       })
@@ -207,8 +287,8 @@ export async function POST(request: NextRequest) {
         price: Number(packageInfo.price),
         purchaseDate: purchaseDate.toLocaleDateString('es-ES'),
         expiryDate: expiryDate.toLocaleDateString('es-ES'),
-        isUnlimitedWeek: Number(packageId) === 3,
-        validityType: Number(packageId) === 3 ? '5 días hábiles' : `${packageInfo.validityDays} días`
+        isUnlimitedWeek: numericPackageId === 3, // Use numericPackageId
+        validityType: numericPackageId === 3 ? '5 días hábiles' : `${packageInfo.validityDays} días` // Use numericPackageId
       }
 
       await sendPackagePurchaseConfirmationEmail(
@@ -228,8 +308,8 @@ export async function POST(request: NextRequest) {
         packageName: packageInfo.name,
         classesRemaining: userPackage.classesRemaining,
         expiryDate: userPackage.expiryDate,
-        isUnlimitedWeek: Number(packageId) === 3,
-        validityMessage: Number(packageId) === 3 
+        isUnlimitedWeek: numericPackageId === 3, // Use numericPackageId
+        validityMessage: numericPackageId === 3 // Use numericPackageId
           ? "Válido por 5 días hábiles (lunes a viernes)"
           : `Válido por ${packageInfo.validityDays} días`
       },

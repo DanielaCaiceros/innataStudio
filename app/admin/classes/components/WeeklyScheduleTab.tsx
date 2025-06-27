@@ -122,7 +122,6 @@ export default function WeeklyScheduleTab({
                                 )}
                                 <Clock className="h-3 w-3 ml-1" /><span>{cls.classType.duration}min</span>
                               </div>
-                              {cls.waitlist.length > 0 && (<p className="text-xs text-orange-600 mt-1">Lista de espera: {cls.waitlist.length}</p>)}
                             </div>
                             <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity">
                               <div className="flex gap-1">

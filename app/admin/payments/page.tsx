@@ -41,12 +41,15 @@ import {
   Copy,
   Clock,
   User,
+  Mail,
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { Textarea } from "@/components/ui/textarea"
 import { getAvailableWeekOptions } from '@/lib/utils/unlimited-week'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+// Removed: import { sendPackagePurchaseConfirmationEmail } from "@/lib/email"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface Payment {
   id: number
@@ -123,6 +126,7 @@ export default function PaymentsPage() {
 
   // 1. Add state for unlimited week selection
   const [selectedUnlimitedWeek, setSelectedUnlimitedWeek] = useState<{ start: string, end: string } | null>(null)
+  const [sendPackageEmail, setSendPackageEmail] = useState(true) // State for sending package email
 
   // Nuevo estado para el id del UserPackage
   const [selectedUserPackageId, setSelectedUserPackageId] = useState<string | null>(null)
@@ -439,13 +443,99 @@ export default function PaymentsPage() {
       })
       const data = await response.json()
       if (response.ok) {
-        toast({
-          title: "Pago registrado",
-          description: `Pago en efectivo de $${amount} registrado correctamente para ${data.payment.user}`,
-        })
+        // Email sending logic
+        if (sendPackageEmail && selectedPackageId) {
+          const userForEmail = users.find(u => u.id.toString() === selectedUserId);
+          const packageForEmail = packages.find(p => p.id.toString() === selectedPackageId);
+
+          if (userForEmail && packageForEmail) {
+            let emailPurchaseDate: Date;
+            let emailExpiryDate: Date;
+            let isUnlimited = packageForEmail.name.toLowerCase().includes("ilimitada");
+
+            if (isUnlimited && selectedUnlimitedWeek?.start && selectedUnlimitedWeek?.end) {
+              // For unlimited week, use the selected start and end dates.
+              // These are "YYYY-MM-DD" strings representing local calendar dates.
+              // Parse them into Date objects representing midnight local time for that calendar date.
+              const [pYear, pMonth, pDay] = selectedUnlimitedWeek.start.split('-').map(Number);
+              emailPurchaseDate = new Date(pYear, pMonth - 1, pDay); // Month is 0-indexed for Date constructor
+
+              const [eYear, eMonth, eDay] = selectedUnlimitedWeek.end.split('-').map(Number);
+              emailExpiryDate = new Date(eYear, eMonth - 1, eDay); 
+            } else {
+              // For other packages, default to current date as purchase date
+              emailPurchaseDate = new Date();
+              emailExpiryDate = new Date(emailPurchaseDate); // Start with purchase date for expiry calculation
+
+              if (packageForEmail.name.toLowerCase().includes("10 clases")) {
+                emailExpiryDate.setMonth(emailExpiryDate.getMonth() + 3); // Example: 3 months validity
+              } else if (packageForEmail.name.toLowerCase().includes("primera vez") || packageForEmail.name.toLowerCase().includes("pase individual")) {
+                emailExpiryDate.setMonth(emailExpiryDate.getMonth() + 1); // Example: 1 month validity
+              }
+              // Add more specific expiry logic if needed for other non-unlimited packages
+            }
+
+            const emailDetails = {
+              packageName: packageForEmail.name,
+              classCount: typeof packageForEmail.classCount === 'number' ? packageForEmail.classCount : 0,
+              expiryDate: format(emailExpiryDate, "dd/MM/yyyy", { locale: es }),
+              purchaseDate: format(emailPurchaseDate, "dd/MM/yyyy", { locale: es }),
+              price: parseFloat(packageForEmail.price as any),
+              isUnlimitedWeek: isUnlimited,
+            };
+
+            // Log the prepared emailDetails to verify types before sending
+            console.log('[ADMIN_PAYMENTS_FRONTEND_LOG] Prepared emailDetails:', JSON.stringify(emailDetails, null, 2));
+            console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   typeof emailDetails.price: ${typeof emailDetails.price}`);
+            console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   typeof emailDetails.classCount: ${typeof emailDetails.classCount}`);
+
+            try {
+              // Call the new API endpoint for sending package email
+              const emailResponse = await fetch('/api/admin/send-package-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userEmail: userForEmail.email,
+                  userName: userForEmail.name,
+                  packageDetails: emailDetails,
+                }),
+              });
+
+              if (emailResponse.ok) {
+                toast({
+                  title: "Pago registrado y correo enviado",
+                  description: `Pago de $${amount} y confirmación de paquete para ${userForEmail.name} procesados.`,
+                });
+              } else {
+                const emailErrorData = await emailResponse.json();
+                throw new Error(emailErrorData.error || "Error al enviar correo de paquete desde API");
+              }
+            } catch (emailError) {
+              console.error("Error during package email sending process:", emailError);
+              toast({
+                title: "Pago registrado, error en correo",
+                description: `El pago se registró, pero falló el proceso de envío del correo de paquete: ${emailError instanceof Error ? emailError.message : String(emailError)}`,
+                variant: "destructive",
+              });
+            }
+          } else {
+            toast({
+              title: "Pago registrado, correo no enviado",
+              description: "El pago se registró, pero faltaron datos para enviar el correo de confirmación del paquete (usuario o paquete no encontrados localmente).",
+              variant: "default",
+            });
+          }
+        } else {
+          toast({
+            title: "Pago registrado",
+            description: `Pago en efectivo de $${amount} registrado correctamente para ${data.payment.user}. Correo no enviado (opción desactivada o sin paquete).`,
+          });
+        }
+        
         setIsNewPaymentOpen(false)
         resetForm()
         loadPayments()
+
         if (isFromReservation) {
           toast({
             title: "¡Pago completado!",
@@ -1084,6 +1174,22 @@ export default function PaymentsPage() {
                   {selectedPackageId && (
                     <div>• Se activará el paquete seleccionado</div>
                   )}
+                </div>
+
+                {/* Opción para enviar correo */}
+                <div className="flex items-center space-x-2 mt-4">
+                  <Checkbox
+                    id="send-package-email-checkbox"
+                    checked={sendPackageEmail}
+                    onCheckedChange={(checked) => setSendPackageEmail(checked as boolean)}
+                    className="border-gray-300"
+                  />
+                  <Label
+                    htmlFor="send-package-email-checkbox"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Enviar correo de confirmación de paquete al cliente
+                  </Label>
                 </div>
               </div>
 

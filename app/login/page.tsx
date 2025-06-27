@@ -228,7 +228,7 @@ function LoginContent() {
       {/* Imagen lateral */}
       <div className="hidden md:block md:w-1/2 relative overflow-hidden rounded-3xl m-2">
         <Image src="/innataAsset1.png" alt="Innata Cycling Studio" fill className="object-cover" priority />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#4A102A]/80 to-transparent mix-blend-multiply" />
+        <div className="absolute inset-0 bg-gradient-to-r from-brand-sage/80 to-transparent mix-blend-multiply" />
       </div>
 
       {/* Formulario */}
@@ -247,7 +247,7 @@ function LoginContent() {
                 {successMessage}
                 {successMessage.includes("verificar") && (
                   <button 
-                    className="text-[#85193C] font-medium hover:underline ml-1"
+                    className="text-brand-sage font-medium hover:underline ml-1"
                     onClick={handleResendVerification}
                     disabled={isLoading}
                   >
@@ -371,11 +371,11 @@ function LoginContent() {
 
           <div className="mt-8 text-xs text-center text-gray-500">
             Al iniciar sesión, aceptas nuestros{" "}
-            <Link href="/terminos" className="text-[#85193C] hover:underline">
+            <Link href="/terminos" className="text-brand-gray hover:underline">
               Términos y Condiciones
             </Link>{" "}
             y{" "}
-            <Link href="/privacidad" className="text-[#85193C] hover:underline">
+            <Link href="/privacidad" className="text-brand-gray hover:underline">
               Política de Privacidad
             </Link>
           </div>

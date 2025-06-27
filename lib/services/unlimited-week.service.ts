@@ -193,20 +193,32 @@ export class UnlimitedWeekService {
     // The previous implementation used local-time methods (.getFullYear(), .getHours())
     // which could corrupt the date when the server's timezone was different from UTC.
     const dateString = classDate instanceof Date ? classDate.toISOString() : classDate
-    const classDateObj = new Date(dateString)
-    const classTimeObj = new Date(classTime)
+    const classDateObj = new Date(dateString) // e.g., from '2025-06-27T00:00:00.000Z'
+    const classTimeObj = new Date(classTime)   // e.g., from '1970-01-01T06:00:00.000Z'
     
-    const classDateTime = new Date(Date.UTC(
-      classDateObj.getUTCFullYear(),
-      classDateObj.getUTCMonth(),
-      classDateObj.getUTCDate(),
-      classTimeObj.getUTCHours(),
-      classTimeObj.getUTCMinutes(),
-      0,
-      0
-    ))
+    // Extract hour and minute from classTimeObj. Despite getUTCHours/Minutes,
+    // we interpret these as the local wall time hour/minute for the class
+    // in the server's timezone (GMT-0600 as per user context).
+    const localClassHour = classTimeObj.getUTCHours(); // e.g., 6, interpreted as 6 AM local
+    const localClassMinute = classTimeObj.getUTCMinutes(); // e.g., 0, interpreted as 0 minutes local
+
+    // Construct classDateTime using year/month/day from classDateObj (which are UTC midnight components)
+    // and hour/minute (interpreted as local time components).
+    // new Date(year, month, day, hour, minute) creates a Date in the server's local timezone.
+    // If server is GMT-0600, new Date(2025, 5, 27, 6, 0) represents "June 27, 2025, 06:00:00 GMT-0600".
+    // The .getTime() of this object will give the UTC milliseconds for "June 27, 2025, 12:00:00 UTC".
+    const classDateTime = new Date(
+      classDateObj.getUTCFullYear(),    // Year from UTC date
+      classDateObj.getUTCMonth(),       // Month from UTC date (0-indexed)
+      classDateObj.getUTCDate(),        // Day from UTC date
+      localClassHour,                   // Hour, interpreted as local server time
+      localClassMinute,                 // Minute, interpreted as local server time
+      0,                                // Seconds
+      0                                 // Milliseconds
+    );
 
     console.log(`[Service TimeCheck] Now (local): ${now.toString()}`);
+    // For a 6 AM GMT-0600 class, this should now log "... 12:00:00 GMT"
     console.log(`[Service TimeCheck] Calculated classDateTime (UTC): ${classDateTime.toUTCString()}`);
 
     // Calcular tiempo de anticipación en minutos

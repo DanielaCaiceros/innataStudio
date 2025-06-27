@@ -156,6 +156,14 @@ export async function GET(request: NextRequest) {
       // If UserPackage.paymentMethod was 'cash', it remains 'cash'.
       // If res.paymentMethod was 'cash', it remains 'cash'.
       
+      // Determine package name
+      let packageName = "N/A";
+      if (res.userPackage?.package?.name) {
+        packageName = res.userPackage.package.name;
+      } else if (finalDisplayPaymentMethod === "online" || finalDisplayPaymentMethod === "cash") {
+        packageName = "PASE INDIVIDUAL";
+      }
+      
       return {
         id: res.id,
         user: `${res.user.firstName} ${res.user.lastName}`,
@@ -165,7 +173,7 @@ export async function GET(request: NextRequest) {
         date: formattedDate,
         time: formattedTime,
         status: res.status,
-        package: res.userPackage?.package.name || ((finalDisplayPaymentMethod === "online" || finalDisplayPaymentMethod === "cash") && !res.userPackage ? "PASE INDIVIDUAL" : "N/A"),
+        package: packageName,
         remainingClasses: remainingClasses,
         paymentStatus: determinedPaymentStatus,
         paymentMethod: finalDisplayPaymentMethod,
@@ -242,9 +250,15 @@ export async function POST(request: NextRequest) {
     let scheduledClass = await prisma.scheduledClass.findFirst({
       where: {
         classTypeId: classId,
-        // Usar las nuevas fechas UTC calculadas
         date: scheduledDateUTC,
         time: scheduledTimeUTC
+      },
+      include: { // Include reservations to accurately check spots
+        reservations: {
+          where: {
+            status: "confirmed"
+          }
+        }
       }
     });
 
@@ -275,170 +289,204 @@ export async function POST(request: NextRequest) {
           maxCapacity: classType.capacity,
           availableSpots: classType.capacity - 1, // Restar 1 por la reservación que estamos creando
           status: "scheduled"
+        },
+        include: {
+          reservations: {
+            where: {
+              status: "confirmed"
+            }
+          }
         }
       });
+
+      if (!scheduledClass) {
+        return NextResponse.json({ error: "Error al crear la clase programada" }, { status: 500 });
+      }
     } else {
-      // Verificar si hay espacios disponibles
-      if (scheduledClass.availableSpots <= 0) {
-        return NextResponse.json({ error: "No hay espacios disponibles para esta clase" }, { status: 400 });
+      // Verify spots based on actual reservations vs capacity
+      const confirmedReservationsCount = scheduledClass.reservations.length;
+      const trueAvailableSpots = scheduledClass.maxCapacity - confirmedReservationsCount;
+
+      if (trueAvailableSpots <= 0) {
+        // Even if scheduledClass.availableSpots might be > 0 due to staleness,
+        // the real count shows it's full.
+        return NextResponse.json({ error: "No hay espacios disponibles para esta clase (verificado por conteo real)" }, { status: 400 });
       }
 
-      // Actualizar espacios disponibles
+      // If we proceed, decrement the stored availableSpots field.
+      // This attempts to keep the DB field in sync, though the check above is the source of truth.
       await prisma.scheduledClass.update({
         where: { id: scheduledClass.id },
         data: {
           availableSpots: {
             decrement: 1
           }
+          // Note: If this decrement leads to a negative number due to prior staleness,
+          // it highlights the importance of the dynamic check.
+          // Consider adding a DB constraint for availableSpots >= 0 if not already present.
         }
       });
     }
 
     // Buscar o crear el paquete de usuario
-    let userPackage;
+    let userPackage: any = null; // Explicitly type as any to cover all possible states
+    let processedUserPackage = false; // Flag to indicate if a UserPackage was used or created
 
-    // Si es un paquete (no un pase individual)
-    if (packageType !== "individual") {
-      // Si el admin seleccionó un paquete específico, usarlo
-      if (userPackageId) {
-        userPackage = await prisma.userPackage.findUnique({
-          where: { id: Number(userPackageId) }
-        });
-        if (!userPackage) {
-          return NextResponse.json({ error: "Paquete seleccionado no encontrado" }, { status: 404 });
-        }
-        // Descontar la clase
-        await prisma.userPackage.update({
-          where: { id: userPackage.id },
-          data: {
-            classesUsed: { increment: 1 },
-            classesRemaining: { decrement: 1 }
+    // Wrap the entire reservation creation process in a transaction
+    let result;
+    try {
+      result = await prisma.$transaction(async (tx) => {
+        // Si se proporcionó un userPackageId, significa que el admin seleccionó un paquete existente (incluido un "pase individual" si existe como UserPackage)
+        if (userPackageId) {
+          userPackage = await tx.userPackage.findUnique({
+            where: { id: Number(userPackageId) },
+            include: { package: true } // Include package info for remaining classes calculation
+          });
+
+          if (!userPackage) {
+            throw new Error("Paquete seleccionado no encontrado");
           }
-        });
-      } else {
-        const packageMap = {
-          "individual": 2,        // PASE INDIVIDUAL
-          "primera-vez": 1,       // PRIMERA VEZ  
-          "semana-ilimitada": 3,  // SEMANA ILIMITADA
-          "10classes": 4,         // PAQUETE 10 CLASES
-        };
-        const packageId = packageMap[packageType as keyof typeof packageMap];
-        if (!packageId) {
-          return NextResponse.json({ error: "Tipo de paquete no válido" }, { status: 400 });
-        }
-        const packageInfo = await prisma.package.findUnique({
-          where: { id: packageId }
-        });
-        if (!packageInfo) {
-          return NextResponse.json({ error: "Paquete no encontrado" }, { status: 404 });
-        }
-        if (packageId === 3) { // Semana Ilimitada
-          try {
-            const existingUnlimited = await validateUnlimitedWeekReservation(userId, scheduledClass.id, body.selectedWeekStart);
-            if (existingUnlimited) {
-              userPackage = existingUnlimited;
-              await prisma.userPackage.update({
-                where: { id: userPackage.id },
-                data: {
-                  classesUsed: { increment: 1 },
-                  classesRemaining: { decrement: 1 }
-                }
-              });
-            } else {
-              userPackage = await createUnlimitedWeekPackage(userId, packageInfo, paymentMethod, body.selectedWeekStart);
-            }
-          } catch (err: any) {
-            return NextResponse.json({ error: err.message || "Error en validación de semana ilimitada" }, { status: 400 });
+          if (userPackage.classesRemaining === null || userPackage.classesRemaining <= 0) {
+            throw new Error("El paquete seleccionado no tiene clases restantes");
           }
-        } else {
-          let expiryDate = new Date();
-          expiryDate.setDate(expiryDate.getDate() + packageInfo.validityDays);
-          userPackage = await prisma.userPackage.create({
+
+          // Descontar la clase del paquete existente
+          userPackage = await tx.userPackage.update({
+            where: { id: userPackage.id },
             data: {
+              classesUsed: { increment: 1 },
+              classesRemaining: { decrement: 1 }
+            },
+            include: { package: true } // Re-include for updated remainingClasses
+          });
+          processedUserPackage = true;
+        } 
+        // Si no se proporcionó userPackageId, Y NO es un pase individual pagado directamente (sin UserPackage)
+        // entonces podría ser un paquete nuevo que se crea (ej. Primera Vez, Semana Ilimitada, 10 Clases)
+        else if (packageType !== "individual") {
+          const packageMap = {
+            // "individual": 2, // No se crea UserPackage nuevo para "individual" aquí, se maneja por userPackageId si existe
+            "primera-vez": 1,
+            "semana-ilimitada": 3,
+            "10classes": 4,
+          };
+          const packageId = packageMap[packageType as keyof typeof packageMap];
+
+          if (!packageId) {
+            throw new Error(`Tipo de paquete '${packageType}' no válido para creación automática`);
+          }
+
+          const packageInfo = await tx.package.findUnique({ where: { id: packageId } });
+          if (!packageInfo) {
+            throw new Error("Definición de paquete no encontrada");
+          }
+
+          if (packageId === 3) { // Semana Ilimitada
+            try {
+              const existingUnlimited = await validateUnlimitedWeekReservation(userId, scheduledClass.id, body.selectedWeekStart);
+              if (existingUnlimited) {
+                userPackage = existingUnlimited; // Ya tiene uno, se usa ese
+                // Decrement (handled by userPackageId block if it was selected, otherwise this is a new reservation against existing unlimited)
+                 userPackage = await tx.userPackage.update({
+                    where: { id: userPackage.id },
+                    data: {
+                      classesUsed: { increment: 1 },
+                      // classesRemaining for unlimited might not be strict, but good to track usage
+                      classesRemaining: (userPackage.classesRemaining ?? 0) > 0 ? { decrement: 1 } : 0 
+                    },
+                    include: { package: true }
+                  });
+
+              } else {
+                userPackage = await createUnlimitedWeekPackage(userId, packageInfo, paymentMethod, body.selectedWeekStart);
+              }
+            } catch (err: any) {
+              throw new Error(err.message || "Error en validación de semana ilimitada");
+            }
+          } else { // Para "primera-vez" o "10classes" si no se pasó userPackageId
+            let expiryDate = new Date();
+            expiryDate.setDate(expiryDate.getDate() + packageInfo.validityDays);
+            userPackage = await tx.userPackage.create({
+              data: {
+                userId: userId,
+                packageId: packageId,
+                expiryDate: expiryDate,
+                // classesRemaining should be classCount - 1 because one is used now
+                classesRemaining: (packageInfo.classCount ?? 0) > 0 ? packageInfo.classCount! - 1 : 0,            classesUsed: 1,
+                paymentMethod: paymentMethod === "pending" ? "pending" : paymentMethod,
+                paymentStatus: paymentMethod === "pending" ? "pending" : "paid",
+                isActive: true
+              },
+              include: { package: true }
+            });
+          }
+          processedUserPackage = true;
+        }
+        // Si es 'individual' y NO se pasó userPackageId, significa que es un pago directo, no se usa UserPackage.
+        // userPackage remains undefined in this case.
+
+        // Crear la reserva
+        const reservation = await tx.reservation.create({
+          data: {
+            userId: userId,
+            scheduledClassId: scheduledClass.id,
+            userPackageId: userPackage?.id, // Asocia si un UserPackage fue procesado o encontrado
+            status: "confirmed",
+            // Si se procesó un UserPackage, el método de pago de la reserva es 'package'.
+            // Sino, es el método de pago directo (e.g. 'cash', 'stripe' para un pase individual sin UserPackage).
+            paymentMethod: processedUserPackage ? "package" : paymentMethod,
+            bikeNumber: parsedBikeNumber,
+          },
+          include: {
+            user: { select: { firstName: true, lastName: true, email: true, phone: true } },
+            scheduledClass: { include: { classType: true } },
+            userPackage: { include: { package: true } }
+          }
+        });
+
+        // Actualizar el balance de clases del usuario si se procesó un UserPackage
+        if (processedUserPackage && userPackage) {
+          await tx.userAccountBalance.upsert({
+            where: { userId: userId },
+            update: {
+              classesUsed: { increment: 1 },
+              classesAvailable: { decrement: 1 }
+            },
+            create: {
               userId: userId,
-              packageId: packageId,
-              expiryDate: expiryDate,
-              classesRemaining: packageInfo.classCount,
-              classesUsed: 1, // Ya estamos usando una clase
-              paymentMethod: paymentMethod === "pending" ? "pending" : paymentMethod,
-              paymentStatus: paymentMethod === "pending" ? "pending" : "paid",
-              isActive: true
+              // totalClassesPurchased should reflect the original count of the package
+              totalClassesPurchased: userPackage.packageId === 1 ? 1 : (userPackage.packageId === 2 ? 1 : (userPackage.packageId === 3 ? 25 : (userPackage.packageId === 4 ? 10 : 1))), 
+              classesUsed: 1,
+              classesAvailable: userPackage.classesRemaining // This is already decremented
             }
           });
         }
-      }
-    }
 
-    // Crear la reserva
-    const reservation = await prisma.reservation.create({
-      data: {
-        userId: userId,
-        scheduledClassId: scheduledClass.id,
-        userPackageId: userPackage?.id, // Puede ser null para pases individuales
-        status: "confirmed",
-        paymentMethod: packageType !== "individual" ? "package" : paymentMethod,
-        bikeNumber: parsedBikeNumber, // Agregar el número de bicicleta
-      },
-      include: {
-        user: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-          }
-        },
-        scheduledClass: {
-          include: {
-            classType: true
-          }
-        },
-        userPackage: {
-          include: {
-            package: true
-          }
-        }
-      }
-    });
-
-    // Actualizar el balance de clases del usuario si es necesario
-    if (packageType !== "individual") {
-      await prisma.userAccountBalance.upsert({
-        where: { userId: userId },
-        update: {
-          classesUsed: {
-            increment: 1
-          },
-          classesAvailable: {
-            decrement: 1
-          }
-        },
-        create: {
-          userId: userId,
-          totalClassesPurchased: userPackage?.classesRemaining ? userPackage.classesRemaining + 1 : 1,
-          classesUsed: 1,
-          classesAvailable: userPackage?.classesRemaining || 0
-        }
+        return { reservation, userPackage, processedUserPackage };
       });
+    } catch (error) {
+      console.error("Error en transacción de creación de reservación:", error);
+      const errorMessage = error instanceof Error ? error.message : "Error desconocido en la creación de la reservación";
+      return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
 
-    // Formatear la respuesta usando las utilidades de admin
+    // Formatear la respuesta
     const formattedReservation = {
-      id: reservation.id,
-      user: `${reservation.user.firstName} ${reservation.user.lastName}`,
-      email: reservation.user.email,
-      phone: reservation.user.phone || "",
-      class: reservation.scheduledClass.classType.name,
-      date: formatAdminDate(reservation.scheduledClass.date),
-      time: formatAdminTime(reservation.scheduledClass.time),
-      status: reservation.status,
-      package: reservation.userPackage?.package.name || "PASE INDIVIDUAL",
-      remainingClasses: reservation.userPackage?.classesRemaining || 0,
-      paymentStatus: reservation.userPackage?.paymentStatus || (paymentMethod === "pending" ? "pending" : "paid"),
-      paymentMethod: reservation.userPackage?.paymentMethod || paymentMethod,
+      id: result.reservation.id,
+      user: `${result.reservation.user.firstName} ${result.reservation.user.lastName}`,
+      email: result.reservation.user.email,
+      phone: result.reservation.user.phone || "",
+      class: result.reservation.scheduledClass.classType.name,
+      date: formatAdminDate(result.reservation.scheduledClass.date),
+      time: formatAdminTime(result.reservation.scheduledClass.time),
+      status: result.reservation.status,
+      package: result.userPackage?.package.name || "PASE INDIVIDUAL",
+      remainingClasses: result.userPackage?.classesRemaining || 0,
+      paymentStatus: result.userPackage?.paymentStatus || (paymentMethod === "pending" ? "pending" : "paid"),
+      paymentMethod: result.userPackage?.paymentMethod || paymentMethod,
       checkedIn: false, // Nueva reserva, no ha hecho check-in
       checkedInAt: null, // Nueva reserva, no ha hecho check-in
-      bikeNumber: reservation.bikeNumber || null // Incluir el número de bicicleta en la respuesta
+      bikeNumber: result.reservation.bikeNumber || null // Incluir el número de bicicleta en la respuesta
     };
 
     return NextResponse.json(formattedReservation);
