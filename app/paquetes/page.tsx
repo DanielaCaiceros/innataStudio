@@ -233,7 +233,7 @@ export default function PackagesPage() {
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-[#727D73]">¿Cuánto tiempo duran las clases?</h3>
               <p className="text-zinc-600">
-                Nuestras clases tienen duraciones de 45 y 60 minutos.
+                Nuestras clases tienen duraciones de 45.
               </p>
             </div>
 
@@ -254,8 +254,7 @@ export default function PackagesPage() {
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-[#727D73]">¿Puedo cancelar mi reserva?</h3>
               <p className="text-zinc-600">
-                Sí, puedes cancelar hasta 12 horas antes de la clase sin penalización. Cancelaciones tardías pueden
-                generar cargos.
+                Sí, puedes cancelar hasta 12 horas antes de la clase sin penalización. Cancelaciones tardías no aplican reposición de clase.
               </p>
             </div>
 
@@ -269,7 +268,7 @@ export default function PackagesPage() {
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-[#727D73]">¿Hay lista de espera?</h3>
               <p className="text-zinc-600">
-                Sí, contamos con lista de espera. Si una persona reservada no llega antes del inicio de la segunda canción, su lugar se liberará en la plataforma.
+                Sí, si una persona reservada no llega antes del inicio de la segunda canción, su lugar se liberará en la plataforma.
               </p>
             </div>
           </div>
