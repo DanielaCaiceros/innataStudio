@@ -90,7 +90,7 @@ export async function POST(
           status: "cancelled",
           cancellationReason: reason,
           cancelledAt: new Date(),
-          canRefund: !isUnlimitedWeek, // Only allow refund for non-Semana Ilimitada packages
+          canRefund: false, // Admin cancellations do not automatically refund
           bikeNumber: null // Set bike_number to null on cancellation
         }
       });
@@ -105,71 +105,52 @@ export async function POST(
         }
       });
 
-      // 3. FIXED: Handle package refund based on package type
-      if (reservation.userPackageId) {
-        if (isUnlimitedWeek) {
-          // For Semana Ilimitada: update usage count but don't refund
-          await prisma.userPackage.update({
-            where: { id: reservation.userPackageId },
-            data: {
-              classesUsed: {
-                decrement: 1
-              }
-              // Don't increment classesRemaining - no refund for Semana Ilimitada
+      // 3. Handle package update (decrement classesUsed if applicable, but no refund)
+      if (reservation.userPackageId && reservation.status !== 'pending') { // Only decrement if it was a confirmed/used class
+        await prisma.userPackage.update({
+          where: { id: reservation.userPackageId },
+          data: {
+            classesUsed: {
+              decrement: 1
             }
-          });
-        } else {
-          // For normal packages: refund the class
-          await prisma.userPackage.update({
-            where: { id: reservation.userPackageId },
-            data: {
-              classesRemaining: {
-                increment: 1
-              },
-              classesUsed: {
-                decrement: 1
-              }
+            // No increment of classesRemaining, as per "no refund" rule for admin cancellations
+          }
+        });
+        // Also update UserAccountBalance if it was a used class from a package
+        // We only decrement classesUsed here, not increment classesAvailable
+        await prisma.userAccountBalance.update({
+          where: { userId: reservation.userId },
+          data: {
+            classesUsed: {
+              decrement: 1
             }
-          });
-
-          // 4. Actualizar el balance de clases del usuario (only for normal packages)
-          await prisma.userAccountBalance.update({
-            where: { userId: reservation.userId },
-            data: {
-              classesAvailable: {
-                increment: 1
-              },
-              classesUsed: {
-                decrement: 1
-              }
-            }
-          });
-
-          // 5. Registrar la transacción en el balance del usuario (only for normal packages)
-          await prisma.balanceTransaction.create({
-            data: {
-              userId: reservation.userId,
-              type: "refund",
-              amount: 1, // Representa una clase devuelta
-              description: `Reembolso por cancelación: ${reason}`,
-              relatedReservationId: reservationId,
-              createdBy: parseInt(payload.userId)
-            }
-          });
-        }
+            // No increment of classesAvailable
+          }
+        });
       }
+      // The `canRefund` field in reservation update is already set to `false` (or `!isUnlimitedWeek` which becomes `false` if we treat all admin cancels as non-refundable)
+      // For admin cancellations, we explicitly state no automatic refunds.
+      // The `canRefund` field in the reservation table might be used by other processes,
+      // but for this specific admin cancellation flow, we are ensuring no class credit is returned.
+      // Let's ensure `canRefund` is explicitly false for admin cancellations.
+      // This is already handled by the initial update: data: { status: "cancelled", ..., canRefund: false } if we assume isUnlimitedWeek logic applies to all admin cancels.
+      // To be more explicit and enforce "no refund for admin cancellations" globally within this endpoint:
+      // The `updatedReservation` data block should ensure `canRefund` is set to `false`.
+      // The initial update `prisma.reservation.update` already includes:
+      // `canRefund: !isUnlimitedWeek,`
+      // We will change this to `canRefund: false,` to make it universal for admin cancellations.
 
-      // 6. Notificar al usuario
+      // 4. Notificar al usuario
       await prisma.notifications.create({
         data: {
           user_id: reservation.userId,
           type: "reservation_cancelled",
-          title: "Reservación cancelada",
-          message: `Tu reservación ha sido cancelada. Motivo: ${reason}${isUnlimitedWeek ? ' (Semana Ilimitada: sin reposición)' : ''}`,
+          title: "Reservación cancelada por administrador",
+          message: `Tu reservación para ${reservation.scheduledClass.classType.name} el ${formatInTimeZone(reservation.scheduledClass.date, 'America/Mexico_City', "dd/MM/yyyy", { locale: es })} a las ${formatInTimeZone(reservation.scheduledClass.time, 'America/Mexico_City', "HH:mm", { locale: es })} ha sido cancelada por un administrador. Motivo: ${reason}. Esta cancelación no genera un reembolso automático de la clase.`,
           data: {
             reservationId: reservationId,
-            refunded: !isUnlimitedWeek && reservation.userPackageId ? true : false,
-            isUnlimitedWeek: isUnlimitedWeek
+            refunded: false, // Explicitly false for admin cancellations
+            isUnlimitedWeek: isUnlimitedWeek // Still useful to know the original package type for context
           }
         }
       });
@@ -180,72 +161,54 @@ export async function POST(
     // Send cancellation email if requested
     if (sendEmail && reservation.user?.email) {
       try {
-        const scheduledClassDate = reservation.scheduledClass.date; // Date object (e.g., 2025-06-28T00:00:00.000Z UTC midnight)
-        const scheduledClassTimeSource = reservation.scheduledClass.time; // Date object (e.g., 1970-01-01T09:00:00.000Z UTC time on epoch date)
-        
-        console.log(`[Admin Cancel] Reservation ID: ${reservationId}`);
-        console.log(`[Admin Cancel] Raw DB Date: ${scheduledClassDate.toISOString()}`);
-        console.log(`[Admin Cancel] Raw DB Time (JS Date obj): ${scheduledClassTimeSource.toISOString()}`);
+        const scheduledClassDate = reservation.scheduledClass.date;
+        const scheduledClassTimeSource = reservation.scheduledClass.time;
         
         const year = scheduledClassDate.getUTCFullYear();
-        const month = scheduledClassDate.getUTCMonth(); // 0-indexed
+        const month = scheduledClassDate.getUTCMonth();
         const day = scheduledClassDate.getUTCDate();
         
-        const intendedLocalHour = scheduledClassTimeSource.getUTCHours(); // This is 9 from user logs for the problematic class
-        const intendedLocalMinute = scheduledClassTimeSource.getUTCMinutes(); // This is 0 from user logs
+        const intendedLocalHour = scheduledClassTimeSource.getUTCHours();
+        const intendedLocalMinute = scheduledClassTimeSource.getUTCMinutes();
         
-        console.log(`[Admin Cancel] Assuming DB time's UTC hour component as intended local hour: ${intendedLocalHour}, minute: ${intendedLocalMinute}`);
-        
-        // Format the time part directly using these assumed local hours and minutes
         const hourStr = intendedLocalHour.toString().padStart(2, '0');
         const minuteStr = intendedLocalMinute.toString().padStart(2, '0');
-        const formattedTimeEmail = `${hourStr}:${minuteStr} hrs`; // Directly use assumed local hours/minutes
+        const formattedTimeEmail = `${hourStr}:${minuteStr}`;
         
-        // Date formatting: Use the date part from scheduledClassDate, format it.
-        // We still use formatInTimeZone for the date part to ensure consistent locale and format,
-        // but the input date for this is just the date, time components will be midnight UTC.
-        const dateOnlyForFormatting = new Date(year, month, day); // Use local date constructor instead of UTC
-        const timeZone = 'America/Mexico_City'; // Keep for date part consistency
+        const dateOnlyForFormatting = new Date(year, month, day);
+        const timeZone = 'America/Mexico_City';
         const formattedDateEmail = formatInTimeZone(dateOnlyForFormatting, timeZone, "dd 'de' MMMM 'de' yyyy", { locale: es });
-        
-        console.log(`[Admin Cancel] Formatted Email Date (MX): ${formattedDateEmail}`);
-        console.log(`[Admin Cancel] Manually Formatted Email Time (MX): ${formattedTimeEmail}`);
         
         const emailDetails = {
           className: reservation.scheduledClass.classType.name,
           date: formattedDateEmail,
-          time: formattedTimeEmail, // Using the directly formatted time
-          isRefundable: false, 
+          time: formattedTimeEmail,
+          isRefundable: false, // Explicitly false for admin cancellations
           packageName: reservation.userPackage?.package?.name
         };
         
-        // The rest of the email sending logic follows...
-        // await sendCancellationConfirmationEmail(
-        //   reservation.user.email,
-        //   `${reservation.user.firstName} ${reservation.user.lastName}`,
-        //   emailDetails
-        // );
+        await sendCancellationConfirmationEmail(
+          reservation.user.email,
+          reservation.user.firstName,
+          emailDetails
+        );
         
-
-        console.log("Cancellation email sent successfully");
+        console.log("Cancellation email sent successfully (admin cancel).");
       } catch (emailError) {
-        console.error("Error sending cancellation email:", emailError);
-        // Don't fail the cancellation if email fails
+        console.error("Error preparing cancellation email (admin cancel):", emailError);
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: isUnlimitedWeek 
-        ? "Reservación cancelada. Para Semana Ilimitada no hay reposición de clase." 
-        : "Reservación cancelada con éxito",
+      message: "Reservación cancelada por administrador. No se ha procesado un reembolso automático de la clase.",
       reservation: {
         id: result.id,
         status: result.status,
         cancellationReason: result.cancellationReason,
         cancelledAt: result.cancelledAt
       },
-      isUnlimitedWeek: isUnlimitedWeek,
+      isUnlimitedWeek: isUnlimitedWeek, // Keep for informational purposes
       emailSent: sendEmail
     });
   } catch (error) {
