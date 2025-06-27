@@ -179,7 +179,8 @@ export async function GET(request: NextRequest) {
         paymentMethod: finalDisplayPaymentMethod,
         checkedIn: res.status === "attended",
         checkedInAt: res.checked_in_at,
-        bikeNumber: res.bikeNumber
+        bikeNumber: res.bikeNumber,
+        cancelledAt: res.cancelledAt
       };
     });
 

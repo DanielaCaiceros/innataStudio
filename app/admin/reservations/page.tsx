@@ -1598,18 +1598,25 @@ export default function ReservationsPage() {
                         </div>
                       </td>
                       <td className="py-2.5 px-3">
-                        <span
-                          className={cn(
-                            "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium",
-                            reservation.status === "confirmed" && "bg-green-100 text-green-800",
-                            reservation.status === "pending" && "bg-yellow-100 text-yellow-800",
-                            reservation.status === "cancelled" && "bg-red-100 text-red-800",
+                        <div className="flex flex-col gap-1">
+                          <span
+                            className={cn(
+                              "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium",
+                              reservation.status === "confirmed" && "bg-green-100 text-green-800",
+                              reservation.status === "pending" && "bg-yellow-100 text-yellow-800",
+                              reservation.status === "cancelled" && "bg-red-100 text-red-800",
+                            )}
+                          >
+                            {reservation.status === "confirmed" && "Confirmada"}
+                            {reservation.status === "pending" && "Pendiente"}
+                            {reservation.status === "cancelled" && "Cancelada"}
+                          </span>
+                          {reservation.status === "cancelled" && reservation.cancelledAt && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              {format(new Date(reservation.cancelledAt), "dd/MM/yyyy - HH:mm", { locale: es })}
+                            </div>
                           )}
-                        >
-                          {reservation.status === "confirmed" && "Confirmada"}
-                          {reservation.status === "pending" && "Pendiente"}
-                          {reservation.status === "cancelled" && "Cancelada"}
-                        </span>
+                        </div>
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="flex flex-col gap-1">
