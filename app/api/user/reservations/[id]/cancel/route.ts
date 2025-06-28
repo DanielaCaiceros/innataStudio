@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient, Prisma } from "@prisma/client"
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library" // More specific import for the error type
 import { verifyToken } from "@/lib/jwt"
 import { sendCancellationConfirmationEmail } from '@/lib/email'
 import { format, addHours, parseISO, subHours } from 'date-fns'
@@ -14,7 +15,7 @@ const prisma = new PrismaClient()
 // POST - Cancelar una reservación
 export async function POST(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } } // Directly destructure params
 ) {
   try {
     // Verificar autenticación
@@ -26,9 +27,7 @@ export async function POST(
     const payload = await verifyToken(token)
     const userId = Number.parseInt(payload.userId)
 
-    // Next.js 13/14: await params if needed
-    const { params } = context
-    const reservationId = parseInt(params.id)
+    const reservationId = parseInt(params.id); // Use params.id directly
     if (isNaN(reservationId)) {
       return NextResponse.json({ error: "ID de reservación no válido" }, { status: 400 })
     }
@@ -69,110 +68,140 @@ export async function POST(
       return NextResponse.json({ error: "Esta reservación ya está cancelada" }, { status: 400 })
     }
 
-    // Verificar la política de cancelación (24 horas antes de la clase)
-    const classDateTime = new Date(
-      `${reservation.scheduledClass.date.toISOString().split('T')[0]}T${reservation.scheduledClass.time.toTimeString().slice(0, 8)}`
-    )
-    const now = new Date()
-    const hoursUntilClass = (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60)
+    // --- Robust Timezone-aware calculation for hoursUntilClass (for UTC-6 user timezone) ---
+    
+    const classDateObj = new Date(reservation.scheduledClass.date); // JS Date from Prisma, e.g., 2025-06-28T00:00:00.000Z
+    const classTimeObj = new Date(reservation.scheduledClass.time); // JS Date from Prisma, e.g., 1970-01-01T09:00:00.000Z (where 09 is local hour)
 
-    // FIXED: Properly determine if it's a Semana Ilimitada package and handle refund logic
-    const isUnlimitedWeek = reservation.userPackage?.package?.id === 3 || 
-                           reservation.userPackage?.package?.name?.toLowerCase().includes('semana ilimitada');
+    // Extract YYYY, MM (0-11), DD from the date part (which is UTC midnight of local date)
+    const year = classDateObj.getUTCFullYear();
+    const month = classDateObj.getUTCMonth(); // 0-11
+    const day = classDateObj.getUTCDate();
+    
+    // Extract HH, MM, SS from the time part (assuming getUTCHours() gives the local hour number, e.g., 9 for 9 AM)
+    const localHour = classTimeObj.getUTCHours();
+    const localMinutes = classTimeObj.getUTCMinutes();
+    const localSeconds = classTimeObj.getUTCSeconds();
+
+    // Construct an ISO string for the local date and time, then append the known UTC-6 offset.
+    // Format: YYYY-MM-DDTHH:mm:ss-06:00
+    const localDateTimeString = 
+      `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` +
+      `T${String(localHour).padStart(2, '0')}:${String(localMinutes).padStart(2, '0')}:${String(localSeconds).padStart(2, '0')}`;
+    
+    const dateTimeStringWithOffset = `${localDateTimeString}-06:00`;
+
+    // Parse this ISO string with offset. JS Date constructor will correctly interpret this into a UTC-based Date object.
+    const classDateTimeUTC = new Date(dateTimeStringWithOffset);
+    
+    const nowUTC = new Date(); // Current time, JS Date objects are inherently UTC-based internally.
+
+    // Logging for debugging
+    console.log(`[CANCEL_RESERVATION] Reservation ID: ${reservationId}, User ID: ${userId}`);
+    console.log(`[CANCEL_RESERVATION] Raw Class Date from DB: ${reservation.scheduledClass.date.toISOString()}`);
+    console.log(`[CANCEL_RESERVATION] Raw Class Time from DB: ${reservation.scheduledClass.time.toISOString()}`);
+    console.log(`[CANCEL_RESERVATION] Extracted Local Components: Y-${year}, M-${month}, D-${day}, H-${localHour}, M-${localMinutes}, S-${localSeconds}`);
+    console.log(`[CANCEL_RESERVATION] Constructed Local DateTime String (for UTC-6): ${localDateTimeString}`);
+    console.log(`[CANCEL_RESERVATION] DateTime String with Offset (-06:00): ${dateTimeStringWithOffset}`);
+    console.log(`[CANCEL_RESERVATION] Parsed classDateTimeUTC (as ISO String): ${classDateTimeUTC.toISOString()}`);
+    console.log(`[CANCEL_RESERVATION] Current time nowUTC (as ISO String): ${nowUTC.toISOString()}`);
+
+    let hoursUntilClass = (classDateTimeUTC.getTime() - nowUTC.getTime()) / (1000 * 60 * 60);
+    
+    console.log(`[CANCEL_RESERVATION] Calculated hoursUntilClass: ${hoursUntilClass}`);
+    // --- End of timezone-aware calculation ---
+    
+    // Refined isUnlimitedWeek check with logging
+    const unlimitedPackageId = 3; // Define as a constant for clarity
+    const isPackageIdUnlimited = reservation.userPackage?.package?.id === unlimitedPackageId;
+    const isPackageNameUnlimited = reservation.userPackage?.package?.name?.toLowerCase().includes('semana ilimitada');
+    const isUnlimitedWeek = isPackageIdUnlimited || isPackageNameUnlimited;
+
+    console.log(`[CANCEL_RESERVATION] Reservation ID: ${reservationId}, Package ID: ${reservation.userPackage?.package?.id}, Package Name: "${reservation.userPackage?.package?.name}", isPackageIdUnlimited: ${isPackageIdUnlimited}, isPackageNameUnlimited: ${isPackageNameUnlimited}, Determined isUnlimitedWeek: ${isUnlimitedWeek}`);
     
     // For Semana Ilimitada: no refund regardless of cancellation time
     // For normal packages: refund only if cancelled with more than 12 hours notice
     const canRefund = !isUnlimitedWeek && hoursUntilClass >= 12;
+    console.log(`[CANCEL_RESERVATION] Reservation ID: ${reservationId}, Determined canRefund: ${canRefund} (isUnlimitedWeek: ${isUnlimitedWeek}, hoursUntilClass: ${hoursUntilClass})`);
 
     // Obtener datos de la solicitud
     const body = await request.json()
     const { reason = "Cancelado por el usuario" } = body
 
-    // Actualizar la reservación
-    await prisma.reservation.update({
-      where: { id: reservationId },
-      data: {
-        status: "cancelled",
-        cancellationReason: reason,
-        cancelledAt: new Date(),
-        canRefund,
-        bikeNumber: null // Clear bike number
-      }
-    })
+    // MODIFICATION STARTS: Wrap critical operations in a transaction
+    const updatedReservationDetails = await prisma.$transaction(async (tx) => {
+      // 1. Actualizar la reservación
+      const updatedReservation = await tx.reservation.update({
+        where: { id: reservationId },
+        data: {
+          status: "cancelled",
+          cancellationReason: reason,
+          cancelledAt: new Date(),
+          canRefund,
+          bikeNumber: null // Clear bike number
+        }
+      });
 
-    // Incrementar los espacios disponibles en la clase
-    await prisma.scheduledClass.update({
-      where: { id: reservation.scheduledClassId },
-      data: {
-        availableSpots: { increment: 1 }
-      }
-    })
+      // 2. Incrementar los espacios disponibles en la clase
+      await tx.scheduledClass.update({
+        where: { id: reservation.scheduledClassId },
+        data: {
+          availableSpots: { increment: 1 }
+        }
+      });
 
-    // Handle refund, package updates, and penalization logic
-    let isPenalized = false;
+      // 3. Handle refund, package updates, and penalization logic
+      // This logic should also use the transaction client `tx` if it involves DB writes
+      let isPenalized = false; // This variable is not used further, consider removing or using it.
 
-    if (isUnlimitedWeek && reservation.userPackageId) {
-      // Unlimited Week Package Cancellation
-      if (hoursUntilClass < 12) {
-        // Cancellation < 12 hours: Apply Penalty, no refund, class is lost
-        isPenalized = true;
-        // TODO: Implement actual penalty logic here.
-        // This could involve:
-        // 1. Flagging the user or userPackage for a penalty.
-        // 2. Creating a penalty record.
-        // 3. Triggering the "cancel next class" logic (complex, needs careful implementation).
-        // For now, we'll mark as penalized and ensure the class is not returned to the package count.
-        // The class was already "used" when booked. By not incrementing classesRemaining
-        // and not decrementing classesUsed on the UserPackage, the class slot is effectively lost.
-        // We should also ensure UserAccountBalance.classesUsed is NOT decremented.
-        console.log(`[UNLIMITED CANCELLATION] User ${userId} penalized for late cancellation of reservation ${reservationId}.`);
-        // No changes to UserPackage or UserAccountBalance in terms of class counts for penalty.
-        // The class is simply lost. classesUsed on UserPackage already reflects usage.
-
-      } else {
-        // Cancellation >= 12 hours: No Penalty, no refund, but "free up" the slot in the unlimited week package.
-        // This means decrementing classesUsed on the UserPackage so they can use that slot for another class
-        // within the same unlimited week.
-        await prisma.userPackage.update({
+      if (isUnlimitedWeek && reservation.userPackageId) {
+        if (hoursUntilClass < 12) {
+          // Penalty logic for unlimited week (class slot is lost)
+          // No changes to UserPackage or UserAccountBalance in terms of class counts for penalty.
+          isPenalized = true; // Mark as penalized, though not directly used later in this scope
+          console.log(`[UNLIMITED CANCELLATION] User ${userId} penalized for late cancellation of reservation ${reservationId}.`);
+        } else {
+          // Early cancellation for unlimited week: free up slot in package
+          await tx.userPackage.update({ // Use tx
+            where: { id: reservation.userPackageId },
+            data: {
+              classesUsed: { decrement: 1 }
+            }
+          });
+          await tx.userAccountBalance.update({ // Use tx
+            where: { userId },
+            data: {
+              classesUsed: { decrement: 1 }
+            }
+          });
+          console.log(`[UNLIMITED CANCELLATION] User ${userId} cancelled reservation ${reservationId} (early) for unlimited week. Slot freed in package.`);
+        }
+      } else if (canRefund && reservation.userPackageId) {
+        // Normal Package Cancellation with Refund
+        await tx.userPackage.update({ // Use tx
           where: { id: reservation.userPackageId },
           data: {
+            classesRemaining: { increment: 1 },
             classesUsed: { decrement: 1 }
-            // classesRemaining is not touched for unlimited week.
           }
         });
-        // Also decrement general UserAccountBalance.classesUsed
-        await prisma.userAccountBalance.update({
+        await tx.userAccountBalance.update({ // Use tx
           where: { userId },
           data: {
+            classesAvailable: { increment: 1 },
             classesUsed: { decrement: 1 }
-            // classesAvailable is not incremented as it's not a general refund.
           }
         });
-        console.log(`[UNLIMITED CANCELLATION] User ${userId} cancelled reservation ${reservationId} (early) for unlimited week. Slot freed in package.`);
+        console.log(`[NORMAL CANCELLATION] User ${userId} cancelled reservation ${reservationId} with refund.`);
+      } else if (!canRefund && reservation.userPackageId) {
+        // Normal Package Cancellation with No Refund - class is lost
+        console.log(`[NORMAL CANCELLATION] User ${userId} cancelled reservation ${reservationId} late, no refund.`);
       }
-    } else if (canRefund && reservation.userPackageId) {
-      // Normal Package Cancellation with Refund (> 12 hours)
-      await prisma.userPackage.update({
-        where: { id: reservation.userPackageId },
-        data: {
-          classesRemaining: { increment: 1 },
-          classesUsed: { decrement: 1 }
-        }
-      });
-      await prisma.userAccountBalance.update({
-        where: { userId },
-        data: {
-          classesAvailable: { increment: 1 },
-          classesUsed: { decrement: 1 }
-        }
-      });
-      console.log(`[NORMAL CANCELLATION] User ${userId} cancelled reservation ${reservationId} with refund.`);
-    } else if (!canRefund && reservation.userPackageId) {
-      // Normal Package Cancellation with No Refund (< 12 hours)
-      // No changes to UserPackage or UserAccountBalance needed, class is lost.
-      console.log(`[NORMAL CANCELLATION] User ${userId} cancelled reservation ${reservationId} late, no refund.`);
-    }
-    // If !reservation.userPackageId (e.g. single class purchase), no package logic applies.
+      // If !reservation.userPackageId, no package logic applies.
+
+      return updatedReservation; // Return the updated reservation from the transaction
+    });
+    // MODIFICATION ENDS
 
     // Enviar correo de confirmación de cancelación
     if (reservation.user && reservation.scheduledClass.classType) {
@@ -221,11 +250,20 @@ export async function POST(
         ? "Reservación cancelada. Para Semana Ilimitada no hay reposición de clase." 
         : "Reservación cancelada correctamente",
       refunded: canRefund,
-      isUnlimitedWeek: isUnlimitedWeek
-    })
+      isUnlimitedWeek: isUnlimitedWeek,
+      // Optionally, return details from updatedReservationDetails if needed by client
+      reservationId: updatedReservationDetails.id, 
+      newStatus: updatedReservationDetails.status 
+    });
+
   } catch (error) {
-    console.error("Error al cancelar reservación:", error)
-    return NextResponse.json({ error: "Error al cancelar la reservación" }, { status: 500 })
+    console.error("Error al cancelar reservación:", error);
+    // Log the specific error if possible, especially if it's a PrismaClientKnownRequestError
+    if (error instanceof PrismaClientKnownRequestError) { // Use the directly imported type
+        console.error("Prisma Error Code:", error.code);
+        console.error("Prisma Meta:", error.meta);
+    }
+    return NextResponse.json({ error: "Error al cancelar la reservación" }, { status: 500 });
   }
 }
 
