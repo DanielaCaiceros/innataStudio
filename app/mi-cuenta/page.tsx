@@ -594,7 +594,46 @@ export default function ProfilePage() {
                                 <div className="flex flex-col gap-1 text-xs text-zinc-600 mt-2">
                                   <span>Expira el:</span>
                                   <span className="font-semibold text-zinc-800">
-                                    {pkg.expiryDate ? new Date(pkg.expiryDate).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No disponible'}
+                                    {pkg.expiryDate ? (() => {
+                                      try {
+                                        // Validar que la fecha no sea null, undefined o string vacío
+                                        if (!pkg.expiryDate || pkg.expiryDate === '') {
+                                          return 'No disponible';
+                                        }
+                                        
+                                        let expiryDateObj;
+                                        
+                                        // Si ya viene con formato ISO completo (YYYY-MM-DDTHH:mm:ss.sssZ)
+                                        if (pkg.expiryDate.includes('T')) {
+                                          expiryDateObj = new Date(pkg.expiryDate);
+                                        } 
+                                        // Si viene solo con fecha (YYYY-MM-DD)
+                                        else {
+                                          expiryDateObj = new Date(pkg.expiryDate + 'T00:00:00.000Z');
+                                        }
+                                        
+                                        // Verificar que la fecha sea válida
+                                        if (isNaN(expiryDateObj.getTime())) {
+                                          return 'Fecha inválida';
+                                        }
+                                        
+                                        // Usar métodos UTC para extraer la fecha sin conversión de zona horaria
+                                        const day = expiryDateObj.getUTCDate();
+                                        const month = expiryDateObj.getUTCMonth();
+                                        const year = expiryDateObj.getUTCFullYear();
+                                        
+                                        // Array de nombres de meses en español (formato corto)
+                                        const monthNames = [
+                                          'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+                                          'jul', 'ago', 'sep', 'oct', 'nov', 'dic'
+                                        ];
+                                        
+                                        return `${day} ${monthNames[month]} ${year}`;
+                                      } catch (e) {
+                                        console.error("Error formatting expiry date:", e);
+                                        return 'Error en fecha';
+                                      }
+                                    })() : 'No disponible'}
                                   </span>
                                 </div>
                               )}
