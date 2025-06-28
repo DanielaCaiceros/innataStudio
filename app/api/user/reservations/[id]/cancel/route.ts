@@ -15,7 +15,7 @@ const prisma = new PrismaClient()
 // POST - Cancelar una reservación
 export async function POST(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } } // Directly destructure params
 ) {
   try {
     // Verificar autenticación
@@ -27,9 +27,7 @@ export async function POST(
     const payload = await verifyToken(token)
     const userId = Number.parseInt(payload.userId)
 
-    // Next.js 13/14: await params if needed
-    const { params } = context
-    const reservationId = parseInt(params.id)
+    const reservationId = parseInt(params.id); // Use params.id directly
     if (isNaN(reservationId)) {
       return NextResponse.json({ error: "ID de reservación no válido" }, { status: 400 })
     }
@@ -70,20 +68,61 @@ export async function POST(
       return NextResponse.json({ error: "Esta reservación ya está cancelada" }, { status: 400 })
     }
 
-    // Verificar la política de cancelación (24 horas antes de la clase)
-    const classDateTime = new Date(
-      `${reservation.scheduledClass.date.toISOString().split('T')[0]}T${reservation.scheduledClass.time.toTimeString().slice(0, 8)}`
-    )
-    const now = new Date()
-    const hoursUntilClass = (classDateTime.getTime() - now.getTime()) / (1000 * 60 * 60)
+    // --- Robust Timezone-aware calculation for hoursUntilClass (for UTC-6 user timezone) ---
+    
+    const classDateObj = new Date(reservation.scheduledClass.date); // JS Date from Prisma, e.g., 2025-06-28T00:00:00.000Z
+    const classTimeObj = new Date(reservation.scheduledClass.time); // JS Date from Prisma, e.g., 1970-01-01T09:00:00.000Z (where 09 is local hour)
 
-    // FIXED: Properly determine if it's a Semana Ilimitada package and handle refund logic
-    const isUnlimitedWeek = reservation.userPackage?.package?.id === 3 || 
-                           reservation.userPackage?.package?.name?.toLowerCase().includes('semana ilimitada');
+    // Extract YYYY, MM (0-11), DD from the date part (which is UTC midnight of local date)
+    const year = classDateObj.getUTCFullYear();
+    const month = classDateObj.getUTCMonth(); // 0-11
+    const day = classDateObj.getUTCDate();
+    
+    // Extract HH, MM, SS from the time part (assuming getUTCHours() gives the local hour number, e.g., 9 for 9 AM)
+    const localHour = classTimeObj.getUTCHours();
+    const localMinutes = classTimeObj.getUTCMinutes();
+    const localSeconds = classTimeObj.getUTCSeconds();
+
+    // Construct an ISO string for the local date and time, then append the known UTC-6 offset.
+    // Format: YYYY-MM-DDTHH:mm:ss-06:00
+    const localDateTimeString = 
+      `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` +
+      `T${String(localHour).padStart(2, '0')}:${String(localMinutes).padStart(2, '0')}:${String(localSeconds).padStart(2, '0')}`;
+    
+    const dateTimeStringWithOffset = `${localDateTimeString}-06:00`;
+
+    // Parse this ISO string with offset. JS Date constructor will correctly interpret this into a UTC-based Date object.
+    const classDateTimeUTC = new Date(dateTimeStringWithOffset);
+    
+    const nowUTC = new Date(); // Current time, JS Date objects are inherently UTC-based internally.
+
+    // Logging for debugging
+    console.log(`[CANCEL_RESERVATION] Reservation ID: ${reservationId}, User ID: ${userId}`);
+    console.log(`[CANCEL_RESERVATION] Raw Class Date from DB: ${reservation.scheduledClass.date.toISOString()}`);
+    console.log(`[CANCEL_RESERVATION] Raw Class Time from DB: ${reservation.scheduledClass.time.toISOString()}`);
+    console.log(`[CANCEL_RESERVATION] Extracted Local Components: Y-${year}, M-${month}, D-${day}, H-${localHour}, M-${localMinutes}, S-${localSeconds}`);
+    console.log(`[CANCEL_RESERVATION] Constructed Local DateTime String (for UTC-6): ${localDateTimeString}`);
+    console.log(`[CANCEL_RESERVATION] DateTime String with Offset (-06:00): ${dateTimeStringWithOffset}`);
+    console.log(`[CANCEL_RESERVATION] Parsed classDateTimeUTC (as ISO String): ${classDateTimeUTC.toISOString()}`);
+    console.log(`[CANCEL_RESERVATION] Current time nowUTC (as ISO String): ${nowUTC.toISOString()}`);
+
+    let hoursUntilClass = (classDateTimeUTC.getTime() - nowUTC.getTime()) / (1000 * 60 * 60);
+    
+    console.log(`[CANCEL_RESERVATION] Calculated hoursUntilClass: ${hoursUntilClass}`);
+    // --- End of timezone-aware calculation ---
+    
+    // Refined isUnlimitedWeek check with logging
+    const unlimitedPackageId = 3; // Define as a constant for clarity
+    const isPackageIdUnlimited = reservation.userPackage?.package?.id === unlimitedPackageId;
+    const isPackageNameUnlimited = reservation.userPackage?.package?.name?.toLowerCase().includes('semana ilimitada');
+    const isUnlimitedWeek = isPackageIdUnlimited || isPackageNameUnlimited;
+
+    console.log(`[CANCEL_RESERVATION] Reservation ID: ${reservationId}, Package ID: ${reservation.userPackage?.package?.id}, Package Name: "${reservation.userPackage?.package?.name}", isPackageIdUnlimited: ${isPackageIdUnlimited}, isPackageNameUnlimited: ${isPackageNameUnlimited}, Determined isUnlimitedWeek: ${isUnlimitedWeek}`);
     
     // For Semana Ilimitada: no refund regardless of cancellation time
     // For normal packages: refund only if cancelled with more than 12 hours notice
     const canRefund = !isUnlimitedWeek && hoursUntilClass >= 12;
+    console.log(`[CANCEL_RESERVATION] Reservation ID: ${reservationId}, Determined canRefund: ${canRefund} (isUnlimitedWeek: ${isUnlimitedWeek}, hoursUntilClass: ${hoursUntilClass})`);
 
     // Obtener datos de la solicitud
     const body = await request.json()
