@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient, Prisma } from "@prisma/client"
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library" // More specific import for the error type
 import { verifyToken } from "@/lib/jwt"
 import { sendCancellationConfirmationEmail } from '@/lib/email'
 import { format, addHours, parseISO, subHours } from 'date-fns'
@@ -88,91 +89,80 @@ export async function POST(
     const body = await request.json()
     const { reason = "Cancelado por el usuario" } = body
 
-    // Actualizar la reservación
-    await prisma.reservation.update({
-      where: { id: reservationId },
-      data: {
-        status: "cancelled",
-        cancellationReason: reason,
-        cancelledAt: new Date(),
-        canRefund,
-        bikeNumber: null // Clear bike number
-      }
-    })
+    // MODIFICATION STARTS: Wrap critical operations in a transaction
+    const updatedReservationDetails = await prisma.$transaction(async (tx) => {
+      // 1. Actualizar la reservación
+      const updatedReservation = await tx.reservation.update({
+        where: { id: reservationId },
+        data: {
+          status: "cancelled",
+          cancellationReason: reason,
+          cancelledAt: new Date(),
+          canRefund,
+          bikeNumber: null // Clear bike number
+        }
+      });
 
-    // Incrementar los espacios disponibles en la clase
-    await prisma.scheduledClass.update({
-      where: { id: reservation.scheduledClassId },
-      data: {
-        availableSpots: { increment: 1 }
-      }
-    })
+      // 2. Incrementar los espacios disponibles en la clase
+      await tx.scheduledClass.update({
+        where: { id: reservation.scheduledClassId },
+        data: {
+          availableSpots: { increment: 1 }
+        }
+      });
 
-    // Handle refund, package updates, and penalization logic
-    let isPenalized = false;
+      // 3. Handle refund, package updates, and penalization logic
+      // This logic should also use the transaction client `tx` if it involves DB writes
+      let isPenalized = false; // This variable is not used further, consider removing or using it.
 
-    if (isUnlimitedWeek && reservation.userPackageId) {
-      // Unlimited Week Package Cancellation
-      if (hoursUntilClass < 12) {
-        // Cancellation < 12 hours: Apply Penalty, no refund, class is lost
-        isPenalized = true;
-        // TODO: Implement actual penalty logic here.
-        // This could involve:
-        // 1. Flagging the user or userPackage for a penalty.
-        // 2. Creating a penalty record.
-        // 3. Triggering the "cancel next class" logic (complex, needs careful implementation).
-        // For now, we'll mark as penalized and ensure the class is not returned to the package count.
-        // The class was already "used" when booked. By not incrementing classesRemaining
-        // and not decrementing classesUsed on the UserPackage, the class slot is effectively lost.
-        // We should also ensure UserAccountBalance.classesUsed is NOT decremented.
-        console.log(`[UNLIMITED CANCELLATION] User ${userId} penalized for late cancellation of reservation ${reservationId}.`);
-        // No changes to UserPackage or UserAccountBalance in terms of class counts for penalty.
-        // The class is simply lost. classesUsed on UserPackage already reflects usage.
-
-      } else {
-        // Cancellation >= 12 hours: No Penalty, no refund, but "free up" the slot in the unlimited week package.
-        // This means decrementing classesUsed on the UserPackage so they can use that slot for another class
-        // within the same unlimited week.
-        await prisma.userPackage.update({
+      if (isUnlimitedWeek && reservation.userPackageId) {
+        if (hoursUntilClass < 12) {
+          // Penalty logic for unlimited week (class slot is lost)
+          // No changes to UserPackage or UserAccountBalance in terms of class counts for penalty.
+          isPenalized = true; // Mark as penalized, though not directly used later in this scope
+          console.log(`[UNLIMITED CANCELLATION] User ${userId} penalized for late cancellation of reservation ${reservationId}.`);
+        } else {
+          // Early cancellation for unlimited week: free up slot in package
+          await tx.userPackage.update({ // Use tx
+            where: { id: reservation.userPackageId },
+            data: {
+              classesUsed: { decrement: 1 }
+            }
+          });
+          await tx.userAccountBalance.update({ // Use tx
+            where: { userId },
+            data: {
+              classesUsed: { decrement: 1 }
+            }
+          });
+          console.log(`[UNLIMITED CANCELLATION] User ${userId} cancelled reservation ${reservationId} (early) for unlimited week. Slot freed in package.`);
+        }
+      } else if (canRefund && reservation.userPackageId) {
+        // Normal Package Cancellation with Refund
+        await tx.userPackage.update({ // Use tx
           where: { id: reservation.userPackageId },
           data: {
+            classesRemaining: { increment: 1 },
             classesUsed: { decrement: 1 }
-            // classesRemaining is not touched for unlimited week.
           }
         });
-        // Also decrement general UserAccountBalance.classesUsed
-        await prisma.userAccountBalance.update({
+        await tx.userAccountBalance.update({ // Use tx
           where: { userId },
           data: {
+            classesAvailable: { increment: 1 },
             classesUsed: { decrement: 1 }
-            // classesAvailable is not incremented as it's not a general refund.
           }
         });
-        console.log(`[UNLIMITED CANCELLATION] User ${userId} cancelled reservation ${reservationId} (early) for unlimited week. Slot freed in package.`);
+        console.log(`[NORMAL CANCELLATION] User ${userId} cancelled reservation ${reservationId} with refund.`);
+      } else if (!canRefund && reservation.userPackageId) {
+        // Normal Package Cancellation with No Refund - class is lost
+        console.log(`[NORMAL CANCELLATION] User ${userId} cancelled reservation ${reservationId} late, no refund.`);
       }
-    } else if (canRefund && reservation.userPackageId) {
-      // Normal Package Cancellation with Refund (> 12 hours)
-      await prisma.userPackage.update({
-        where: { id: reservation.userPackageId },
-        data: {
-          classesRemaining: { increment: 1 },
-          classesUsed: { decrement: 1 }
-        }
-      });
-      await prisma.userAccountBalance.update({
-        where: { userId },
-        data: {
-          classesAvailable: { increment: 1 },
-          classesUsed: { decrement: 1 }
-        }
-      });
-      console.log(`[NORMAL CANCELLATION] User ${userId} cancelled reservation ${reservationId} with refund.`);
-    } else if (!canRefund && reservation.userPackageId) {
-      // Normal Package Cancellation with No Refund (< 12 hours)
-      // No changes to UserPackage or UserAccountBalance needed, class is lost.
-      console.log(`[NORMAL CANCELLATION] User ${userId} cancelled reservation ${reservationId} late, no refund.`);
-    }
-    // If !reservation.userPackageId (e.g. single class purchase), no package logic applies.
+      // If !reservation.userPackageId, no package logic applies.
+
+      return updatedReservation; // Return the updated reservation from the transaction
+    });
+    // MODIFICATION ENDS
 
     // Enviar correo de confirmación de cancelación
     if (reservation.user && reservation.scheduledClass.classType) {
@@ -221,11 +211,20 @@ export async function POST(
         ? "Reservación cancelada. Para Semana Ilimitada no hay reposición de clase." 
         : "Reservación cancelada correctamente",
       refunded: canRefund,
-      isUnlimitedWeek: isUnlimitedWeek
-    })
+      isUnlimitedWeek: isUnlimitedWeek,
+      // Optionally, return details from updatedReservationDetails if needed by client
+      reservationId: updatedReservationDetails.id, 
+      newStatus: updatedReservationDetails.status 
+    });
+
   } catch (error) {
-    console.error("Error al cancelar reservación:", error)
-    return NextResponse.json({ error: "Error al cancelar la reservación" }, { status: 500 })
+    console.error("Error al cancelar reservación:", error);
+    // Log the specific error if possible, especially if it's a PrismaClientKnownRequestError
+    if (error instanceof PrismaClientKnownRequestError) { // Use the directly imported type
+        console.error("Prisma Error Code:", error.code);
+        console.error("Prisma Meta:", error.meta);
+    }
+    return NextResponse.json({ error: "Error al cancelar la reservación" }, { status: 500 });
   }
 }
 
