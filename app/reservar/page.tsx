@@ -509,6 +509,24 @@ export default function BookingPage() {
     return checkDateOnly < yesterday
   }
 
+  // Function to check if a date is within the blocked week (June 30, 2025 - July 6, 2025, Mexico timezone)
+  const isBlockedDate = (checkDate: Date) => {
+    // Define the blocked period: June 30, 2025 to July 6, 2025 (inclusive)
+    // Using simple date comparison for Mexico timezone
+    const blockedStartDate = new Date(2025, 5, 30) // June 30, 2025 (month is 0-indexed)
+    const blockedEndDate = new Date(2025, 6, 6)   // July 6, 2025 (Sunday)
+    
+    // Normalize checkDate to compare only dates (not time)
+    const checkDateOnly = new Date(
+      checkDate.getFullYear(),
+      checkDate.getMonth(),
+      checkDate.getDate()
+    )
+    
+    // Check if the date falls within the blocked range (inclusive)
+    return checkDateOnly >= blockedStartDate && checkDateOnly <= blockedEndDate;
+  }
+
   // Verificar si un día futuro tiene clases pero todas están llenas
   const hasClassesButAllFull = (checkDate: Date) => {
     if (isPastDate(checkDate)) return false
@@ -649,8 +667,8 @@ export default function BookingPage() {
                         mode="single"
                         selected={date}
                         onSelect={(selectedDate) => {
-                          // Solo bloquear fechas pasadas
-                          if (selectedDate && isPastDate(selectedDate)) {
+                          // Bloquear fechas pasadas o la semana especificada
+                          if (selectedDate && (isPastDate(selectedDate) || isBlockedDate(selectedDate))) {
                             return // No permitir selección
                           }
                           setDate(selectedDate)
@@ -666,13 +684,15 @@ export default function BookingPage() {
                           past: isPastDate,
                           full: hasClassesButAllFull,
                           unlimited: unlimitedWeekDays,
+                          blocked: isBlockedDate, // Added modifier for blocked dates
                         }}
                         modifiersClassNames={{
                           past: 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50',
                           full: 'bg-red-200 text-red-800 font-bold cursor-pointer border border-red-300 hover:bg-red-300',
                           unlimited: 'bg-blue-100 border-2 border-blue-300 rounded-lg',
+                          blocked: 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50', // Added style for blocked dates
                         }}
-                        disabled={isPastDate}
+                        disabled={(date) => isPastDate(date) || isBlockedDate(date)} // Updated disabled prop
                       />
                       
                       {/* Leyenda del calendario */}
