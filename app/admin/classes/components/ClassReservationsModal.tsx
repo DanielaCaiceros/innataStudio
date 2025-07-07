@@ -25,6 +25,7 @@ import {
 import { toast } from "@/components/ui/use-toast"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { convertUtcToLocalDateForDisplay, formatTime } from "../typesAndConstants"
 
 interface Reservation {
   id: number
@@ -199,12 +200,8 @@ export default function ClassReservationsModal({
 
   const formatClassDateTime = (dateString: string, timeString: string) => {
     try {
-      const date = new Date(dateString)
-      const time = new Date(timeString)
-      const hours = time.getUTCHours().toString().padStart(2, '0')
-      const minutes = time.getUTCMinutes().toString().padStart(2, '0')
-      
-      return `${format(date, "EEEE, d 'de' MMMM", { locale: es })} a las ${hours}:${minutes}`
+      const localDate = convertUtcToLocalDateForDisplay(dateString)
+      return `${format(localDate, "EEEE, d 'de' MMMM", { locale: es })} a las ${formatTime(timeString)}`
     } catch {
       return "Fecha no disponible"
     }
