@@ -472,16 +472,34 @@ export default function BookingPage() {
   const isClassReservable = (cls: ScheduledClass | undefined) => {
     if (!cls) return false;
     try {
+      // Get current UTC time
       const now = new Date();
+      const nowUTC = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        now.getUTCHours(),
+        now.getUTCMinutes(),
+        now.getUTCSeconds()
+      ));
+      
       const classDateTime = createClassDateTime(cls.date, cls.time);
-      const timeDiff = classDateTime.getTime() - now.getTime();
+      const timeDiff = classDateTime.getTime() - nowUTC.getTime();
+      
+      // Log times for debugging
+      console.log("Current UTC Time:", nowUTC.toISOString());
+      console.log("Class Time:", classDateTime.toISOString());
+      console.log("Time Difference (ms):", timeDiff);
+
       const TWELVE_AND_HALF_HOURS = (12 * 60 + 30) * 60 * 1000; // 12.5 horas en ms
-      const FIVE_MINUTES = 5 * 60 * 1000;
+      const ONE_MINUTE = 1 * 60 * 1000; // 1 minuto en ms
 
       if (canUseUnlimitedForSelectedClass) {
+        console.log("Using Unlimited Week. Required diff (ms):", TWELVE_AND_HALF_HOURS, "Actual diff (ms):", timeDiff);
         return timeDiff > TWELVE_AND_HALF_HOURS;
       }
-      return timeDiff > FIVE_MINUTES;
+      console.log("Using Normal Booking. Required diff (ms):", ONE_MINUTE, "Actual diff (ms):", timeDiff);
+      return timeDiff > ONE_MINUTE; 
     } catch (error) {
       console.error("Error verificando disponibilidad:", error);
       return false;
@@ -964,7 +982,7 @@ export default function BookingPage() {
                     <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                       <span className="text-zinc-700">Bicicleta:</span>
                       <span className="font-medium text-brand-burgundy">
-                        🚲 Bicicleta #{selectedBikeId}
+                        Bicicleta #{selectedBikeId}
                       </span>
                     </div>
                   )}
@@ -985,7 +1003,7 @@ export default function BookingPage() {
                       <span className="font-semibold">Tus clases disponibles:</span>
                       <span
                         className={`font-bold ${
-                          userAvailableClasses > 0 ? 'text-green-600' : 'text-red-600'
+                          userAvailableClasses > 0 ? 'text-brand-sage' : 'text-red-600'
                         }`}
                       >
                         {userAvailableClasses}
@@ -1216,7 +1234,7 @@ export default function BookingPage() {
                 </p>
                 {selectedBikeId && (
                   <p className="font-medium text-brand-burgundy">
-                    🚲 Bicicleta #{selectedBikeId}
+                    Bicicleta #{selectedBikeId}
                   </p>
                 )}
               </div>
