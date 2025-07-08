@@ -472,38 +472,16 @@ export default function BookingPage() {
   const isClassReservable = (cls: ScheduledClass | undefined) => {
     if (!cls) return false;
     try {
-      // Get current UTC time
       const now = new Date();
-      const nowUTC = new Date(Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate(),
-        now.getUTCHours(),
-        now.getUTCMinutes(),
-        now.getUTCSeconds()
-      ));
-      
       const classDateTime = createClassDateTime(cls.date, cls.time);
-      const timeDiff = classDateTime.getTime() - nowUTC.getTime();
-      
-      // Log times for debugging
-      console.log("Current UTC Time:", nowUTC.toISOString());
-      console.log("Class Time:", classDateTime.toISOString());
-      console.log("Time Difference (ms):", timeDiff);
-
+      const timeDiff = classDateTime.getTime() - now.getTime();
       const TWELVE_AND_HALF_HOURS = (12 * 60 + 30) * 60 * 1000; // 12.5 horas en ms
-      const FIVE_MINUTES = 5 * 60 * 1000; // 5 minutos en ms, ajustado desde 1 minuto
+      const FIVE_MINUTES = 5 * 60 * 1000;
 
       if (canUseUnlimitedForSelectedClass) {
-        console.log("Using Unlimited Week. Required diff:", TWELVE_AND_HALF_HOURS, "Actual diff:", timeDiff);
         return timeDiff > TWELVE_AND_HALF_HOURS;
       }
-      console.log("Using Normal Booking. Required diff:", FIVE_MINUTES, "Actual diff:", timeDiff);
-      // Ensure the condition is `timeDiff > FIVE_MINUTES` as per your original logic for normal bookings.
-      // The original issue stated "more than one minute before the class begins", 
-      // but the code uses 5 minutes for "normal" reservations.
-      // If it should be 1 minute, change FIVE_MINUTES to ONE_MINUTE (1 * 60 * 1000)
-      return timeDiff > FIVE_MINUTES; 
+      return timeDiff > FIVE_MINUTES;
     } catch (error) {
       console.error("Error verificando disponibilidad:", error);
       return false;
