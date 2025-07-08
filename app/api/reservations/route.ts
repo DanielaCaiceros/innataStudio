@@ -39,22 +39,38 @@ function createClassDateTime(dateString: string, timeString: string): Date {
  * @returns boolean
  */
 function isClassBookable(dateString: string, timeString: string): boolean {
-  const now = new Date()
+  // Get current UTC time
+  const now = new Date();
+  const nowUTC = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+    now.getUTCHours(),
+    now.getUTCMinutes(),
+    now.getUTCSeconds()
+  ));
   const classDateTime = createClassDateTime(dateString, timeString)
   
+  console.log("[API isClassBookable] Current UTC Time:", nowUTC.toISOString());
+  console.log("[API isClassBookable] Class Time:", classDateTime.toISOString());
+
   // Si la clase ya pasó
-  if (classDateTime < now) {
+  if (classDateTime < nowUTC) {
+    console.log("[API isClassBookable] Class has already passed.");
     return false
   }
   
   // Si faltan menos de 1 minuto  para la clase
   const ONE_MINUTE = 1 * 60 * 1000
-  const timeDifference = classDateTime.getTime() - now.getTime()
+  const timeDifference = classDateTime.getTime() - nowUTC.getTime()
+  console.log("[API isClassBookable] Time Difference (ms):", timeDifference);
   
   if (timeDifference < ONE_MINUTE) {
+    console.log("[API isClassBookable] Class is starting in less than 1 minute.");
     return false
   }
   
+  console.log("[API isClassBookable] Class is bookable.");
   return true
 }
 
