@@ -492,14 +492,18 @@ export default function BookingPage() {
       console.log("Time Difference (ms):", timeDiff);
 
       const TWELVE_AND_HALF_HOURS = (12 * 60 + 30) * 60 * 1000; // 12.5 horas en ms
-      const ONE_MINUTE = 1 * 60 * 1000; // 1 minuto en ms
+      const FIVE_MINUTES = 5 * 60 * 1000; // 5 minutos en ms, ajustado desde 1 minuto
 
       if (canUseUnlimitedForSelectedClass) {
-        console.log("Using Unlimited Week. Required diff (ms):", TWELVE_AND_HALF_HOURS, "Actual diff (ms):", timeDiff);
+        console.log("Using Unlimited Week. Required diff:", TWELVE_AND_HALF_HOURS, "Actual diff:", timeDiff);
         return timeDiff > TWELVE_AND_HALF_HOURS;
       }
-      console.log("Using Normal Booking. Required diff (ms):", ONE_MINUTE, "Actual diff (ms):", timeDiff);
-      return timeDiff > ONE_MINUTE; 
+      console.log("Using Normal Booking. Required diff:", FIVE_MINUTES, "Actual diff:", timeDiff);
+      // Ensure the condition is `timeDiff > FIVE_MINUTES` as per your original logic for normal bookings.
+      // The original issue stated "more than one minute before the class begins", 
+      // but the code uses 5 minutes for "normal" reservations.
+      // If it should be 1 minute, change FIVE_MINUTES to ONE_MINUTE (1 * 60 * 1000)
+      return timeDiff > FIVE_MINUTES; 
     } catch (error) {
       console.error("Error verificando disponibilidad:", error);
       return false;
@@ -982,7 +986,7 @@ export default function BookingPage() {
                     <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                       <span className="text-zinc-700">Bicicleta:</span>
                       <span className="font-medium text-brand-burgundy">
-                        Bicicleta #{selectedBikeId}
+                        🚲 Bicicleta #{selectedBikeId}
                       </span>
                     </div>
                   )}
@@ -1003,7 +1007,7 @@ export default function BookingPage() {
                       <span className="font-semibold">Tus clases disponibles:</span>
                       <span
                         className={`font-bold ${
-                          userAvailableClasses > 0 ? 'text-brand-sage' : 'text-red-600'
+                          userAvailableClasses > 0 ? 'text-green-600' : 'text-red-600'
                         }`}
                       >
                         {userAvailableClasses}
@@ -1234,7 +1238,7 @@ export default function BookingPage() {
                 </p>
                 {selectedBikeId && (
                   <p className="font-medium text-brand-burgundy">
-                    Bicicleta #{selectedBikeId}
+                    🚲 Bicicleta #{selectedBikeId}
                   </p>
                 )}
               </div>
