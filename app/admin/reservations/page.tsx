@@ -106,6 +106,7 @@ export default function ReservationsPage() {
   const [selectedBike, setSelectedBike] = useState<number | null>(null)
   const [selectedUserPackageId, setSelectedUserPackageId] = useState<string>("")
   const [sendEmail, setSendEmail] = useState(true) // State for sending email
+  const [userSearchTerm, setUserSearchTerm] = useState("") // State for user search
 
   // Estados para horarios disponibles dinámicos
   const [availableTimes, setAvailableTimes] = useState<AvailableTime[]>([])
@@ -782,6 +783,17 @@ export default function ReservationsPage() {
     }
   }, [isNewReservationOpen])
 
+  // Filtrar usuarios basado en el término de búsqueda
+  const filteredUsers = users.filter((user) => {
+    if (!userSearchTerm) return true
+    
+    const searchLower = userSearchTerm.toLowerCase()
+    return (
+      user.name.toLowerCase().includes(searchLower) ||
+      user.email.toLowerCase().includes(searchLower)
+    )
+  })
+
   // Cargar horarios disponibles cuando cambia la fecha
   useEffect(() => {
     const loadAvailableTimes = async () => {
@@ -1031,13 +1043,30 @@ export default function ReservationsPage() {
                       <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
                         <SelectValue placeholder="Seleccionar cliente" />
                       </SelectTrigger>
-                      <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                      <SelectContent className="bg-white border-gray-200 text-zinc-900 max-h-[500px]">
+                        {/* Input de búsqueda */}
+                        <div className="p-2 border-b border-gray-200">
+                          <Input
+                            placeholder="Buscar cliente..."
+                            value={userSearchTerm}
+                            onChange={(e) => setUserSearchTerm(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        
+                        {/* Lista de usuarios filtrados */}
                         {users.length > 0 ? (
-                          users.map((user) => (
-                            <SelectItem key={user.id} value={user.id.toString()}>
-                              {user.name} - {user.email}
+                          filteredUsers.length > 0 ? (
+                            filteredUsers.map((user) => (
+                              <SelectItem key={user.id} value={user.id.toString()}>
+                                {user.name} - {user.email}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="no-results" disabled>
+                              No se encontraron clientes con "{userSearchTerm}"
                             </SelectItem>
-                          ))
+                          )
                         ) : (
                           <SelectItem value="loading" disabled>
                             Cargando clientes...
@@ -1241,9 +1270,10 @@ export default function ReservationsPage() {
                     setSelectedTime("")
                     setSelectedPackage("")
                     setSelectedBike(null)
-                    setSelectedUserPackageId("")
-                    setActiveUnlimitedWeekInfo(null); 
-                  }}
+                                          setSelectedUserPackageId("")
+                      setActiveUnlimitedWeekInfo(null)
+                      setUserSearchTerm("") // Limpiar búsqueda de usuario
+                    }}
                   className="border-gray-200 text-zinc-900 hover:bg-gray-100"
                 >
                   Cancelar
@@ -1339,7 +1369,8 @@ export default function ReservationsPage() {
                         setUserHasClasses(null)
                         setUserClassesInfo(null)
                         setIsNewReservationOpen(false)
-                        setActiveUnlimitedWeekInfo(null);
+                        setActiveUnlimitedWeekInfo(null)
+                        setUserSearchTerm("") // Limpiar búsqueda de usuario
                       } catch (error) {
                         console.error("Error al crear la reservación:", error)
                         alert(`Error al crear la reservación: ${error instanceof Error ? error.message : String(error)}`)
