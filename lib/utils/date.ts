@@ -104,8 +104,10 @@ export function filterClassesByDateAndTime(
 
 /**
  * Crea un Date object completo combinando fecha y hora de la clase
- * Acepta hora en formato 'HH:mm' o string ISO (por ejemplo, '1970-01-01T10:00:00.000Z')
- * Siempre usa la fecha de la clase y la hora/minutos extraídos
+ * Este método maneja correctamente la conversión de hora local México a UTC
+ * @param dateString - Fecha de la clase (UTC medianoche)
+ * @param timeString - Hora de la clase (representada como UTC pero es hora local México)
+ * @returns Date object en UTC que representa el momento exacto de la clase
  */
 export function createClassDateTime(dateString: string, timeString: string): Date {
   let hours = 0, minutes = 0;
@@ -119,39 +121,69 @@ export function createClassDateTime(dateString: string, timeString: string): Dat
   }
 
   const date = new Date(dateString);
-  // Usar SIEMPRE la fecha en UTC
-  return new Date(
+  
+  // Convertir la hora local de México (UTC-6) a UTC
+  // La hora almacenada representa hora local México, así que agregamos 6 horas para obtener UTC real
+  const utcHours = hours + 6;
+  
+  // Crear el timestamp UTC correcto
+  const utcDateTime = new Date(Date.UTC(
     date.getUTCFullYear(),
     date.getUTCMonth(),
     date.getUTCDate(),
-    hours,
+    utcHours,
     minutes,
     0,
     0
-  );
+  ));
+  
+  return utcDateTime;
 }
 
 /**
  * Verifica si una clase es reservable (no ha pasado y no está por iniciar)
+ * @param dateString - Fecha de la clase
+ * @param timeString - Hora de la clase
+ * @returns boolean
  */
 export function isClassReservable(dateString: string, timeString: string): boolean {
   try {
-    const now = new Date()
+    // Get current UTC time
+    const now = new Date();
+    const nowUTC = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      now.getUTCHours(),
+      now.getUTCMinutes(),
+      now.getUTCSeconds()
+    ));
+    
     const classDateTime = createClassDateTime(dateString, timeString)
     
+    console.log("[FRONTEND isClassReservable] Current UTC Time:", nowUTC.toISOString());
+    console.log("[FRONTEND isClassReservable] Class Time UTC:", classDateTime.toISOString());
+    console.log("[FRONTEND isClassReservable] Class Date Input:", dateString);
+    console.log("[FRONTEND isClassReservable] Class Time Input:", timeString);
+    
     // Si la clase ya pasó
-    if (classDateTime < now) {
+    if (classDateTime < nowUTC) {
+      console.log("[FRONTEND isClassReservable] Class has already passed.");
       return false
     }
     
-    // Si faltan menos de 30 minutos para la clase
+    // Si faltan menos de 1 minuto para la clase
     const ONE_MINUTE = 1 * 60 * 1000
-    const timeDifference = classDateTime.getTime() - now.getTime()
+    const timeDifference = classDateTime.getTime() - nowUTC.getTime()
+    console.log("[FRONTEND isClassReservable] Time Difference (ms):", timeDifference);
+    console.log("[FRONTEND isClassReservable] Time Difference (minutes):", Math.round(timeDifference / 60000));
     
     if (timeDifference < ONE_MINUTE) {
+      console.log("[FRONTEND isClassReservable] Class is starting in less than 1 minute.");
       return false
     }
     
+    console.log("[FRONTEND isClassReservable] Class is reservable.");
     return true
   } catch (error) {
     console.error("Error verificando si la clase es reservable:", error)

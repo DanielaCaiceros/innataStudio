@@ -13,23 +13,36 @@ const prisma = new PrismaClient()
 
 /**
  * Crea un Date object completo combinando fecha y hora de la clase
- * @param dateString - Fecha de la clase en formato ISO
- * @param timeString - Hora de la clase en formato ISO
- * @returns Date object con fecha y hora combinadas
+ * Este método convierte correctamente la fecha y hora almacenadas en la DB
+ * a un timestamp UTC que representa el momento exacto en Mexico City timezone
+ * @param dateString - Fecha de la clase en formato ISO (siempre UTC medianoche)
+ * @param timeString - Hora de la clase en formato ISO (hora local Mexico City)
+ * @returns Date object con fecha y hora combinadas en UTC
  */
 function createClassDateTime(dateString: string, timeString: string): Date {
-  const classDate = new Date(dateString)
-  const timeDate = new Date(timeString)
+  const classDate = new Date(dateString) // UTC medianoche del día de la clase
+  const timeDate = new Date(timeString) // Hora en formato UTC pero representa hora local Mexico City
   
-  return new Date(
+  // Extraer la hora local de Mexico City del timeString
+  const localHours = timeDate.getUTCHours()
+  const localMinutes = timeDate.getUTCMinutes()
+  
+  // Convertir la hora local de Mexico City (UTC-6) a UTC
+  // Mexico City está en UTC-6, así que agregamos 6 horas para obtener UTC
+  const utcHours = localHours + 6
+  
+  // Crear el timestamp UTC correcto
+  const utcDateTime = new Date(Date.UTC(
     classDate.getUTCFullYear(),
-    classDate.getUTCMonth(), 
+    classDate.getUTCMonth(),
     classDate.getUTCDate(),
-    timeDate.getUTCHours(),
-    timeDate.getUTCMinutes(),
+    utcHours,
+    localMinutes,
     0,
     0
-  )
+  ))
+  
+  return utcDateTime
 }
 
 /**
@@ -39,22 +52,42 @@ function createClassDateTime(dateString: string, timeString: string): Date {
  * @returns boolean
  */
 function isClassBookable(dateString: string, timeString: string): boolean {
-  const now = new Date()
+  // Get current UTC time
+  const now = new Date();
+  const nowUTC = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+    now.getUTCHours(),
+    now.getUTCMinutes(),
+    now.getUTCSeconds()
+  ));
+  
   const classDateTime = createClassDateTime(dateString, timeString)
   
+  console.log("[API isClassBookable] Current UTC Time:", nowUTC.toISOString());
+  console.log("[API isClassBookable] Class Time UTC:", classDateTime.toISOString());
+  console.log("[API isClassBookable] Class Date Input:", dateString);
+  console.log("[API isClassBookable] Class Time Input:", timeString);
+
   // Si la clase ya pasó
-  if (classDateTime < now) {
+  if (classDateTime < nowUTC) {
+    console.log("[API isClassBookable] Class has already passed.");
     return false
   }
   
-  // Si faltan menos de 1 minuto  para la clase
+  // Si faltan menos de 1 minuto para la clase
   const ONE_MINUTE = 1 * 60 * 1000
-  const timeDifference = classDateTime.getTime() - now.getTime()
+  const timeDifference = classDateTime.getTime() - nowUTC.getTime()
+  console.log("[API isClassBookable] Time Difference (ms):", timeDifference);
+  console.log("[API isClassBookable] Time Difference (minutes):", Math.round(timeDifference / 60000));
   
   if (timeDifference < ONE_MINUTE) {
+    console.log("[API isClassBookable] Class is starting in less than 1 minute.");
     return false
   }
   
+  console.log("[API isClassBookable] Class is bookable.");
   return true
 }
 
@@ -259,18 +292,41 @@ export async function POST(request: NextRequest) {
     }
 
     // Validación usando las funciones de utilidad
+    console.log("[API POST /reservations] Raw scheduledClass.date from DB:", scheduledClass.date);
+    console.log("[API POST /reservations] Raw scheduledClass.time from DB:", scheduledClass.time);
+    console.log("[API POST /reservations] Type of scheduledClass.date:", typeof scheduledClass.date);
+    console.log("[API POST /reservations] Type of scheduledClass.time:", typeof scheduledClass.time);
+
     const classDateString = scheduledClass.date.toISOString()
     const classTimeString = scheduledClass.time.toISOString()
     
+    console.log("[API POST /reservations] Date string passed to isClassBookable:", classDateString);
+    console.log("[API POST /reservations] Time string passed to isClassBookable:", classTimeString);
+    
     if (!isClassBookable(classDateString, classTimeString)) {
-      const classDateTime = createClassDateTime(classDateString, classTimeString)
-      const now = new Date()
+      // Get current UTC time for accurate comparison in error message
+      const now = new Date();
+      const nowUTC = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        now.getUTCHours(),
+        now.getUTCMinutes(),
+        now.getUTCSeconds()
+      ));
+      const classDateTime = createClassDateTime(classDateString, classTimeString) // Recreate for logging
       
-      if (classDateTime < now) {
+      console.log("[API POST /reservations] Validation failed: isClassBookable returned false.");
+      console.log("[API POST /reservations] Current UTC for error logic:", nowUTC.toISOString());
+      console.log("[API POST /reservations] Class datetime for error logic:", classDateTime.toISOString());
+
+      if (classDateTime < nowUTC) { // Compare against nowUTC
+        console.log("[API POST /reservations] Error: Class has already passed.");
         return NextResponse.json({ 
           error: "No puedes reservar una clase que ya pasó." 
         }, { status: 400 })
       } else {
+        console.log("[API POST /reservations] Error: Class starting in less than 1 minute or other booking rule violation.");
         return NextResponse.json({ 
           error: "No puedes reservar una clase que está por iniciar en menos de 1 minuto."
         }, { status: 400 })
