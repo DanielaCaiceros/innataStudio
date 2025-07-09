@@ -58,8 +58,8 @@ export async function GET(request: NextRequest) {
       orderBy: [
         { firstName: "asc" },
         { lastName: "asc" }
-      ],
-      take: 100 // Limitar resultados para evitar respuestas muy grandes
+      ]
+      // Removido el límite de 100 para mostrar todos los clientes
     });
 
     // Formatear los datos para el selector
