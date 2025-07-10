@@ -15,21 +15,36 @@ const prisma = new PrismaClient()
  * Crea un Date object completo combinando fecha y hora de la clase
  * @param dateString - Fecha de la clase en formato ISO
  * @param timeString - Hora de la clase en formato ISO
- * @returns Date object con fecha y hora combinadas
+ * @returns Date object con fecha y hora combinadas en UTC
  */
 function createClassDateTime(dateString: string, timeString: string): Date {
   const classDate = new Date(dateString)
   const timeDate = new Date(timeString)
   
-  return new Date(
-    classDate.getUTCFullYear(),
-    classDate.getUTCMonth(), 
-    classDate.getUTCDate(),
-    timeDate.getUTCHours(),
+  // FIXED: Las horas en BD son hora local México (UTC-6)
+  // Necesitamos agregar 6 horas para convertir a UTC
+  const localHour = timeDate.getUTCHours()
+  const utcHour = localHour + 6 // Convertir UTC-6 a UTC
+  
+  // Si la hora UTC resultante es >= 24, la clase es al día siguiente
+  const nextDay = utcHour >= 24
+  const finalHour = nextDay ? utcHour - 24 : utcHour
+  
+  // Crear la fecha base
+  let finalDate = new Date(classDate)
+  if (nextDay) {
+    finalDate.setUTCDate(finalDate.getUTCDate() + 1) // Agregar un día
+  }
+  
+  return new Date(Date.UTC(
+    finalDate.getUTCFullYear(),
+    finalDate.getUTCMonth(), 
+    finalDate.getUTCDate(),
+    finalHour,
     timeDate.getUTCMinutes(),
     0,
     0
-  )
+  ))
 }
 
 /**
