@@ -270,20 +270,40 @@ export default function BookingPage() {
     setShowWeekendInfoMessage(false) // Reset del nuevo estado
     const hasAnyUnlimitedPackages = weeklyUsage?.allUnlimitedPackages && weeklyUsage.allUnlimitedPackages.length > 0;
 
+    console.log('🔍 [Frontend] handleClassSelect: Clase seleccionada:', {
+      classId: scheduledClass.id,
+      className: scheduledClass.className,
+      classDate: scheduledClass.date,
+      hasAnyUnlimitedPackages,
+      weeklyUsageData: weeklyUsage ? {
+        used: weeklyUsage.used,
+        limit: weeklyUsage.limit,
+        remaining: weeklyUsage.remaining,
+        hasActivePackage: !!weeklyUsage.activePackageInfo,
+        packagesCount: weeklyUsage.allUnlimitedPackages?.length || 0
+      } : null
+    });
+
     if (hasAnyUnlimitedPackages) { // Check if user has ANY unlimited packages
+      console.log('🔍 [Frontend] handleClassSelect: Usuario tiene paquetes ilimitados, validando...')
       setIsCheckingUnlimitedWeek(true)
       try {
         const validation = await validateUnlimitedWeek(scheduledClass.id)
+        console.log('🔍 [Frontend] handleClassSelect: Resultado de validación:', validation)
         setUnlimitedWeekValidation(validation)
 
         const classDate = new Date(scheduledClass.date)
         if (validation.canUseUnlimitedWeek) {
+          console.log('🔍 [Frontend] handleClassSelect: ✅ Puede usar Semana Ilimitada')
           setCanUseUnlimitedForSelectedClass(true)
         } else if (!isBusinessDay(classDate)) {
+          console.log('🔍 [Frontend] handleClassSelect: ⚠️ Clase en fin de semana, mostrando mensaje informativo')
           setShowWeekendInfoMessage(true)
+        } else {
+          console.log('🔍 [Frontend] handleClassSelect: ❌ No puede usar Semana Ilimitada:', validation.reason)
         }
       } catch (error) {
-        console.error('Error validating unlimited week', error)
+        console.error('🔍 [Frontend] handleClassSelect: Error validando Semana Ilimitada:', error)
         toast({
           title: 'Error de validación',
           description: 'No se pudo validar el uso de Semana Ilimitada.',
@@ -381,6 +401,18 @@ export default function BookingPage() {
     }
 
     setIsProcessingBooking(true)
+    console.log('🔍 [Frontend] handleBookClass: Iniciando reserva de clase:', {
+      scheduledClassId,
+      bikeNumber: selectedBikeId,
+      useUnlimitedWeek: canUseUnlimitedForSelectedClass,
+      unlimitedWeekValidation: unlimitedWeekValidation ? {
+        isValid: unlimitedWeekValidation.isValid,
+        canUseUnlimitedWeek: unlimitedWeekValidation.canUseUnlimitedWeek,
+        reason: unlimitedWeekValidation.reason,
+        message: unlimitedWeekValidation.message
+      } : null
+    })
+
     try {
       const response = await fetch('/api/reservations', {
         method: 'POST',
@@ -394,10 +426,17 @@ export default function BookingPage() {
       })
 
       const data = await response.json()
+      console.log('🔍 [Frontend] handleBookClass: Respuesta de reserva recibida:', {
+        status: response.status,
+        success: response.ok,
+        data: data
+      })
 
       if (!response.ok) {
         throw new Error(data.error || 'Error al crear la reserva')
       }
+
+      console.log('🔍 [Frontend] handleBookClass: ✅ Reserva creada exitosamente')
 
       // Reset states
       setSelectedClass(null)
