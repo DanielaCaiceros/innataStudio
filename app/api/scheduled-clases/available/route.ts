@@ -8,13 +8,31 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const dateParam = searchParams.get("date")
+    const startDateParam = searchParams.get("startDate")
+    const endDateParam = searchParams.get("endDate")
 
-    console.log("📅 Fecha solicitada:", dateParam)
+    console.log("Parámetros recibidos:", { dateParam, startDateParam, endDateParam })
 
     let dateFilter = {}
     
-    if (dateParam) {
-      // Clean the dateParam to ensure it's in a valid format before creating a Date object
+    if (startDateParam && endDateParam) {
+      // Nuevo: usar rango de fechas
+      const startDate = new Date(startDateParam + "T00:00:00.000Z")
+      const endDate = new Date(endDateParam + "T23:59:59.999Z")
+      
+      dateFilter = {
+        date: {
+          gte: startDate,
+          lte: endDate,
+        }
+      }
+      
+      console.log("Filtro de rango de fechas:", {
+        gte: startDate.toISOString(),
+        lte: endDate.toISOString()
+      })
+    } else if (dateParam) {
+      // Existente: fecha específica
       const cleanDateParam = dateParam.split(':')[0];
       const targetDate = new Date(cleanDateParam + "T00:00:00.000Z")
       const nextDay = new Date(targetDate)
@@ -27,7 +45,7 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      console.log("🔍 Filtro de fecha:", {
+      console.log("Filtro de fecha específica:", {
         gte: targetDate.toISOString(),
         lt: nextDay.toISOString()
       })

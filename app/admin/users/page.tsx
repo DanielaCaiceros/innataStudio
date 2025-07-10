@@ -16,7 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Search, Download, UserPlus, Mail, Phone, Calendar, Edit, Trash2, MoreVertical, AlertTriangle } from "lucide-react"
+import { Search, Download, UserPlus, Mail, Phone, Calendar, Edit, Trash2, MoreVertical, AlertTriangle, List } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/components/ui/use-toast"
+import UserReservationsModal from "@/components/admin/UserReservationsModal"
 
 // Interfaces
 interface ApiUser {
@@ -104,6 +105,8 @@ export default function UsersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isFiltering, setIsFiltering] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isReservationsModalOpen, setIsReservationsModalOpen] = useState(false)
+  const [selectedUserForReservations, setSelectedUserForReservations] = useState<User | null>(null)
 
   // Form states simplificados
   const [newUserForm, setNewUserForm] = useState({
@@ -629,9 +632,9 @@ export default function UsersPage() {
       {/* Tabla de usuarios */}
       <Card className="bg-white border-gray-200 shadow-sm">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="sm:overflow-x-visible overflow-x-auto">
             <div className="max-h-[60vh] overflow-y-auto">
-              <table className="w-full table-fixed">
+              <table className="w-full">
                 <thead className="sticky top-0 z-10">
                   <tr className="border-b border-gray-200 bg-gray-50/95 backdrop-blur-sm">
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[250px]">Usuario</th>
@@ -683,6 +686,17 @@ export default function UsersPage() {
                             }}
                           >
                             Ver
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
+                            onClick={() => {
+                              setSelectedUserForReservations(user)
+                              setIsReservationsModalOpen(true)
+                            }}
+                          >
+                            <List className="h-3 w-3" />
                           </Button>
                           <Button
                             variant="outline"
@@ -765,32 +779,56 @@ export default function UsersPage() {
                   </div>
                 </div>
 
-                {/* Balance y paquetes */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-[#4A102A]">Balance de Clases</h3>
-                  
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                      <div>
-                        <div className="text-2xl font-bold text-blue-600">
-                          {selectedUser.balance.totalClassesPurchased}
+                                  {/* Balance y paquetes */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-[#4A102A]">Balance de Clases</h3>
+                    
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                          <div className="text-2xl font-bold text-blue-600">
+                            {selectedUser.balance.totalClassesPurchased}
+                          </div>
+                          <div className="text-xs text-gray-600">Compradas</div>
                         </div>
-                        <div className="text-xs text-gray-600">Compradas</div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-green-600">
-                          {selectedUser.balance.classesAvailable}
+                        <div>
+                          <div className="text-2xl font-bold text-green-600">
+                            {selectedUser.balance.classesAvailable}
+                          </div>
+                          <div className="text-xs text-gray-600">Disponibles</div>
                         </div>
-                        <div className="text-xs text-gray-600">Disponibles</div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-gray-600">
-                          {selectedUser.balance.classesUsed}
+                        <div>
+                          <div className="text-2xl font-bold text-gray-600">
+                            {selectedUser.balance.classesUsed}
+                          </div>
+                          <div className="text-xs text-gray-600">Usadas</div>
                         </div>
-                        <div className="text-xs text-gray-600">Usadas</div>
                       </div>
                     </div>
-                  </div>
+
+                    {/* Botón para ver todas las reservaciones */}
+                    <Button
+                      variant="outline"
+                      className="w-full border-blue-200 text-blue-600 hover:bg-blue-50"
+                      onClick={() => {
+                        setIsViewUserOpen(false)
+                        setSelectedUserForReservations({
+                          id: selectedUser.id,
+                          name: `${selectedUser.firstName} ${selectedUser.lastName}`,
+                          email: selectedUser.email,
+                          phone: selectedUser.phone,
+                          package: "",
+                          remainingClasses: 0,
+                          joinDate: selectedUser.joinDate,
+                          lastVisit: selectedUser.lastVisitDate || "",
+                          status: selectedUser.status
+                        })
+                        setIsReservationsModalOpen(true)
+                      }}
+                    >
+                      <List className="h-4 w-4 mr-2" />
+                      Ver Todas las Reservaciones
+                    </Button>
 
                   {/* Paquetes activos */}
                   <div>
@@ -1031,6 +1069,16 @@ export default function UsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal de Reservaciones del Usuario */}
+      {selectedUserForReservations && (
+        <UserReservationsModal
+          isOpen={isReservationsModalOpen}
+          onOpenChange={setIsReservationsModalOpen}
+          userId={selectedUserForReservations.id}
+          userName={selectedUserForReservations.name}
+        />
+      )}
     </div>
   )
 }

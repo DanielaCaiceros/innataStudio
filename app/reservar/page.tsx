@@ -164,9 +164,16 @@ export default function BookingPage() {
   const loadAvailableClasses = async () => {
     setIsLoading(true)
     try {
-      const dateParam = date ? `date=${format(date, 'yyyy-MM-dd')}` : '';
+      // Cargar datos para un rango de fechas para que el calendario pueda mostrar estados correctos
+      // En lugar de solo la fecha seleccionada, cargamos el mes completo
+      const currentDate = date || new Date();
+      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
       
-      const response = await fetch(`/api/scheduled-clases/available?${dateParam}`);
+      const startParam = format(startOfMonth, 'yyyy-MM-dd');
+      const endParam = format(endOfMonth, 'yyyy-MM-dd');
+      
+      const response = await fetch(`/api/scheduled-clases/available?startDate=${startParam}&endDate=${endParam}`);
       if (response.ok) {
         const data: ScheduledClass[] = await response.json();
         setAvailableClasses(data);
@@ -190,9 +197,17 @@ export default function BookingPage() {
     }
   }
 
+  // Cargar clases disponibles al inicio y cuando cambia el mes
   useEffect(() => {
     loadAvailableClasses();
-  }, [date]);
+  }, [date?.getMonth(), date?.getFullYear()]); // Solo recargar cuando cambia el mes o año
+
+  // Cargar datos iniciales
+  useEffect(() => {
+    if (!date) {
+      setDate(new Date()); // Establecer fecha actual si no hay fecha seleccionada
+    }
+  }, []);
 
   // When the date changes, auto-select the first available class and trigger validation
   useEffect(() => {
@@ -706,7 +721,7 @@ export default function BookingPage() {
                         }}
                         modifiersClassNames={{
                           past: 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50',
-                          full: 'bg-red-200 text-red-800 font-bold cursor-pointer border border-red-300 hover:bg-red-300',
+                          full: 'bg-red-300 text-red-800 font-bold cursor-pointer border border-red-300 hover:bg-red-300',
                           unlimited: 'bg-blue-100 border-2 border-blue-300 rounded-lg',
                           blocked: 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50', // Added style for blocked dates
                         }}
