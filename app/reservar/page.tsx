@@ -476,12 +476,12 @@ export default function BookingPage() {
       const classDateTime = createClassDateTime(cls.date, cls.time);
       const timeDiff = classDateTime.getTime() - now.getTime();
       const TWELVE_AND_HALF_HOURS = (12 * 60 + 30) * 60 * 1000; // 12.5 horas en ms
-      const FIVE_MINUTES = 5 * 60 * 1000;
+      const ONE_MINUTE = 1 * 60 * 1000; // 1 minuto en ms
 
       if (canUseUnlimitedForSelectedClass) {
         return timeDiff > TWELVE_AND_HALF_HOURS;
       }
-      return timeDiff > FIVE_MINUTES;
+      return timeDiff > ONE_MINUTE;
     } catch (error) {
       console.error("Error verificando disponibilidad:", error);
       return false;
@@ -964,7 +964,7 @@ export default function BookingPage() {
                     <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                       <span className="text-zinc-700">Bicicleta:</span>
                       <span className="font-medium text-brand-burgundy">
-                        🚲 Bicicleta #{selectedBikeId}
+                       Bicicleta #{selectedBikeId}
                       </span>
                     </div>
                   )}
@@ -1216,7 +1216,7 @@ export default function BookingPage() {
                 </p>
                 {selectedBikeId && (
                   <p className="font-medium text-brand-burgundy">
-                    🚲 Bicicleta #{selectedBikeId}
+                    Bicicleta #{selectedBikeId}
                   </p>
                 )}
               </div>

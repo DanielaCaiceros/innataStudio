@@ -752,10 +752,25 @@ export default function ProfilePage() {
                                   <h3 className="text-lg font-bold text-brand-sage mb-1">{classItem.className}</h3>
                                   <p className="text-zinc-600 text-sm">Con {classItem.instructor}</p>
                                 </div>
-                                <Badge className="bg-brand-sage/10 text-brand-sage border-brand-sage/20">
-                                  Completada
-                                </Badge>
-                                {penaltyBadge}
+                                <div className="flex items-center gap-2">
+                                  <Badge 
+                                    variant={
+                                      classItem.status === 'confirmed' ? 'default' :
+                                      classItem.status === 'cancelled' ? 'secondary' : 'outline'
+                                    }
+                                    className={
+                                      classItem.status === 'confirmed' 
+                                        ? "bg-brand-sage text-white hover:bg-brand-gray"
+                                        : classItem.status === 'cancelled'
+                                        ? "bg-gray-100 text-gray-700"
+                                        : "bg-brand-sage/10 text-brand-sage border-brand-sage/20"
+                                    }
+                                  >
+                                    {classItem.status === 'confirmed' ? 'Confirmada' :
+                                     classItem.status === 'cancelled' ? 'Cancelada' : 'Completada'}
+                                  </Badge>
+                                  {penaltyBadge}
+                                </div>
                               </div>
                               <div className="space-y-2">
                                 <div className="flex items-center text-zinc-700 text-sm">

@@ -119,16 +119,31 @@ export function createClassDateTime(dateString: string, timeString: string): Dat
   }
 
   const date = new Date(dateString);
-  // Usar SIEMPRE la fecha en UTC
-  return new Date(
-    date.getUTCFullYear(),
-    date.getUTCMonth(),
-    date.getUTCDate(),
-    hours,
+  
+  // FIXED: Las horas en BD son hora local México (UTC-6)
+  // Necesitamos agregar 6 horas para convertir a UTC
+  const localHour = hours
+  const utcHour = localHour + 6 // Convertir UTC-6 a UTC
+  
+  // Si la hora UTC resultante es >= 24, la clase es al día siguiente
+  const nextDay = utcHour >= 24
+  const finalHour = nextDay ? utcHour - 24 : utcHour
+  
+  // Crear la fecha base
+  let finalDate = new Date(date)
+  if (nextDay) {
+    finalDate.setUTCDate(finalDate.getUTCDate() + 1) // Agregar un día
+  }
+  
+  return new Date(Date.UTC(
+    finalDate.getUTCFullYear(),
+    finalDate.getUTCMonth(),
+    finalDate.getUTCDate(),
+    finalHour,
     minutes,
     0,
     0
-  );
+  ));
 }
 
 /**
@@ -144,7 +159,7 @@ export function isClassReservable(dateString: string, timeString: string): boole
       return false
     }
     
-    // Si faltan menos de 30 minutos para la clase
+    // Si faltan menos de 1 minuto para la clase
     const ONE_MINUTE = 1 * 60 * 1000
     const timeDifference = classDateTime.getTime() - now.getTime()
     
