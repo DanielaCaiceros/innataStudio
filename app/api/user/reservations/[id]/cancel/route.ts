@@ -6,6 +6,7 @@ import { sendCancellationConfirmationEmail } from '@/lib/email'
 import { format, addHours, parseISO, subHours } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { formatInTimeZone } from 'date-fns-tz'
+import { formatTimeFromDB } from '@/lib/utils/date'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma as prismaSingleton } from '@/lib/prisma'
@@ -225,7 +226,7 @@ export async function POST(
         const emailDetails = {
           className: reservation.scheduledClass.classType.name,
           date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
-          time: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "HH:mm", { locale: es }),
+          time: formatTimeFromDB(reservation.scheduledClass.time.toISOString()),
           isRefundable: canRefund,
           packageName: reservation.userPackage?.package?.name,
           isUnlimitedWeek: isUnlimitedWeek
