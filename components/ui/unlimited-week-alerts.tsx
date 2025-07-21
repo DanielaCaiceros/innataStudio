@@ -88,8 +88,8 @@ export function UnlimitedWeekAlert({ validation, className }: UnlimitedWeekAlert
           <div className="bg-red-50 p-3 rounded-md border border-red-200">
             <p className="text-sm text-red-700 font-medium mb-1">Tiempo requerido para Semana Ilimitada:</p>
             <ul className="text-xs text-red-700 space-y-1">
-              <li>• Mínimo 12 horas y 30 minutos de anticipación</li>
-              <li>• Necesitas tiempo para confirmar por WhatsApp</li>
+              <li>• Mínimo 1 minuto de anticipación para reservar</li>
+              <li>• Para cancelar sin penalización: 12 horas de anticipación</li>
               <li>• Sin confirmación, tu lugar puede ser liberado</li>
             </ul>
             {validation.timeRemaining && (

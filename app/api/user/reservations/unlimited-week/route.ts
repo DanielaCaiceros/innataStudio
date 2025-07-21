@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
           confirmationCode: result.id.toString().padStart(6, '0'),
           bikeNumber: result.bikeNumber || undefined,
           isUnlimitedWeek: true,
-          graceTimeHours: 12 // O el valor que uses en tu sistema
+          graceTimeHours: 0 // Cambiado a 1 minuto (0 horas)
         }
       );
     } catch (emailError) {
