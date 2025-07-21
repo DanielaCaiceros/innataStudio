@@ -4,6 +4,37 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 import { formatTimeFromDB } from '@/lib/utils/date';
 
+// Función para formatear la fecha de manera legible para WhatsApp
+const formatDateForWhatsApp = (dateString: string): string => {
+  try {
+    // Crear la fecha asumiendo que está en UTC y convertirla a la zona horaria local
+    const date = new Date(dateString);
+    
+    // Si la fecha viene en formato ISO, asegurarse de usar la fecha sin conversión de zona horaria
+    if (dateString.includes('T')) {
+      // Para fechas ISO, extraer solo la parte de la fecha
+      const dateOnly = dateString.split('T')[0];
+      const [year, month, day] = dateOnly.split('-').map(Number);
+      const localDate = new Date(year, month - 1, day); // month - 1 porque los meses en JS van de 0-11
+      
+      return localDate.toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+    
+    return date.toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return dateString; // Fallback al string original
+  }
+}
+
 // Interface for booking email details
 export interface BookingEmailDetails {
   className: string;
@@ -55,7 +86,7 @@ export async function sendBookingConfirmationEmail(
             </ul>
 
             <div style="text-align: center; margin: 20px 0;">
-              <a href="https://wa.me/527753571894?text=${encodeURIComponent(`Hola! Soy ${name} Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${details.date} Hora: ${details.time}`)}" style="background-color: #25D366; color: #ffffff; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: 600; display: inline-block;">
+              <a href="https://wa.me/527753571894?text=${encodeURIComponent(`Hola! Soy ${name} Acabo de hacer una reserva con Semana Ilimitada para confirmar mi asistencia. Fecha: ${formatDateForWhatsApp(details.date)} Hora: ${details.time}`)}" style="background-color: #25D366; color: #ffffff; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: 600; display: inline-block;">
                 Confirmar por WhatsApp
               </a>
             </div>
@@ -523,7 +554,8 @@ export async function sendPackagePurchaseConfirmationEmail(
                       <li>Solo puedes reservar clases de <b>lunes a viernes</b> de la semana seleccionada.</li>
                       <li>Hasta <b>25 clases</b> en la semana ilimitada.</li>
                       <li>Si <b>no te presentas, y no cancelaste antes</b>, se descontará una clase de tu paquete, y se penalizará la siguiente clase.</li>
-                       <li>Si <b>cancelas a tiempo (con 12 horas de anticipación)</b>,no habrá penalización , pero se descontará una clase de tu paquete.</li>
+                       <li>Si <b>cancelas con más de 12 horas</b>, no hay penalización pero se descontará una clase de tu paquete.</li>
+                       <li>Si <b>cancelas con menos de 12 horas o no asistes</b>, habrá penalización adicional.</li>
 
                       <li>Debes <b>confirmar tu asistencia por WhatsApp</b> al menos 12 horas antes de la clase para garantizar tu lugar.</li>
                     </ul>

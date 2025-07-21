@@ -214,7 +214,7 @@ export default function UnlimitedWeekPurchase({ onPurchaseSuccess }: UnlimitedWe
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              <strong>Política de cancelación:</strong> Debes cancelar con al menos 12 horas de anticipación. 
+              <strong>Política de cancelación:</strong> Cancelación con +12 horas: sin penalización. Cancelación con -12 horas o no asistencia: con penalización. 
               Si no cancelas a tiempo, se cancelará tu próxima clase automáticamente.
               Si cancelas a tiempo, no hay penalización pero tampoco reposición.
             </AlertDescription>

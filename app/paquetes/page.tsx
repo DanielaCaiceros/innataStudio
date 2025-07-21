@@ -254,7 +254,7 @@ export default function PackagesPage() {
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-[#727D73]">¿Puedo cancelar mi reserva?</h3>
               <p className="text-zinc-600">
-                Sí, puedes cancelar hasta 12 horas antes de la clase sin penalización. Cancelaciones tardías no aplican reposición de clase.
+                Para paquetes regulares: puedes cancelar hasta 12 horas antes y recibes tu crédito de vuelta. Para Semana Ilimitada: si cancelas con +12 horas no hay penalización, pero con -12 horas o no asistes sí hay penalización.
               </p>
             </div>
 

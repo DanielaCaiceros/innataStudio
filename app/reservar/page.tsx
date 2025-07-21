@@ -514,11 +514,11 @@ export default function BookingPage() {
       const now = new Date();
       const classDateTime = createClassDateTime(cls.date, cls.time);
       const timeDiff = classDateTime.getTime() - now.getTime();
-      const TWELVE_AND_HALF_HOURS = (12 * 60 + 30) * 60 * 1000; // 12.5 horas en ms
+      const ONE_MINUTE_REQUIRED = 1 * 60 * 1000; // 1 minuto en ms
       const ONE_MINUTE = 1 * 60 * 1000; // 1 minuto en ms
 
       if (canUseUnlimitedForSelectedClass) {
-        return timeDiff > TWELVE_AND_HALF_HOURS;
+        return timeDiff > ONE_MINUTE_REQUIRED;
       }
       return timeDiff > ONE_MINUTE;
     } catch (error) {
@@ -1039,7 +1039,7 @@ export default function BookingPage() {
                   )}
                 </div>
 
-                {isUsingUnlimitedWeek && unlimitedWeekValidation?.isValid && (
+                {/* {isUsingUnlimitedWeek && unlimitedWeekValidation?.isValid && (
                   <div className="mb-4">
                     <WhatsAppConfirmationAlert
                       date={selectedClassDetails?.date || ''}
@@ -1047,7 +1047,7 @@ export default function BookingPage() {
                       userName={user?.firstName || ''}
                     />
                   </div>
-                )}
+                )} */}
 
                 {showWeekendInfoMessage && (
                   <div className="mt-4 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-md p-3">

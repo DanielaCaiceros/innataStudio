@@ -308,9 +308,9 @@ export class UnlimitedWeekService {
     console.log(`🕐 [UW-DEBUG] Time until class (minutes): ${timeUntilClass}`);
     console.log(`🕐 [UW-DEBUG] Time until class (hours): ${timeUntilClass / 60}`);
     
-    // Obtener tiempo de gracia configurado (12.5 horas para Semana Ilimitada)
-    const graceTimeHours = 12
-    const minimumRequiredMinutes = (graceTimeHours * 60) + 30 // gracia + 30 minutos
+    // Obtener tiempo de gracia configurado (1 minuto para Semana Ilimitada)
+    const graceTimeHours = 0
+    const minimumRequiredMinutes = 1 // solo 1 minuto de anticipación
 
     console.log(`🕐 [UW-DEBUG] Grace time hours: ${graceTimeHours}`);
     console.log(`🕐 [UW-DEBUG] Minimum required minutes: ${minimumRequiredMinutes}`);
