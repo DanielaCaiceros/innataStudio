@@ -30,6 +30,26 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { convertUtcToLocalDateForDisplay, formatTime } from "../typesAndConstants"
 
+// Hook para detectar tamaño de pantalla
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const checkDevice = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkDevice()
+    window.addEventListener('resize', checkDevice)
+    
+    return () => {
+      window.removeEventListener('resize', checkDevice)
+    }
+  }, [])
+
+  return isMobile
+}
+
 interface Reservation {
   id: number
   user: string
@@ -73,6 +93,7 @@ export default function ClassReservationsModal({
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'table' | 'map'>('table')
+  const isMobile = useIsMobile()
 
   // Cargar datos cuando se abre el modal
   useEffect(() => {
@@ -213,18 +234,18 @@ export default function ClassReservationsModal({
 
   const checkedInCount = reservations.filter(r => r.checkedIn).length
 
-  // Posiciones de las bicicletas (igual que en bike-selection-inline)
-  const bikePositions: { [key: number]: { x: number; y: number } } = {
-    6: { x: 46, y: 74 },
-    1: { x: 67, y: 26 },
-    5: { x: 53, y: 74 },
-    4: { x: 60, y: 74 },
-    3: { x: 67, y: 74 },
-    2: { x: 67, y: 50 },
-    7: { x: 39, y: 74 },
-    8: { x: 32, y: 74 },
-    9: { x: 32, y: 50 },
-    10: { x: 32, y: 26 },
+  // Posiciones de las bicicletas con distribución responsive
+  const bikePositions: { [key: number]: { x: number; y: number; xMobile: number; yMobile: number } } = {
+    6: { x: 46, y: 74, xMobile: 40, yMobile: 80 },
+    1: { x: 67, y: 26, xMobile: 85, yMobile: 20 },
+    5: { x: 53, y: 74, xMobile: 55, yMobile: 80 },
+    4: { x: 60, y: 74, xMobile: 70, yMobile: 80 },
+    3: { x: 67, y: 74, xMobile: 85, yMobile: 80 },
+    2: { x: 67, y: 50, xMobile: 85, yMobile: 50 },
+    7: { x: 39, y: 74, xMobile: 25, yMobile: 80 },
+    8: { x: 32, y: 74, xMobile: 15, yMobile: 80 },
+    9: { x: 32, y: 50, xMobile: 15, yMobile: 50 },
+    10: { x: 32, y: 26, xMobile: 15, yMobile: 20 },
   }
 
   // Función para obtener reservación por número de bicicleta
@@ -426,7 +447,7 @@ export default function ClassReservationsModal({
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="relative w-full h-[200px] rounded-lg bg-[#E5E5EA] text-white overflow-hidden border border-gray-200">
+              <div className="relative w-full h-[200px] md:h-[240px] rounded-lg bg-[#E5E5EA] text-white overflow-hidden border border-gray-200">
                 <div
                   className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10"
                   style={{
@@ -448,13 +469,17 @@ export default function ClassReservationsModal({
                   const isCheckedIn = reservation?.checkedIn
                   const hasReservation = reservation && !isCancelled
 
+                  // Usar posiciones móviles o desktop según el tamaño de pantalla
+                  const currentX = isMobile ? position.xMobile : position.x
+                  const currentY = isMobile ? position.yMobile : position.y
+
                   return (
                     <div
                       key={bikeNumber}
                       className="absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300"
                       style={{
-                        left: `${position.x}%`,
-                        top: `${position.y}%`,
+                        left: `${currentX}%`,
+                        top: `${currentY}%`,
                       }}
                     >
                       <div
