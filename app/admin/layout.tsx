@@ -71,35 +71,35 @@ export default function AdminLayout({
         <nav className="space-y-2">
           <Link
             href="/admin/reservations"
-            className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-[#FCF259]/10 rounded-md"
+            className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-gray-400/10 rounded-md"
           >
             <CalendarDays className="h-5 w-5" />
             <span>Reservaciones</span>
           </Link>
           <Link
             href="/admin/payments"
-            className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-[#FCF259]/10 rounded-md"
+            className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-gray-400/10 rounded-md"
           >
             <CreditCard className="h-5 w-5" />
             <span>Pagos</span>
           </Link>
           <Link
             href="/admin/classes"
-            className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-[#FCF259]/10 rounded-md"
+            className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-gray-400/10 rounded-md"
           >
             <BarChart3 className="h-5 w-5" />
             <span>Clases y Horarios</span>
           </Link>
           <Link
             href="/admin/users"
-            className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-[#FCF259]/10 rounded-md"
+            className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-gray-400/10 rounded-md"
           >
             <Users className="h-5 w-5" />
             <span>Usuarios</span>
           </Link>
           <Link
             href="/admin/settings"
-            className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-[#FCF259]/10 rounded-md"
+            className="flex items-center gap-3 px-3 py-2 text-zinc-700 hover:text-[#4A102A] hover:bg-gray-400/10 rounded-md"
           >
             <Settings className="h-5 w-5" />
             <span>Configuración</span>
