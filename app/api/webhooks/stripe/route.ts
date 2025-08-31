@@ -151,13 +151,39 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
           // and ensure necessary metadata fields are present.
           if (packageId === 3 && metadata.packageType === 'unlimited-week' && metadata.selectedWeek && metadata.expiryDate) {
             console.log('[Webhook] Processing Semana Ilimitada specific logic.');
-            console.log('[Webhook] Metadata received:', { 
+            
+            const expiryDateFromMeta = new Date(metadata.expiryDate as string);
+            const purchaseDateFromMeta = new Date(metadata.selectedWeek as string);
+
+            // Server-side validation of the received expiryDate
+            const dayOfWeek = expiryDateFromMeta.getUTCDay(); // Sunday = 0, Friday = 5
+            const isFriday = dayOfWeek === 5;
+            const isFutureOrToday = expiryDateFromMeta.getTime() >= new Date().setHours(0,0,0,0);
+
+            if (!isFriday || !isFutureOrToday) {
+              console.error(`[Webhook] Invalid expiryDate for unlimited week package. User: ${userId}, P-Intent: ${paymentIntent.id}`);
+              console.error(`[Webhook] Details: ExpiryDate=${metadata.expiryDate}, IsFriday=${isFriday}, IsFuture=${isFutureOrToday}`);
+              // Skip package creation but log for manual review
+              // You could also create a notification for an admin here
+              await prisma.notifications.create({
+                data: {
+                  user_id: 1, // System/Admin user
+                  type: 'system_alert',
+                  title: 'Error en Webhook de Stripe',
+                  message: `Paquete 'Semana Ilimitada' con fecha de expiración inválida. Usuario ID: ${userId}, Payment Intent: ${paymentIntent.id}. Expiración recibida: ${metadata.expiryDate}. Por favor, verificar y corregir manualmente.`
+                }
+              });
+              // Stop further processing for this package
+              return; 
+            }
+
+            console.log('[Webhook] Metadata received and validated:', { 
               selectedWeek: metadata.selectedWeek, 
               expiryDateString: metadata.expiryDate 
             });
 
-            calculatedPurchaseDate = new Date(metadata.selectedWeek as string); // e.g., "2025-07-07"
-            calculatedExpiryDate = new Date(metadata.expiryDate as string);   // ISO string from purchase initiation
+            calculatedPurchaseDate = purchaseDateFromMeta;
+            calculatedExpiryDate = expiryDateFromMeta;
             calculatedClassesRemaining = 25; // Fixed for Semana Ilimitada
 
             console.log('[Webhook] Calculated dates for Semana Ilimitada:', {

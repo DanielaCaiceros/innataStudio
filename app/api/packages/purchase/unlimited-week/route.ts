@@ -93,9 +93,10 @@ export async function POST(request: NextRequest) {
     // weekStartDate will be Monday UTC midnight e.g., 2025-06-30T00:00:00.000Z
     const weekStartDate = new Date(selectedWeek); 
 
-    // Calculate targetFriday (Friday UTC midnight) based on weekStartDate
+    // Calculate targetFriday (Friday UTC end of day) based on weekStartDate
     const targetFriday = new Date(weekStartDate.valueOf()); // Clone weekStartDate
-    targetFriday.setUTCDate(weekStartDate.getUTCDate() + 4); // Add 4 days to get to Friday, stays UTC midnight
+    targetFriday.setUTCDate(weekStartDate.getUTCDate() + 4); // Add 4 days to get to Friday
+    targetFriday.setUTCHours(23, 59, 59, 999); // Set to the end of the day in UTC
 
     // Validar que la semana seleccionada sea válida (no en el pasado)
     // todayForChecks (UTC midnight) is already defined above for the max package check
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest) {
           amount: packageInfo.price,
           status: 'pending',
           //requestDate: new Date(),
-          description: `Semana Ilimitada - ${new Date(selectedWeek).toLocaleDateString('es-MX', { timeZone: 'UTC' })} a ${targetFriday.toLocaleDateString('es-MX', {timeZone: 'UTC'})}`
+          notes: `Semana Ilimitada - ${new Date(selectedWeek).toLocaleDateString('es-MX', { timeZone: 'UTC' })} a ${targetFriday.toLocaleDateString('es-MX', {timeZone: 'UTC'})}`
         }
       });
 
