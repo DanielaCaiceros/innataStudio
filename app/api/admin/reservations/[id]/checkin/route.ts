@@ -124,25 +124,7 @@ export async function POST(
       }
     });
 
-    // Si es necesario, actualizar el balance del usuario
-    if (reservation.userPackage) {
-      await prisma.userPackage.update({
-        where: { id: reservation.userPackage.id },
-        data: {
-          classesUsed: { increment: 1 },
-          classesRemaining: { decrement: 1 }
-        }
-      });
-
-      // Actualizar el balance general del usuario
-      await prisma.userAccountBalance.update({
-        where: { userId: reservation.user.user_id },
-        data: {
-          classesUsed: { increment: 1 },
-          classesAvailable: { decrement: 1 }
-        }
-      });
-    }
+    // No modificamos los contadores de clases aquí porque ya se descontaron al hacer la reserva
 
     return NextResponse.json({ 
       message: "Check-in realizado exitosamente",
@@ -216,25 +198,7 @@ export async function DELETE(
       }
     });
 
-    // Si es necesario, revertir el balance del usuario
-    if (reservation.userPackage) {
-      await prisma.userPackage.update({
-        where: { id: reservation.userPackage.id },
-        data: {
-          classesUsed: { decrement: 1 },
-          classesRemaining: { increment: 1 }
-        }
-      });
-
-      // Revertir el balance general del usuario
-      await prisma.userAccountBalance.update({
-        where: { userId: reservation.user.user_id },
-        data: {
-          classesUsed: { decrement: 1 },
-          classesAvailable: { increment: 1 }
-        }
-      });
-    }
+    // No modificamos los contadores de clases aquí porque no se modificaron en el check-in
 
     return NextResponse.json({ 
       message: "Check-in deshecho exitosamente",
