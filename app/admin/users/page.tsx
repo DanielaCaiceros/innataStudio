@@ -69,17 +69,23 @@ interface UserDetail {
   lastVisitDate: string | null
   status: string
   role: string
-  balance: {
-    totalClassesPurchased: number
-    classesUsed: number
-    classesAvailable: number
-  }
   activePackages: Array<{
     id: number
     name: string
     classesRemaining: number
     expiryDate: string
     paymentStatus: string
+  }>
+  purchaseHistory: Array<{
+    id: number
+    name: string
+    purchaseDate: string
+    expiryDate: string
+    totalClasses: number
+    classesRemaining: number
+    paymentStatus: string
+    isActive: boolean
+    amount: number
   }>
   recentReservations: Array<{
     id: number
@@ -107,6 +113,7 @@ export default function UsersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isReservationsModalOpen, setIsReservationsModalOpen] = useState(false)
   const [selectedUserForReservations, setSelectedUserForReservations] = useState<User | null>(null)
+  const [showAllPurchases, setShowAllPurchases] = useState(false)
 
   // Form states simplificados
   const [newUserForm, setNewUserForm] = useState({
@@ -195,16 +202,11 @@ export default function UsersPage() {
         lastVisitDate: data.lastVisit ? new Date(data.lastVisit).toLocaleDateString() : null,
         status: data.status || 'inactive',
         role: data.role || 'client',
-        // Si no hay datos de balance, usar valores por defecto
-        balance: data.balance || {
-          totalClassesPurchased: 0,
-          classesUsed: 0,
-          classesAvailable: 0
-        },
         // Si no hay paquetes activos, usar un array vacío
-        activePackages: data.packages || [],
+        activePackages: data.activePackages || [],
+        purchaseHistory: data.purchaseHistory || [],
         // Si no hay reservaciones recientes, usar un array vacío
-        recentReservations: data.reservations || []
+        recentReservations: data.recentReservations || []
       }
       
       setSelectedUser(userDetail)
@@ -733,42 +735,47 @@ export default function UsersPage() {
       </Card>
 
       {/* Modal para ver detalles del usuario */}
-      <Dialog open={isViewUserOpen} onOpenChange={setIsViewUserOpen}>
-        <DialogContent className="bg-white border-gray-200 text-gray-900 max-w-4xl">
+      <Dialog open={isViewUserOpen} onOpenChange={(open) => {
+        setIsViewUserOpen(open)
+        if (!open) {
+          setShowAllPurchases(false) // Reset al cerrar el modal
+        }
+      }}>
+        <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalles del Usuario</DialogTitle>
+            <DialogTitle className="text-[#4A102A] text-xl">Detalles del Usuario</DialogTitle>
           </DialogHeader>
 
           {selectedUser && (
-            <div className="py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Información básica */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-[#4A102A]">Información Personal</h3>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-gray-500">Nombre Completo</Label>
-                    <div className="bg-white-50 p-1 rounded-md text-gray-900">
+            <div className="space-y-6">
+              {/* Información Personal */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-[#4A102A]">Información Personal</h3>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Nombre Completo</label>
+                    <div className="text-base text-gray-900 mt-1">
                       {selectedUser.firstName} {selectedUser.lastName}
                     </div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-gray-500">Email</Label>
-                    <div className="bg-white-50 p-1 rounded-md text-gray-900">{selectedUser.email}</div>
+                  
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Email</label>
+                    <div className="text-base text-gray-900 mt-1">{selectedUser.email}</div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-gray-500">Teléfono</Label>
-                    <div className="bg-white-50 p-1 rounded-md text-gray-900">
-                      {selectedUser.phone || "No registrado"}
+                  
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Teléfono</label>
+                    <div className="text-base text-gray-900 mt-1">
+                      {selectedUser.phone || 'No registrado'}
                     </div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-gray-500">Estado</Label>
-                    <div className="bg-white-50 p-1 rounded-md">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
+                  
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Estado</label>
+                    <div className="mt-1">
+                      <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
                         selectedUser.status === "active" 
                           ? "bg-green-100 text-green-800" 
                           : "bg-red-100 text-red-800"
@@ -778,64 +785,103 @@ export default function UsersPage() {
                     </div>
                   </div>
                 </div>
-
-                                  {/* Balance y paquetes */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-[#4A102A]">Balance de Clases</h3>
-                    
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <div className="grid grid-cols-3 gap-4 text-center">
-                        <div>
-                          <div className="text-2xl font-bold text-blue-600">
-                            {selectedUser.balance.totalClassesPurchased}
-                          </div>
-                          <div className="text-xs text-gray-600">Compradas</div>
-                        </div>
-                        <div>
-                          <div className="text-2xl font-bold text-green-600">
-                            {selectedUser.balance.classesAvailable}
-                          </div>
-                          <div className="text-xs text-gray-600">Disponibles</div>
-                        </div>
-                        <div>
-                          <div className="text-2xl font-bold text-gray-600">
-                            {selectedUser.balance.classesUsed}
-                          </div>
-                          <div className="text-xs text-gray-600">Usadas</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Botón para ver todas las reservaciones */}
-                    <Button
-                      variant="outline"
-                      className="w-full border-blue-200 text-blue-600 hover:bg-blue-50"
-                      onClick={() => {
-                        setIsViewUserOpen(false)
-                        setSelectedUserForReservations({
-                          id: selectedUser.id,
-                          name: `${selectedUser.firstName} ${selectedUser.lastName}`,
-                          email: selectedUser.email,
-                          phone: selectedUser.phone,
-                          package: "",
-                          remainingClasses: 0,
-                          joinDate: selectedUser.joinDate,
-                          lastVisit: selectedUser.lastVisitDate || "",
-                          status: selectedUser.status
-                        })
-                        setIsReservationsModalOpen(true)
-                      }}
-                    >
-                      <List className="h-4 w-4 mr-2" />
-                      Ver Todas las Reservaciones
-                    </Button>
-
-                </div>
               </div>
 
+              {/* Botón para ver todas las reservaciones */}
+              <div className="pt-4 border-t border-gray-200">
+                <Button
+                  variant="outline"
+                  className="w-full border-blue-200 text-blue-600 hover:bg-blue-50"
+                  onClick={() => {
+                    setIsViewUserOpen(false)
+                    setSelectedUserForReservations({
+                      id: selectedUser.id,
+                      name: `${selectedUser.firstName} ${selectedUser.lastName}`,
+                      email: selectedUser.email,
+                      phone: selectedUser.phone,
+                      package: "",
+                      remainingClasses: 0,
+                      joinDate: selectedUser.joinDate,
+                      lastVisit: selectedUser.lastVisitDate || "",
+                      status: selectedUser.status
+                    })
+                    setIsReservationsModalOpen(true)
+                  }}
+                >
+                  <List className="h-4 w-4 mr-2" />
+                  Ver Todas las Reservaciones
+                </Button>
+              </div>
 
+              {/* Historial de Compras */}
+              <div className="space-y-4 pt-4 border-t border-gray-200">
+                <h3 className="text-lg font-semibold text-[#4A102A]">Compras Recientes</h3>
+                
+                {selectedUser.purchaseHistory && selectedUser.purchaseHistory.length > 0 ? (
+                  <div className="space-y-3">
+                    {/* Mostrar las compras según el estado showAllPurchases */}
+                    {(showAllPurchases ? selectedUser.purchaseHistory : selectedUser.purchaseHistory.slice(0, 2)).map((purchase) => (
+                      <div 
+                        key={purchase.id} 
+                        className={`p-3 rounded-lg border flex justify-between items-center ${
+                          purchase.isActive 
+                            ? 'bg-green-50 border-green-200' 
+                            : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="flex-1">
+                          <div className="font-medium text-sm text-gray-800">
+                            {purchase.name}
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            {new Date(purchase.purchaseDate).toLocaleDateString('es-ES', {
+                              day: '2-digit',
+                              month: '2-digit', 
+                              year: '2-digit'
+                            })}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {purchase.amount > 0 && (
+                            <span className="text-sm font-medium text-gray-900">
+                              ${purchase.amount.toLocaleString()}
+                            </span>
+                          )}
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            purchase.isActive 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {purchase.isActive ? 'Activo' : 'Vencido'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {/* Botón para ver todas/menos si hay más de 2 */}
+                    {selectedUser.purchaseHistory.length > 2 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-blue-600 hover:bg-blue-50 text-xs"
+                        onClick={() => setShowAllPurchases(!showAllPurchases)}
+                      >
+                        {showAllPurchases 
+                          ? 'Ver menos' 
+                          : `Ver todas las compras (${selectedUser.purchaseHistory.length})`
+                        }
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-gray-500 bg-gray-50 rounded-lg">
+                    <div className="text-sm">No hay compras registradas</div>
+                  </div>
+                )}
+              </div>
 
-              <div className="flex justify-between mt-6">
+              {/* Botones de acción */}
+              <div className="flex flex-col sm:flex-row justify-between gap-3 pt-4 border-t border-gray-200">
                 <Button
                   variant="outline"
                   className="border-gray-200 text-zinc-900 hover:bg-gray-100"
@@ -843,18 +889,25 @@ export default function UsersPage() {
                 >
                   Cerrar
                 </Button>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    className="border-gray-200 text-zinc-900 hover:bg-gray-100"
-                    onClick={() => {
-                      setIsViewUserOpen(false)
-                      setIsEditUserOpen(true)
-                    }}
-                  >
-                    <Edit className="h-4 w-4 mr-2" /> Editar
-                  </Button>
-                </div>
+                <Button 
+                  variant="outline" 
+                  className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                  onClick={() => {
+                    setEditUserForm({
+                      firstName: selectedUser.firstName,
+                      lastName: selectedUser.lastName,
+                      email: selectedUser.email,
+                      phone: selectedUser.phone,
+                      status: selectedUser.status,
+                      password: ''
+                    })
+                    setIsViewUserOpen(false)
+                    setIsEditUserOpen(true)
+                  }}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Editar Usuario
+                </Button>
               </div>
             </div>
           )}

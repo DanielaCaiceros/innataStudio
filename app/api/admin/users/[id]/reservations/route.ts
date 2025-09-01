@@ -30,7 +30,8 @@ export async function GET(
 
     // Obtener parámetros de consulta
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status"); // upcoming/past/all
+    const status = searchParams.get("status"); // upcoming/past/all/cancelled
+    const dateFilter = searchParams.get("dateFilter"); // today/thisWeek/lastWeek/thisMonth/lastMonth/all
     const limit = parseInt(searchParams.get("limit") || "50");
     const page = parseInt(searchParams.get("page") || "1");
 
@@ -50,17 +51,84 @@ export async function GET(
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
 
-    // Construir filtros de fecha y status según el status
+    // Helper para calcular rangos de fechas
+    const getDateRange = (filter: string) => {
+      const now = new Date();
+      const today = new Date(now);
+      today.setUTCHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      switch (filter) {
+        case 'today':
+          return { gte: today, lt: tomorrow };
+        
+        case 'thisWeek': {
+          const startOfWeek = new Date(today);
+          const dayOfWeek = startOfWeek.getDay();
+          const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Lunes = 0
+          startOfWeek.setDate(startOfWeek.getDate() - daysToSubtract);
+          
+          const endOfWeek = new Date(startOfWeek);
+          endOfWeek.setDate(endOfWeek.getDate() + 7);
+          
+          return { gte: startOfWeek, lt: endOfWeek };
+        }
+        
+        case 'lastWeek': {
+          const startOfThisWeek = new Date(today);
+          const dayOfWeek = startOfThisWeek.getDay();
+          const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+          startOfThisWeek.setDate(startOfThisWeek.getDate() - daysToSubtract);
+          
+          const startOfLastWeek = new Date(startOfThisWeek);
+          startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+          
+          return { gte: startOfLastWeek, lt: startOfThisWeek };
+        }
+        
+        case 'thisMonth': {
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+          
+          return { gte: startOfMonth, lt: startOfNextMonth };
+        }
+        
+        case 'lastMonth': {
+          const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          
+          return { gte: startOfLastMonth, lt: startOfThisMonth };
+        }
+        
+        default: // 'all'
+          return {};
+      }
+    };
+
+    // Construir filtros de fecha y status
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     
-    let dateFilter = {};
+    let classDateFilter = {};
     let statusFilter = {};
+    
+    // Aplicar filtro de fecha si se especifica
+    if (dateFilter && dateFilter !== 'all') {
+      classDateFilter = getDateRange(dateFilter);
+    }
+    
+    // Aplicar filtro de status
     if (status === "upcoming") {
-      dateFilter = { gte: today };
+      if (!dateFilter || dateFilter === 'all') {
+        classDateFilter = { gte: today };
+      }
       statusFilter = { in: ["confirmed", "pending"] };
     } else if (status === "past") {
-      dateFilter = { lt: today };
+      if (!dateFilter || dateFilter === 'all') {
+        classDateFilter = { lt: today };
+      }
     } else if (status === "cancelled") {
       statusFilter = "cancelled";
     }
@@ -74,7 +142,10 @@ export async function GET(
         userId: userId,
         ...(status === "cancelled"
           ? { status: statusFilter }
-          : { scheduledClass: { date: dateFilter }, ...(Object.keys(statusFilter).length ? { status: statusFilter } : {}) }
+          : { 
+              scheduledClass: Object.keys(classDateFilter).length ? { date: classDateFilter } : undefined, 
+              ...(Object.keys(statusFilter).length ? { status: statusFilter } : {}) 
+            }
         )
       },
       include: {
@@ -114,7 +185,10 @@ export async function GET(
         userId: userId,
         ...(status === "cancelled"
           ? { status: statusFilter }
-          : { scheduledClass: { date: dateFilter }, ...(Object.keys(statusFilter).length ? { status: statusFilter } : {}) }
+          : { 
+              scheduledClass: Object.keys(classDateFilter).length ? { date: classDateFilter } : undefined, 
+              ...(Object.keys(statusFilter).length ? { status: statusFilter } : {}) 
+            }
         )
       }
     });
