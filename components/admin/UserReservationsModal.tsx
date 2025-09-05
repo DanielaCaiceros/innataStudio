@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import {
   Dialog,
@@ -115,6 +116,7 @@ export default function UserReservationsModal({
   })
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'past' | 'cancelled'>('all')
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth'>('today')
   
   // States for cancellation
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false)
@@ -128,7 +130,7 @@ export default function UserReservationsModal({
     cancelled: 'cancelled',
   }
 
-  const loadUserReservations = async (tab: keyof typeof tabToStatus = 'all', page = 1, updateAbsoluteStats = false) => {
+  const loadUserReservations = async (tab: keyof typeof tabToStatus = 'all', page = 1, updateAbsoluteStats = false, currentDateFilter = dateFilter) => {
     if (!userId) return
 
     setIsLoading(true)
@@ -137,7 +139,8 @@ export default function UserReservationsModal({
       const params = new URLSearchParams({
         status,
         page: page.toString(),
-        limit: pagination.limit.toString()
+        limit: pagination.limit.toString(),
+        dateFilter: currentDateFilter
       })
 
       const response = await fetch(`/api/admin/users/${userId}/reservations?${params}`, {
@@ -204,6 +207,7 @@ export default function UserReservationsModal({
         total: 0
       })
       setActiveTab('all')
+      setDateFilter('today')
       setPagination(prev => ({ ...prev, page: 1 }))
       
       // Cargar datos inmediatamente
@@ -230,13 +234,23 @@ export default function UserReservationsModal({
     
     // Cargar datos inmediatamente al cambiar tab
     const shouldUpdateAbsoluteStats = newTab === 'all'
-    loadUserReservations(newTab, 1, shouldUpdateAbsoluteStats)
+    loadUserReservations(newTab, 1, shouldUpdateAbsoluteStats, dateFilter)
+  }
+
+  const handleDateFilterChange = (value: string) => {
+    const newDateFilter = value as 'all' | 'today' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth'
+    setDateFilter(newDateFilter)
+    setPagination(prev => ({ ...prev, page: 1 }))
+    
+    // Cargar datos inmediatamente al cambiar filtro de fecha
+    const shouldUpdateAbsoluteStats = activeTab === 'all'
+    loadUserReservations(activeTab, 1, shouldUpdateAbsoluteStats, newDateFilter)
   }
 
   const handlePageChange = (newPage: number) => {
     if (newPage > 0 && newPage <= pagination.totalPages) {
       setPagination(prev => ({ ...prev, page: newPage }))
-      loadUserReservations(activeTab, newPage)
+      loadUserReservations(activeTab, newPage, false, dateFilter)
     }
   }
 
@@ -421,7 +435,26 @@ export default function UserReservationsModal({
               Canceladas
             </TabsTrigger>
           </TabsList>
-          <TabsContent value={activeTab} className="mt-2 flex-1 overflow-hidden">
+          
+          {/* Filtro de fecha */}
+          <div className="flex items-center gap-2 mt-2 mb-2">
+            <span className="text-xs text-slate-600 font-medium">Período:</span>
+            <Select value={dateFilter} onValueChange={handleDateFilterChange}>
+              <SelectTrigger className="w-32 h-7 text-xs border-slate-200">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today" className="text-xs">Hoy</SelectItem>
+                <SelectItem value="all" className="text-xs">Todo</SelectItem>
+                <SelectItem value="thisWeek" className="text-xs">Esta Semana</SelectItem>
+                <SelectItem value="lastWeek" className="text-xs">Semana Pasada</SelectItem>
+                <SelectItem value="thisMonth" className="text-xs">Este Mes</SelectItem>
+                <SelectItem value="lastMonth" className="text-xs">Mes Pasado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <TabsContent value={activeTab} className="mt-0 flex-1 overflow-hidden">
             {isLoading ? (
               <div className="text-center py-12 text-sm text-slate-500">
                 <div className="animate-spin h-6 w-6 border-2 border-slate-300 border-t-slate-600 rounded-full mx-auto mb-3"></div>
