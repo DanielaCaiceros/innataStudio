@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CardElement, Elements, useStripe, useElements } from "@stripe/react-stripe-js"
 import { stripePromise } from "@/lib/stripe"
-import { Loader2 } from "lucide-react"
+import { Loader2, CheckCircle } from "lucide-react"
 
 interface CheckoutFormProps {
   amount: number
@@ -31,6 +31,7 @@ function CheckoutForm({
   const elements = useElements()
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const defaultName = initialName || (firstName || "") + (lastName ? ` ${lastName}` : "")
   const [email, setEmail] = useState(initialEmail)
   const [name, setName] = useState(defaultName)
@@ -41,6 +42,12 @@ function CheckoutForm({
     e.preventDefault()
 
     if (!stripe || !elements) {
+      return
+    }
+
+    // Prevenir reenvío si ya fue enviado exitosamente
+    if (submitted) {
+      console.log('Payment already submitted, preventing duplicate submission')
       return
     }
 
@@ -91,6 +98,7 @@ function CheckoutForm({
       }
 
       if (paymentIntent.status === "succeeded") {
+        setSubmitted(true) // Prevenir reenvíos después de pago exitoso
         onSuccess(paymentIntent.id)
       }
     } catch (err) {
@@ -174,10 +182,15 @@ function CheckoutForm({
         {/* Pay Button */}
         <Button
           type="submit"
-          disabled={!stripe || processing}
+          disabled={!stripe || processing || submitted}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-4 px-4 rounded-md text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {processing ? (
+          {submitted ? (
+            <div className="flex items-center justify-center">
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Pago procesado
+            </div>
+          ) : processing ? (
             <div className="flex items-center justify-center">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Procesando pago...
