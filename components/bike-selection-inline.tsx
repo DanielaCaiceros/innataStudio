@@ -29,20 +29,20 @@ interface BikeResponseData {
 const bikePositions: { [key: number]: { x: number; y: number } } = {
   // Fila superior (2 bicis en las columnas 1 y 3)
   // Fila superior (2 bicis en las columnas 1 y 3)
-  6: { x: 25, y: 36 },
-  1: { x: 76, y: 32 },
+  6: { x: 33, y: 41 },
+  1: { x: 73, y: 30 },
 
   // Fila media (4 bicis en las columnas 1, 2, 3, 4)
-  5: { x: 34, y: 53 },
-  4: { x: 46, y: 58 },
-  3: { x: 58, y: 56 },
-  2: { x: 68, y: 48 },
+  5: { x: 41, y: 53 },
+  4: { x: 50, y: 58 },
+  3: { x: 59, y: 53 },
+  2: { x: 67, y: 46 },
 
   // Fila inferior (4 bicis en las columnas 1, 2, 3, 4)  8: { x: 37, y: 80 },
-  7: { x: 23, y: 63 },
-  8: { x: 35, y: 78 },
-  9: { x: 48, y: 79 },
-  10: { x: 62, y: 80 },
+  7: { x: 30, y: 65 },
+  8: { x: 43, y: 77 },
+  9: { x: 58, y: 77 },
+  10: { x: 69, y: 68 },
 }
 
 export function BikeSelectionInline({
