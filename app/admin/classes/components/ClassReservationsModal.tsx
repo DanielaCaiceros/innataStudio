@@ -236,16 +236,16 @@ export default function ClassReservationsModal({
 
   // Posiciones de las bicicletas con distribución responsive
   const bikePositions: { [key: number]: { x: number; y: number; xMobile: number; yMobile: number } } = {
-    6: { x: 46, y: 74, xMobile: 40, yMobile: 80 },
-    1: { x: 67, y: 26, xMobile: 85, yMobile: 20 },
-    5: { x: 53, y: 74, xMobile: 55, yMobile: 80 },
-    4: { x: 60, y: 74, xMobile: 70, yMobile: 80 },
-    3: { x: 67, y: 74, xMobile: 85, yMobile: 80 },
-    2: { x: 67, y: 50, xMobile: 85, yMobile: 50 },
-    7: { x: 39, y: 74, xMobile: 25, yMobile: 80 },
-    8: { x: 32, y: 74, xMobile: 15, yMobile: 80 },
-    9: { x: 32, y: 50, xMobile: 15, yMobile: 50 },
-    10: { x: 32, y: 26, xMobile: 15, yMobile: 20 },
+    6: { x: 38, y: 41, xMobile: 38, yMobile: 41 },
+    1: { x: 68, y: 30, xMobile: 68, yMobile: 30 },
+    5: { x: 44, y: 53, xMobile: 44, yMobile: 53 },
+    4: { x: 50, y: 58, xMobile: 50, yMobile: 58 },
+    3: { x: 56, y: 53, xMobile: 56, yMobile: 53 },
+    2: { x: 62, y: 46, xMobile: 62, yMobile: 46 },
+    7: { x: 39, y: 65, xMobile: 39, yMobile: 65 },
+    8: { x: 46, y: 77, xMobile: 46, yMobile: 77 },
+    9: { x: 54, y: 77, xMobile: 54, yMobile: 77 },
+    10: { x: 61, y: 68, xMobile: 61, yMobile: 68 },
   }
 
   // Función para obtener reservación por número de bicicleta
