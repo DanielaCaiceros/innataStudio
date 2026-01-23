@@ -165,8 +165,8 @@ export async function POST(request: NextRequest) {
         instructorId: Number.parseInt(instructorId),
         date: utcDate,
         time: classTime,
-        maxCapacity: Number.parseInt(maxCapacity) || 10,
-        availableSpots: Number.parseInt(maxCapacity) || 10,
+        maxCapacity: Number.parseInt(maxCapacity) || 11,
+        availableSpots: Number.parseInt(maxCapacity) || 11,
         status: "scheduled",
       },
       include: {

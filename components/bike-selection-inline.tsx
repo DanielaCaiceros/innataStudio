@@ -39,10 +39,11 @@ const bikePositions: { [key: number]: { x: number; y: number } } = {
   2: { x: 67, y: 46 },
 
   // Fila inferior (4 bicis en las columnas 1, 2, 3, 4)  8: { x: 37, y: 80 },
-  7: { x: 30, y: 65 },
-  8: { x: 43, y: 77 },
-  9: { x: 58, y: 77 },
-  10: { x: 69, y: 68 },
+  7: { x: 25, y: 30 },
+  8: { x: 34, y: 66 },
+  9: { x: 45, y: 77 },
+  10: { x: 58, y: 77 },
+  11: { x: 67 , y: 65},
 }
 
 export function BikeSelectionInline({
