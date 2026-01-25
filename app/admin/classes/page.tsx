@@ -151,7 +151,7 @@ export default function ClassesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...newScheduleForm,
-          maxCapacity: "10" // Capacidad fija en 10
+          maxCapacity: "11" // Capacidad fija en 10
         }),
       });
       if (response.ok) {
@@ -183,7 +183,7 @@ export default function ClassesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...editScheduleForm,
-          maxCapacity: "10" // Capacidad fija en 10
+          maxCapacity: "11" // Capacidad fija en 10
         }),
       });
       if (response.ok) {
@@ -337,7 +337,7 @@ export default function ClassesPage() {
             </div>
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Nota:</strong> La capacidad máxima se establece automáticamente en 10 personas por clase.
+                <strong>Nota:</strong> La capacidad máxima se establece automáticamente en 11 personas por clase.
               </p>
             </div>
           </div>
@@ -390,7 +390,7 @@ export default function ClassesPage() {
             </div>
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Nota:</strong> La capacidad máxima se mantiene en 10 personas por clase.
+                <strong>Nota:</strong> La capacidad máxima se mantiene en 11 personas por clase.
               </p>
             </div>
           </div>

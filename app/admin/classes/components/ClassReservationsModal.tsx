@@ -242,10 +242,11 @@ export default function ClassReservationsModal({
     4: { x: 50, y: 58, xMobile: 50, yMobile: 58 },
     3: { x: 56, y: 53, xMobile: 56, yMobile: 53 },
     2: { x: 62, y: 46, xMobile: 62, yMobile: 46 },
-    7: { x: 39, y: 65, xMobile: 39, yMobile: 65 },
-    8: { x: 46, y: 77, xMobile: 46, yMobile: 77 },
-    9: { x: 54, y: 77, xMobile: 54, yMobile: 77 },
-    10: { x: 61, y: 68, xMobile: 61, yMobile: 68 },
+    7: { x: 33, y: 30, xMobile: 33, yMobile: 30 },
+    8: { x: 39, y: 68, xMobile: 46, yMobile: 77 },
+    9: { x: 46, y: 77, xMobile: 54, yMobile: 77 },
+    10: { x: 54, y: 77, xMobile: 61, yMobile: 68 },
+    11: { x: 60 , y: 68, xMobile: 72, yMobile: 63 },
   }
 
   // Función para obtener reservación por número de bicicleta
@@ -460,7 +461,7 @@ export default function ClassReservationsModal({
                   </div>
                 </div>
 
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((bikeNumber) => {
+                {Array.from({ length: 11 }, (_, i) => i + 1).map((bikeNumber) => {
                   const position = bikePositions[bikeNumber]
                   if (!position) return null
 

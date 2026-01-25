@@ -119,8 +119,8 @@ export async function POST(request: NextRequest) {
     let parsedBikeNumber = null
     if (bikeNumber !== undefined && bikeNumber !== null) {
       parsedBikeNumber = Number(bikeNumber)
-      if (isNaN(parsedBikeNumber) || parsedBikeNumber < 1 || parsedBikeNumber > 10) {
-        return NextResponse.json({ error: "El número de bicicleta debe estar entre 1 y 10" }, { status: 400 })
+      if (isNaN(parsedBikeNumber) || parsedBikeNumber < 1 || parsedBikeNumber > 11) {
+        return NextResponse.json({ error: "El número de bicicleta debe estar entre 1 y 11" }, { status: 400 })
       }
 
       // Verificar si la bicicleta ya está reservada para esta clase (parsedBikeNumber is a number here)
