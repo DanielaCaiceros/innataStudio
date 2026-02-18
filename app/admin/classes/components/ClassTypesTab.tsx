@@ -28,7 +28,7 @@ export default function ClassTypesTab({ classTypes, loadClassTypes }: ClassTypes
     duration: "45",
     intensity: "",
     category: "",
-    capacity: "10",
+    capacity: "13",
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isEditClassTypeOpen, setIsEditClassTypeOpen] = useState(false);
@@ -40,7 +40,7 @@ export default function ClassTypesTab({ classTypes, loadClassTypes }: ClassTypes
     duration: "45",
     intensity: "",
     category: "",
-    capacity: "10",
+    capacity: "13",
   });
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export default function ClassTypesTab({ classTypes, loadClassTypes }: ClassTypes
           duration: "45",
           intensity: "",
           category: "",
-          capacity: "10",
+          capacity: "13",
         });
         await loadClassTypes(); // Reload class types in parent
       } else {
@@ -272,7 +272,7 @@ export default function ClassTypesTab({ classTypes, loadClassTypes }: ClassTypes
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="capacity">Capacidad</Label>
-                  <Input type="number" id="capacity" placeholder="10" value={newClassTypeForm.capacity} onChange={(e) => setNewClassTypeForm((prev) => ({ ...prev, capacity: e.target.value }))} className="bg-white border-gray-200 text-zinc-900" min="1" max="20"/>
+                  <Input type="number" id="capacity" placeholder="13" value={newClassTypeForm.capacity} onChange={(e) => setNewClassTypeForm((prev) => ({ ...prev, capacity: e.target.value }))} className="bg-white border-gray-200 text-zinc-900" min="1" max="20"/>
                 </div>
               </div>
               <div className="space-y-2">
@@ -381,7 +381,7 @@ export default function ClassTypesTab({ classTypes, loadClassTypes }: ClassTypes
               </div>
               <div className="space-y-2">
                 <Label htmlFor="editCapacity">Capacidad</Label>
-                <Input type="number" id="editCapacity" placeholder="10" value={editClassTypeForm.capacity} onChange={(e) => setEditClassTypeForm((prev) => ({ ...prev, capacity: e.target.value }))} className="bg-white border-gray-200 text-zinc-900" min="1" max="20"/>
+                <Input type="number" id="editCapacity" placeholder="13" value={editClassTypeForm.capacity} onChange={(e) => setEditClassTypeForm((prev) => ({ ...prev, capacity: e.target.value }))} className="bg-white border-gray-200 text-zinc-900" min="1" max="20"/>
               </div>
             </div>
             <div className="space-y-2">

@@ -56,8 +56,8 @@ export async function GET(request: NextRequest) {
       r.userPackage?.package?.name?.toLowerCase().includes('semana ilimitada')
     )
 
-    // Crear array de todas las bicicletas (1-11)
-    const allBikes = Array.from({ length: 11 }, (_, i) => {
+    // Crear array de todas las bicicletas (1-13)
+    const allBikes = Array.from({ length: 13 }, (_, i) => {
       const bikeNumber = i + 1
       const isReservedByOthers = reservations.some(r => 
         r.bikeNumber === bikeNumber && r.userId !== userId
