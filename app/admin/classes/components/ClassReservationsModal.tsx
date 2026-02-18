@@ -236,18 +236,21 @@ export default function ClassReservationsModal({
 
   // Posiciones de las bicicletas con distribución responsive
   const bikePositions: { [key: number]: { x: number; y: number; xMobile: number; yMobile: number } } = {
-    6: { x: 38, y: 41, xMobile: 38, yMobile: 41 },
-    1: { x: 68, y: 30, xMobile: 68, yMobile: 30 },
-    5: { x: 44, y: 53, xMobile: 44, yMobile: 53 },
+    6: { x: 70, y: 58, xMobile: 70, yMobile: 58 },
+    1: { x: 20, y: 58, xMobile: 20, yMobile: 58 },
+    5: { x: 60, y: 58, xMobile: 60, yMobile: 58 },
     4: { x: 50, y: 58, xMobile: 50, yMobile: 58 },
-    3: { x: 56, y: 53, xMobile: 56, yMobile: 53 },
-    2: { x: 62, y: 46, xMobile: 62, yMobile: 46 },
-    7: { x: 33, y: 30, xMobile: 33, yMobile: 30 },
-    8: { x: 39, y: 68, xMobile: 46, yMobile: 77 },
-    9: { x: 46, y: 77, xMobile: 54, yMobile: 77 },
-    10: { x: 54, y: 77, xMobile: 61, yMobile: 68 },
-    11: { x: 60 , y: 68, xMobile: 72, yMobile: 63 },
+    3: { x: 40, y: 58, xMobile: 40, yMobile: 58 },
+    2: { x: 30, y: 58, xMobile: 30, yMobile: 58 },
+    7: { x: 80, y: 58, xMobile: 80, yMobile: 58 },
+    8: { x: 75, y: 77, xMobile: 75, yMobile: 77 },
+    9: { x: 65, y: 77, xMobile: 65, yMobile: 77 },
+    10: { x: 55, y: 77, xMobile: 55, yMobile: 77 },
+    11: { x: 45 , y: 77, xMobile: 45, yMobile: 77 },
+    12: { x: 35, y: 77, xMobile: 35, yMobile: 77 },
+    13: { x: 25, y: 77, xMobile: 25, yMobile: 77 },
   }
+
 
   // Función para obtener reservación por número de bicicleta
   const getReservationByBike = (bikeNumber: number) => {
@@ -461,7 +464,7 @@ export default function ClassReservationsModal({
                   </div>
                 </div>
 
-                {Array.from({ length: 11 }, (_, i) => i + 1).map((bikeNumber) => {
+                {Array.from({ length: 13 }, (_, i) => i + 1).map((bikeNumber) => {
                   const position = bikePositions[bikeNumber]
                   if (!position) return null
 
@@ -502,7 +505,7 @@ export default function ClassReservationsModal({
                             : `Bici ${bikeNumber} - Disponible`
                         }
                       >
-                        {isCheckedIn ? "✓" : bikeNumber}
+                        {bikeNumber}
                       </div>
 
                       {hasReservation && (
