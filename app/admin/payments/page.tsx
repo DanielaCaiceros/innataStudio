@@ -128,9 +128,6 @@ export default function PaymentsPage() {
   const [selectedUnlimitedWeek, setSelectedUnlimitedWeek] = useState<{ start: string, end: string } | null>(null)
   const [sendPackageEmail, setSendPackageEmail] = useState(true) // State for sending package email
 
-  // Nuevo estado para el id del UserPackage
-  const [selectedUserPackageId, setSelectedUserPackageId] = useState<string | null>(null)
-
   // Función para manejar apertura del modal de nuevo pago
   const handleNewPaymentClick = () => {
     // Si viene desde reservaciones, ocultar el banner para distinguir entre acceso directo y click manual
@@ -150,56 +147,18 @@ export default function PaymentsPage() {
   const resetForm = () => {
     setSelectedUserId("")
     setSelectedPackageId("")
-    setSelectedUserPackageId(null)
     setPaymentAmount("")
     setPaymentNotes("")
     setPaymentMethod("efectivo")
     setUserSearchEmail("")
     setSearchedUsers([])
+    setSelectedUnlimitedWeek(null)
     setNewUserData({
       firstName: "",
       lastName: "",
       email: "",
       phone: ""
     })
-  }
-
-  // Función para asignar un nuevo paquete a un usuario
-  const handleAssignPackage = async (userId: string, packageId: string) => {
-    try {
-      const response = await fetch(`/api/admin/users/${userId}/packages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          packageId: parseInt(packageId),
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        toast({
-          title: "Paquete asignado",
-          description: `Paquete ${data.userPackage.packageName} asignado correctamente`,
-        })
-        setPaymentAmount(data.userPackage.packagePrice.toString())
-        setSelectedUserPackageId(data.userPackage.id.toString())
-        setSelectedPackageId(packageId)
-        return data.userPackage
-      } else {
-        throw new Error(data.error || "Error al asignar el paquete")
-      }
-    } catch (error) {
-      console.error("Error assigning package:", error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Error al asignar el paquete",
-        variant: "destructive",
-      })
-      return null
-    }
   }
 
   // Función para seleccionar usuario
@@ -404,7 +363,6 @@ export default function PaymentsPage() {
       console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   paymentAmount (raw string): ${paymentAmount}`);
       console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   paymentNotes: ${paymentNotes}`);
       console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedPackageId: ${selectedPackageId}`);
-      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedUserPackageId: ${selectedUserPackageId}`);
       console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedUnlimitedWeek: ${JSON.stringify(selectedUnlimitedWeek)}`);
       // The `amount` variable is already parsed parseFloat(paymentAmount), log it too for clarity
       const parsedAmount = parseFloat(paymentAmount); // Re-parse for logging consistency if `amount` isn't used above this log
@@ -412,10 +370,8 @@ export default function PaymentsPage() {
 
 
       const packageIdToSend = selectedPackageId ? parseInt(selectedPackageId) : null;
-      const userPackageIdToSend = selectedUserPackageId ? parseInt(selectedUserPackageId) : null;
       
       // selectedPackage is a derived state variable, let's log its perceived ID too
-      // const currentSelectedPackageDetails = packages.find(p => p.id.toString() === selectedPackageId); // This line is already present
       console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   Derived selectedPackage?.id: ${selectedPackage?.id}`);
 
 
@@ -428,7 +384,6 @@ export default function PaymentsPage() {
         amount: parsedAmount, // Use the consistently parsed amount
         notes: paymentNotes.trim() || null,
         packageId: packageIdToSend, 
-        userPackageId: userPackageIdToSend, 
         selectedWeek: selectedWeekToSend,
       };
 
@@ -1084,9 +1039,9 @@ export default function PaymentsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="package-select">Paquete</Label>
                     <div className="flex gap-2">
-                      <Select onValueChange={(value) => handleAssignPackage(selectedUserId, value)}>
+                      <Select value={selectedPackageId} onValueChange={setSelectedPackageId}>
                         <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Asignar paquete..." />
+                          <SelectValue placeholder="Seleccionar paquete..." />
                         </SelectTrigger>
                         <SelectContent>
                           {packages.map((pkg) => (
