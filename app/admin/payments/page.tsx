@@ -165,11 +165,40 @@ export default function PaymentsPage() {
   }
 
   // Función para asignar un nuevo paquete a un usuario
-  const handlePackageSelect = (packageId: string) => {
-    const pkg = packages.find(p => p.id.toString() === packageId)
-    if (pkg) {
-      setSelectedPackageId(packageId)
-      setPaymentAmount(pkg.price.toString())
+  const handleAssignPackage = async (userId: string, packageId: string) => {
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/packages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          packageId: parseInt(packageId),
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        toast({
+          title: "Paquete asignado",
+          description: `Paquete ${data.userPackage.packageName} asignado correctamente`,
+        })
+        setPaymentAmount(data.userPackage.packagePrice.toString())
+        setSelectedUserPackageId(data.userPackage.id.toString())
+        setSelectedPackageId(packageId)
+        return data.userPackage
+      } else {
+        throw new Error(data.error || "Error al asignar el paquete")
+      }
+    } catch (error) {
+      console.error("Error assigning package:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al asignar el paquete",
+        variant: "destructive",
+      })
+      return null
     }
   }
 
@@ -1055,7 +1084,7 @@ export default function PaymentsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="package-select">Paquete</Label>
                     <div className="flex gap-2">
-                    <Select onValueChange={handlePackageSelect}>
+                      <Select onValueChange={(value) => handleAssignPackage(selectedUserId, value)}>
                         <SelectTrigger className="flex-1">
                           <SelectValue placeholder="Asignar paquete..." />
                         </SelectTrigger>
