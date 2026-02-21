@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
             });
             userPackageForPaymentLink = { id: newUserPackage.id };
         }
-    } else if (userPackageId) {
+      } else if (userPackageId) {
         const updatedUserPackage = await db.userPackage.update({
             where: { id: userPackageId },
             data: {
@@ -227,9 +227,38 @@ export async function POST(request: NextRequest) {
             }
         });
         userPackageForPaymentLink = { id: updatedUserPackage.id };
+    } else if (bodyPackageId && packageData) {
+        // Paquete normal nuevo (no ilimitado) sin userPackage previo
+        const newUserPackage = await db.userPackage.create({
+            data: {
+                userId: user_id,
+                packageId: bodyPackageId,
+                purchaseDate: purchaseDate,
+                expiryDate: expirationDate,
+                classesRemaining: packageData.classCount,
+                isActive: true,
+                paymentStatus: 'completed',
+                paymentMethod: 'cash',
+            }
+        });
+        userPackageForPaymentLink = { id: newUserPackage.id };
+
+        // Actualizar el balance del usuario
+        await db.userAccountBalance.upsert({
+            where: { userId: user_id },
+            update: {
+                totalClassesPurchased: { increment: packageData.classCount ?? 0 },
+                classesAvailable: { increment: packageData.classCount ?? 0 },
+            },
+            create: {
+                userId: user_id,
+                totalClassesPurchased: packageData.classCount ?? 0,
+                classesUsed: 0,
+                classesAvailable: packageData.classCount ?? 0,
+            }
+        });
     } else {
     }
-    // ----- End of Refactored UserPackage Handling -----
 
     // Populate Payment Metadata
     let paymentMetadata: any = notes ? { notes: notes, created_by: "admin" } : { created_by: "admin" };
