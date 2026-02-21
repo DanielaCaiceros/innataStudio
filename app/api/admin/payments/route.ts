@@ -227,7 +227,25 @@ export async function POST(request: NextRequest) {
             }
         });
         userPackageForPaymentLink = { id: updatedUserPackage.id };
-    } else {
+    } else if (bodyPackageId) {
+        // Create UserPackage for other package types when not pre-existing
+        const packageBase = await db.package.findUnique({ where: { id: bodyPackageId } });
+        if (!packageBase) {
+            return NextResponse.json({ error: "Paquete no encontrado" }, { status: 404 });
+        }
+        const newUserPackage = await db.userPackage.create({
+            data: {
+                userId: user_id,
+                packageId: bodyPackageId,
+                purchaseDate: purchaseDate,
+                expiryDate: expirationDate,
+                classesRemaining: packageBase.classCount,
+                isActive: true,
+                paymentStatus: 'completed',
+                paymentMethod: 'cash',
+            }
+        });
+        userPackageForPaymentLink = { id: newUserPackage.id };
     }
     // ----- End of Refactored UserPackage Handling -----
 
