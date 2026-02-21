@@ -7,7 +7,6 @@ import { getUnlimitedWeekExpiryDate } from '@/lib/utils/unlimited-week'
 // GET - Obtener todos los pagos
 export async function GET(request: NextRequest) {
   try {
-    // Verificar autenticación del admin
     const token = request.cookies.get("auth_token")?.value
 
     if (!token) {
@@ -19,7 +18,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Acceso denegado" }, { status: 403 })
     }
 
-    // Obtener todos los pagos con información del usuario usando Prisma
     const payments = await db.payment.findMany({
       include: {
         user: {
@@ -48,7 +46,6 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Formatear los datos para la respuesta
     const formattedPayments = payments.map(payment => ({
       payment_id: payment.id,
       user_id: payment.userId,
@@ -60,14 +57,14 @@ export async function GET(request: NextRequest) {
       stripe_payment_intent_id: payment.stripePaymentIntentId,
       userPackageId: payment.userPackageId,
       metadata: payment.metadata,
-      transaction_id: payment.transactionId, // Agregado para el menú de detalles
+      transaction_id: payment.transactionId,
       user: {
         firstName: payment.user.firstName,
         lastName: payment.user.lastName,
         email: payment.user.email
       },
       package: payment.userPackage?.package?.name || null,
-      package_price: payment.userPackage?.package?.price ? 
+      package_price: payment.userPackage?.package?.price ?
         Number(payment.userPackage.package.price) : null
     }))
 
@@ -82,7 +79,6 @@ export async function GET(request: NextRequest) {
 // POST - Crear un nuevo pago en efectivo
 export async function POST(request: NextRequest) {
   try {
-    // Verificar autenticación del admin
     const token = request.cookies.get("auth_token")?.value
 
     if (!token) {
@@ -95,9 +91,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { user_id, amount, userPackageId, notes, selectedWeek, packageId: bodyPackageId } = body // Destructure packageId as bodyPackageId for clarity
+    const { user_id, amount, userPackageId, notes, selectedWeek, packageId: bodyPackageId } = body
 
-    // Validaciones
     if (!user_id || !amount) {
       return NextResponse.json(
         { error: "Faltan campos requeridos: user_id, amount" },
@@ -112,7 +107,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verificar que el usuario existe
     const userExists = await db.user.findUnique({
       where: { user_id: user_id }
     })
@@ -124,7 +118,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Si se especifica un paquete, verificar que existe
     if (userPackageId) {
       const userPackageExists = await db.userPackage.findUnique({
         where: { id: userPackageId }
@@ -137,21 +130,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Obtener información del paquete
     let packageData = null;
-    if (bodyPackageId) { // Use destructured bodyPackageId
+    if (bodyPackageId) {
       packageData = await db.package.findUnique({ where: { id: bodyPackageId } });
       if (!packageData) {
-        console.error(`[PAYMENT_API_LOG] Error: Paquete no encontrado con id: ${bodyPackageId}`);
         return NextResponse.json({ error: "Paquete no encontrado" }, { status: 404 });
       }
     }
 
-    // Si es compra de semana ilimitada, calcular la expiración usando la semana seleccionada
     let purchaseDate = new Date();
     let expirationDate = new Date();
 
-    // Para Semana Ilimitada, usar la semana seleccionada
     if (bodyPackageId === 3 && selectedWeek) {
       const selectedWeekDate = new Date(selectedWeek);
       const mondayUTC = new Date(Date.UTC(
@@ -161,7 +150,7 @@ export async function POST(request: NextRequest) {
         0, 0, 0, 0
       ));
       purchaseDate = mondayUTC;
-      expirationDate = getUnlimitedWeekExpiryDate(purchaseDate); // This returns Friday 23:59:59 UTC
+      expirationDate = getUnlimitedWeekExpiryDate(purchaseDate);
     } else if (bodyPackageId === 3) {
       const now = new Date();
       const mondayUTC = new Date(Date.UTC(
@@ -172,34 +161,44 @@ export async function POST(request: NextRequest) {
       ));
       purchaseDate = mondayUTC;
       expirationDate = getUnlimitedWeekExpiryDate(purchaseDate);
-    } else {
-      if (packageData) {
-        // purchaseDate remains new Date() (today)
-        expirationDate = new Date(); // Ensure expirationDate starts from today for this calculation path
-        expirationDate.setUTCDate(expirationDate.getUTCDate() + packageData.validityDays);
-      } else {
-      }
+    } else if (packageData) {
+      expirationDate = new Date();
+      expirationDate.setUTCDate(expirationDate.getUTCDate() + packageData.validityDays);
     }
 
     // ----- Start of Refactored UserPackage Handling -----
-    let userPackageForPaymentLink: { id: number } | null = null; 
-    // This will hold the ID of the UserPackage to be linked in the Payment record.
-    // It's either the one found by userPackageId (and potentially updated) or a newly created one.
+    let userPackageForPaymentLink: { id: number } | null = null;
 
-    if (bodyPackageId === 3) { // Operations specific to "Semana Ilimitada"
-        if (userPackageId) { 
+    if (bodyPackageId === 3) {
+        if (userPackageId) {
             const updatedUserPackage = await db.userPackage.update({
                 where: { id: userPackageId },
                 data: {
-                    purchaseDate: purchaseDate, // Correct future Monday from selectedWeek
-                    expiryDate: expirationDate, // Correct future Friday from selectedWeek
+                    purchaseDate: purchaseDate,
+                    expiryDate: expirationDate,
                     isActive: true,
-                    paymentStatus: 'completed'
-                    // Assuming classCount, etc., are correctly set by handleAssignPackage or are standard.
+                    paymentStatus: 'completed',
                 }
             });
             userPackageForPaymentLink = { id: updatedUserPackage.id };
-        } else { 
+
+            const classesToCredit = updatedUserPackage.classesRemaining ?? 0;
+            if (classesToCredit > 0) {
+                await db.userAccountBalance.upsert({
+                    where: { userId: user_id },
+                    update: {
+                        totalClassesPurchased: { increment: classesToCredit },
+                        classesAvailable: { increment: classesToCredit },
+                    },
+                    create: {
+                        userId: user_id,
+                        totalClassesPurchased: classesToCredit,
+                        classesUsed: 0,
+                        classesAvailable: classesToCredit,
+                    }
+                });
+            }
+        } else {
             const unlimitedBase = await db.package.findUnique({ where: { id: 3 } });
             if (!unlimitedBase) {
                 return NextResponse.json({ error: "Paquete base de semana ilimitada no encontrado" }, { status: 404 });
@@ -208,8 +207,8 @@ export async function POST(request: NextRequest) {
                 data: {
                     userId: user_id,
                     packageId: 3,
-                    purchaseDate: purchaseDate, // Correct future Monday
-                    expiryDate: expirationDate, // Correct future Friday
+                    purchaseDate: purchaseDate,
+                    expiryDate: expirationDate,
                     classesRemaining: unlimitedBase.classCount,
                     isActive: true,
                     paymentStatus: 'completed',
@@ -217,18 +216,50 @@ export async function POST(request: NextRequest) {
                 }
             });
             userPackageForPaymentLink = { id: newUserPackage.id };
+
+            await db.userAccountBalance.upsert({
+                where: { userId: user_id },
+                update: {
+                    totalClassesPurchased: { increment: unlimitedBase.classCount ?? 0 },
+                    classesAvailable: { increment: unlimitedBase.classCount ?? 0 },
+                },
+                create: {
+                    userId: user_id,
+                    totalClassesPurchased: unlimitedBase.classCount ?? 0,
+                    classesUsed: 0,
+                    classesAvailable: unlimitedBase.classCount ?? 0,
+                }
+            });
         }
-      } else if (userPackageId) {
+    } else if (userPackageId) {
         const updatedUserPackage = await db.userPackage.update({
             where: { id: userPackageId },
             data: {
+                purchaseDate: purchaseDate,
+                expiryDate: expirationDate,
                 isActive: true,
-                paymentStatus: 'completed'
+                paymentStatus: 'completed',
             }
         });
         userPackageForPaymentLink = { id: updatedUserPackage.id };
+
+        const classesToCredit = updatedUserPackage.classesRemaining ?? 0;
+        if (classesToCredit > 0) {
+            await db.userAccountBalance.upsert({
+                where: { userId: user_id },
+                update: {
+                    totalClassesPurchased: { increment: classesToCredit },
+                    classesAvailable: { increment: classesToCredit },
+                },
+                create: {
+                    userId: user_id,
+                    totalClassesPurchased: classesToCredit,
+                    classesUsed: 0,
+                    classesAvailable: classesToCredit,
+                }
+            });
+        }
     } else if (bodyPackageId && packageData) {
-        // Paquete normal nuevo (no ilimitado) sin userPackage previo
         const newUserPackage = await db.userPackage.create({
             data: {
                 userId: user_id,
@@ -243,7 +274,6 @@ export async function POST(request: NextRequest) {
         });
         userPackageForPaymentLink = { id: newUserPackage.id };
 
-        // Actualizar el balance del usuario
         await db.userAccountBalance.upsert({
             where: { userId: user_id },
             update: {
@@ -257,16 +287,14 @@ export async function POST(request: NextRequest) {
                 classesAvailable: packageData.classCount ?? 0,
             }
         });
-    } else {
     }
+    // ----- End of Refactored UserPackage Handling -----
 
-    // Populate Payment Metadata
     let paymentMetadata: any = notes ? { notes: notes, created_by: "admin" } : { created_by: "admin" };
-    if (bodyPackageId === 3 && selectedWeek) { // For any unlimited week with selectedWeek
-        // purchaseDate and expirationDate vars hold the correct dates from selectedWeek logic
+    if (bodyPackageId === 3 && selectedWeek) {
         paymentMetadata.unlimitedWeek = {
-            start: purchaseDate.toISOString().slice(0,10),
-            end: expirationDate.toISOString().slice(0,10)
+            start: purchaseDate.toISOString().slice(0, 10),
+            end: expirationDate.toISOString().slice(0, 10)
         };
     }
 
@@ -274,8 +302,8 @@ export async function POST(request: NextRequest) {
       data: {
         userId: user_id,
         amount: parseFloat(amount),
-        paymentMethod: 'cash', 
-        status: 'completed', 
+        paymentMethod: 'cash',
+        status: 'completed',
         userPackageId: userPackageForPaymentLink ? userPackageForPaymentLink.id : null,
         paymentDate: new Date(),
         metadata: paymentMetadata
@@ -288,7 +316,7 @@ export async function POST(request: NextRequest) {
             email: true
           }
         },
-        userPackage: { // This inclusion will now reflect the potentially updated/new UserPackage
+        userPackage: {
           include: {
             package: {
               select: {
@@ -301,8 +329,22 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // The specific updates to UserPackage are now handled above.
-    // The old generic update block `if (userPackageId)` is no longer needed here.
+    // Registrar balanceTransaction para auditoría
+    if (userPackageForPaymentLink && packageData) {
+        const classCount = packageData.classCount ?? 0;
+        if (classCount > 0) {
+            await db.balanceTransaction.create({
+                data: {
+                    userId: user_id,
+                    type: 'purchase',
+                    amount: classCount,
+                    description: `Compra de ${packageData.name} (efectivo)`,
+                    relatedPaymentId: payment.id,
+                    createdBy: Number(decoded.userId),
+                }
+            });
+        }
+    }
 
     return NextResponse.json({
       message: "Pago registrado exitosamente",
@@ -319,7 +361,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error("Error creating payment:", error)
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: "Error interno del servidor",
       details: error instanceof Error ? error.message : String(error)
     }, { status: 500 })
