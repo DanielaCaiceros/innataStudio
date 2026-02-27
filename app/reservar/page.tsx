@@ -31,6 +31,7 @@ import {
   UnlimitedWeekConfirmation 
 } from '@/components/ui/unlimited-week-alerts'
 import { WhatsAppConfirmationAlert } from '@/components/ui/whatsapp-confirmation-alert'
+import { BranchIndicatorBadge } from '@/components/branch-indicator-badge'
 
 interface ClassType {
   id: number
@@ -615,10 +616,13 @@ export default function BookingPage() {
           <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-4 anim-slide-in-up">
             RESERVA TU <span className="text-brand-sage">CLASE</span>
           </h1>
-          <p className="text-xl max-w-3xl mx-auto text-zinc-700">
+          <p className="text-xl max-w-3xl mx-auto text-zinc-700 mb-4">
             Selecciona fecha, clase y horario para asegurar tu lugar
           </p>
-          
+          {/* Indicador de sucursal */}
+          <div className="flex justify-center">
+            <BranchIndicatorBadge />
+          </div>
 
         </div>
       </section>

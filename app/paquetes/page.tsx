@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { useState } from "react"
+import { BranchIndicatorBadge } from "@/components/branch-indicator-badge"
 import {
   Dialog,
   DialogContent,
@@ -150,9 +151,13 @@ export default function PackagesPage() {
           <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-2 anim-slide-in-up">
             NUESTROS PAQUETES
           </h1>
-          <p className="text-xl max-w-3xl mx-auto text-zinc-700 mb-2">
+          <p className="text-xl max-w-3xl mx-auto text-zinc-700 mb-4">
             Flexibilidad para adaptarse a tu estilo de vida. Elige el paquete que mejor se ajuste a tus objetivos.
           </p>
+          {/* Indicador de sucursal */}
+          <div className="flex justify-center mt-4">
+            <BranchIndicatorBadge />
+          </div>
         </div>
       </section>
 

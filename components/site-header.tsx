@@ -16,6 +16,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/hooks/useAuth"
+import { BranchSelector } from "@/components/branch-selector"
 
 // Menú para usuarios no autenticados
 const publicNav = [
@@ -37,8 +38,8 @@ export function SiteHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const { user, isAuthenticated, logout } = useAuth()
 
-  // No renderizar el header en las páginas de admin
-  if (pathname?.startsWith("/admin")) {
+  // No renderizar el header en las páginas de admin y selección de sucursal
+  if (pathname?.startsWith("/admin") || pathname === "/seleccionar-sucursal") {
     return null
   }
   
@@ -72,7 +73,12 @@ export function SiteHeader() {
             ))}
           </nav>
 
-          <div className="hidden md:flex items-center gap-3">
+          <div className="flex items-center gap-3">
+            {/* Branch Selector - Visible en todas las pantallas */}
+            <BranchSelector />
+            
+            {/* User menu/auth - Hidden en móvil, visible en desktop */}
+            <div className="hidden md:block">
             {isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -125,7 +131,7 @@ export function SiteHeader() {
                 </Link>
               </Button>
             )}
-          </div>
+            </div>
 
           <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
             <SheetTrigger asChild>
@@ -180,6 +186,7 @@ export function SiteHeader() {
               </nav>
             </SheetContent>
           </Sheet>
+          </div>
         </div>
       </div>
     </header>

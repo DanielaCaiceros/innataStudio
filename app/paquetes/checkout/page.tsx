@@ -10,6 +10,7 @@ import { getAvailableWeekOptions } from "@/lib/utils/unlimited-week"
 import type { WeekOption, ExistingUserUnlimitedPackage } from "@/lib/utils/unlimited-week" // Import ExistingUserUnlimitedPackage
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { BranchConfirmationBadge } from "@/components/branch-indicator-badge"
 
 // Define a simplified type for what we expect from /api/user/packages GET endpoint
 interface UserPackageAPIResponse {
@@ -281,6 +282,11 @@ export default function PackageCheckoutPage() {
                 <div className="text-right">
                   <div className="font-semibold text-gray-900">${Number.parseFloat(packageData.price).toFixed(2)}</div>
                 </div>
+              </div>
+
+              {/* Branch Confirmation */}
+              <div className="mb-6">
+                <BranchConfirmationBadge />
               </div>
 
               {/* Unlimited Week Selection */}
