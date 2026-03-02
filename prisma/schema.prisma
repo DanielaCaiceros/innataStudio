@@ -343,10 +343,12 @@ model notifications {
 }
 
 model Branch {
-  id       Int      @id @default(autoincrement())
+  id       Int      @id @default(autoincrement()) @map("branch_id")
   name     String   @db.VarChar(100)
   address  String?  @db.VarChar(255)
   isActive Boolean? @default(true) @map("is_active")
+  phone    String?  @db.VarChar(20)
+  schedule String?  @db.VarChar(255)
 
   @@map("branches")
 }
