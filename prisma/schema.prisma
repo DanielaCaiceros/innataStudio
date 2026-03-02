@@ -139,13 +139,16 @@ model ScheduledClass {
   status         String        @default("scheduled") @db.VarChar(20)
   createdAt      DateTime?     @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime?     @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  branch_id      Int?
   reservations   Reservation[]
+  branches       Branch?       @relation(fields: [branch_id], references: [id], onUpdate: NoAction, map: "fk_scheduled_classes_branch")
   classType      ClassType     @relation(fields: [classTypeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   instructor     Instructor    @relation(fields: [instructorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   waitlist       Waitlist[]
 
   @@unique([date, time])
   @@index([date], map: "idx_scheduled_classes_date")
+  @@index([branch_id], map: "idx_scheduled_classes_branch_id")
   @@map("scheduled_classes")
 }
 
@@ -181,15 +184,18 @@ model UserPackage {
   paymentStatus    String?       @default("pending") @map("payment_status") @db.VarChar(20)
   createdAt        DateTime?     @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt        DateTime?     @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  branch_id        Int?
   relatedPayments  Payment[]     @relation("RelatedPackagePayments")
   payments         Payment[]     @relation("UserPackagePayments")
   reservations     Reservation[]
+  branches         Branch?       @relation(fields: [branch_id], references: [id], onUpdate: NoAction, map: "fk_user_packages_branch")
   package          Package       @relation(fields: [packageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   user             User          @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([expiryDate], map: "idx_user_packages_expiry_date")
   @@index([paymentStatus], map: "idx_user_packages_payment_status")
   @@index([userId], map: "idx_user_packages_user_id")
+  @@index([branch_id], map: "idx_user_packages_branch_id")
   @@map("user_packages")
 }
 
@@ -344,13 +350,15 @@ model notifications {
 }
 
 model Branch {
-  id             Int              @id @default(autoincrement()) @map("branch_id")
-  name           String           @db.VarChar(100)
-  address        String?          @db.VarChar(255)
-  isActive       Boolean?         @default(true) @map("is_active")
-  phone          String?          @db.VarChar(20)
-  schedule       String?          @db.VarChar(255)
-  package_prices package_prices[]
+  id                Int              @id @default(autoincrement())
+  name              String           @db.VarChar(100)
+  address           String?          @db.VarChar(255)
+  isActive          Boolean?         @default(true) @map("is_active")
+  phone             String?          @db.VarChar(20)
+  schedule          String?          @db.VarChar(255)
+  package_prices    package_prices[]
+  scheduled_classes ScheduledClass[]
+  user_packages     UserPackage[]
 
   @@map("branches")
 }
