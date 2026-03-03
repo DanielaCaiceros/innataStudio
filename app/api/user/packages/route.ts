@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
       },
       include: {
         package: true,
+        branches: true,
       },
       orderBy: { expiryDate: 'asc' },
     })
@@ -48,6 +49,8 @@ export async function GET(request: NextRequest) {
       expiryDate: pkg.expiryDate.toISOString(),
       purchaseDate: pkg.purchaseDate ? pkg.purchaseDate.toISOString() : null,
       isActive: pkg.isActive,
+      branchId: pkg.branch_id ?? null,
+      branchName: pkg.branches?.name ?? null,
     }))
 
     return NextResponse.json({
@@ -76,7 +79,7 @@ export async function POST(request: NextRequest) {
     const userId = parseInt(payload.userId)
 
     const body = await request.json()
-    const { packageId, paymentId, selectedWeekStartDate } = body
+    const { packageId, paymentId, selectedWeekStartDate, branchId } = body
 
     if (!packageId || !paymentId) {
       return NextResponse.json({
@@ -85,6 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     const numericPackageId = Number(packageId)
+    const numericBranchId = branchId ? Number(branchId) : null
 
     // Obtener información del paquete
     const packageInfo = await prisma.package.findUnique({
@@ -95,6 +99,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: "Paquete no encontrado" 
       }, { status: 404 })
+    }
+
+    // Obtener precio específico de la sucursal si se proporcionó branchId
+    let packagePrice = Number(packageInfo.price)
+    if (numericBranchId) {
+      const branchPriceRecord = await prisma.package_prices.findFirst({
+        where: {
+          package_id: numericPackageId,
+          branch_id: numericBranchId,
+          is_active: true,
+        },
+        include: { branches: true },
+      })
+      if (branchPriceRecord) {
+        packagePrice = Number(branchPriceRecord.price)
+      }
     }
 
     // Verificar si es un paquete "primera vez" y si el usuario ya lo ha comprado antes
@@ -219,7 +239,8 @@ export async function POST(request: NextRequest) {
           classesUsed: 0,
           isActive: true,
           paymentMethod: "online",
-          paymentStatus: "paid"
+          paymentStatus: "paid",
+          branch_id: numericBranchId,
         },
         include: {
           package: true
@@ -231,7 +252,7 @@ export async function POST(request: NextRequest) {
         data: {
           userId: userId as number,
           userPackageId: createdUserPackage.id,
-          amount: Number(packageInfo.price),
+          amount: packagePrice,
           paymentMethod: "stripe",
           stripePaymentIntentId: paymentId,
           status: "completed"
@@ -281,14 +302,22 @@ export async function POST(request: NextRequest) {
         return;
       }
 
+      const branchName = numericBranchId
+        ? (await prisma.package_prices.findFirst({
+            where: { package_id: numericPackageId, branch_id: numericBranchId },
+            include: { branches: true },
+          }))?.branches?.name ?? null
+        : null
+
       const emailDetails = {
         packageName: packageInfo.name,
         classCount: packageInfo.classCount || 0,
-        price: Number(packageInfo.price),
+        price: packagePrice,
         purchaseDate: purchaseDate.toLocaleDateString('es-ES'),
         expiryDate: expiryDate.toLocaleDateString('es-ES'),
-        isUnlimitedWeek: numericPackageId === 3, // Use numericPackageId
-        validityType: numericPackageId === 3 ? '5 días hábiles' : `${packageInfo.validityDays} días` // Use numericPackageId
+        isUnlimitedWeek: numericPackageId === 3,
+        validityType: numericPackageId === 3 ? '5 días hábiles' : `${packageInfo.validityDays} días`,
+        branchName: branchName ?? undefined,
       }
 
       await sendPackagePurchaseConfirmationEmail(

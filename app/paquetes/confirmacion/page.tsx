@@ -23,11 +23,26 @@ function ConfirmationContent() {
 
   const sessionId = searchParams.get('session_id');
   const packageId = searchParams.get('package_id');
+  const branchId = searchParams.get('branch_id');
 
   useEffect(() => {
     const fetchPackageData = async () => {
       try {
         if (packageId) {
+          if (branchId) {
+            // Usar el endpoint por sucursal para mostrar el precio correcto
+            const response = await fetch(`/api/packages/by-branch/${branchId}`);
+            if (response.ok) {
+              const allPackages = await response.json();
+              const pkg = allPackages.find((p: any) => p.id === parseInt(packageId));
+              if (pkg) {
+                setPackageData(pkg);
+                setLoading(false);
+                return;
+              }
+            }
+          }
+          // Fallback al endpoint genérico
           const response = await fetch(`/api/packages/${packageId}`);
           if (response.ok) {
             const data = await response.json();
@@ -42,7 +57,7 @@ function ConfirmationContent() {
     };
 
     fetchPackageData();
-  }, [packageId]);
+  }, [packageId, branchId]);
 
   const handleGoToAccount = () => {
     router.push('/mi-cuenta');
