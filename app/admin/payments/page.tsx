@@ -50,6 +50,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 // Removed: import { sendPackagePurchaseConfirmationEmail } from "@/lib/email"
 import { Checkbox } from "@/components/ui/checkbox"
+import { AdminBranchFilter } from "@/components/admin/AdminBranchFilter"
 
 interface Payment {
   id: number
@@ -64,6 +65,8 @@ interface Payment {
   stripePaymentIntentId?: string
   userPackageId?: number
   userId: number
+  branchId?: number | null
+  branchName?: string | null
   // Datos adicionales para el menú de detalles
   createdAt: string
   paymentDate: string
@@ -98,6 +101,7 @@ export default function PaymentsPage() {
 
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [branchFilter, setBranchFilter] = useState("all")
   const [isNewPaymentOpen, setIsNewPaymentOpen] = useState(false)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [payments, setPayments] = useState<Payment[]>([])
@@ -269,6 +273,8 @@ export default function PaymentsPage() {
           stripePaymentIntentId: payment.stripe_payment_intent_id,
           userPackageId: payment.userPackageId,
           userId: payment.user_id,
+          branchId: payment.branch_id || null,
+          branchName: payment.branch_name || null,
           // Datos adicionales para detalles
           createdAt: payment.created_at,
           paymentDate: payment.payment_date,
@@ -685,7 +691,12 @@ export default function PaymentsPage() {
 
     const matchesStatus = statusFilter === "all" || payment.status === statusFilter
 
-    return matchesSearch && matchesStatus
+    const matchesBranch =
+      branchFilter === "all" ||
+      (branchFilter === "none" && !payment.branchId) ||
+      payment.branchId?.toString() === branchFilter
+
+    return matchesSearch && matchesStatus && matchesBranch
   })
 
   const selectedUser = users.find((u) => u.id && u.id.toString() === selectedUserId)
@@ -1273,6 +1284,12 @@ export default function PaymentsPage() {
             <SelectItem value="Fallido">Fallidos</SelectItem>
           </SelectContent>
         </Select>
+
+        <AdminBranchFilter
+          selectedBranchId={branchFilter}
+          onBranchChange={setBranchFilter}
+          className="w-full sm:w-[220px]"
+        />
       </div>
 
       {/* Tabla de pagos */}
@@ -1287,6 +1304,7 @@ export default function PaymentsPage() {
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[120px]">ID. del Pago</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[200px]">Cliente</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[150px]">Paquete</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[110px]">Sucursal</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[100px]">Monto</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[110px]">Fecha</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[120px]">Método</th>
@@ -1308,6 +1326,15 @@ export default function PaymentsPage() {
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="text-sm text-gray-900 truncate font-medium max-w-[140px]">{payment.package}</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {payment.branchName ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            {payment.branchName}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="text-sm font-medium text-gray-900">
