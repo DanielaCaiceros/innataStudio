@@ -47,7 +47,7 @@ export default function Home() {
 
                 <Link
                   href="/clases"
-                  className="bg-brand-cream hover:bg-brand-cream/90 text-zinc-800 rounded-full px-8 py-4 text-lg inline-flex items-center gap-2 w-full sm:w-auto justify-center"
+                  className="bg-brand-cream hover:bg-brand-cream/90 text-white rounded-full px-8 py-4 text-lg inline-flex items-center gap-2 w-full sm:w-auto justify-center"
                 >
                   <span>Ver clases</span>
                 </Link>
@@ -83,24 +83,24 @@ export default function Home() {
         {/* First row - Left to Right */}
         <div className="relative whitespace-nowrap overflow-hidden py-2">
           <div className="inline-block animate-scrollLeft">
-            <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-gray via-brand-sage to-brand-mint bg-clip-text text-transparent px-2">
+            <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-sage via-brand-cream to-brand-sage bg-clip-text text-transparent px-2">
               HAZTE MIEMBRO
             </span>
-            <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-gray via-brand-sage to-brand-mint bg-clip-text text-transparent px-2">
+            <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-sage via-brand-sage to-brand-sage bg-clip-text text-transparent px-2">
               HAZTE MIEMBRO
             </span>
-            <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-gray via-brand-sage to-brand-mint bg-clip-text text-transparent px-2">
+            <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-sage via-brand-sage to-brand-sage bg-clip-text text-transparent px-2">
               HAZTE MIEMBRO
             </span>
           </div>
           <div className="inline-block animate-scrollLeft" aria-hidden="true">
-            <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-gray via-brand-sage to-brand-mint bg-clip-text text-transparent px-2">
+            <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-sage via-brand-cream to-brand-sage bg-clip-text text-transparent px-2">
               HAZTE MIEMBRO
             </span>
-            <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-gray via-brand-sage to-brand-mint bg-clip-text text-transparent px-2">
+            <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-sage via-brand-cream to-brand-sage bg-clip-text text-transparent px-2">
               HAZTE MIEMBRO
             </span>
-            <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-gray via-brand-sage to-brand-mint bg-clip-text text-transparent px-2">
+            <span className="text-7xl md:text-8xl font-semibold uppercase tracking-wide bg-gradient-to-r from-brand-sage via-brand-cream to-brand-sage bg-clip-text text-transparent px-2">
               HAZTE MIEMBRO
             </span>
           </div>
@@ -140,7 +140,7 @@ export default function Home() {
       <p className="text-base sm:text-lg md:text-xl text-black border-brand-sage/20 mb-4">
         Conoce las Reglas y Beneficios de
       </p>
-      <h3 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6 tracking-wide bg-gradient-to-r from-brand-sage via-brand-cream to-brand-gray bg-clip-text text-transparent uppercase">
+      <h3 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6 tracking-wide bg-gradient-to-r from-brand-sage via-brand-mint to-brand-sage bg-clip-text text-transparent uppercase">
         Semana Ilimitada
       </h3>
       <p className="text-base sm:text-lg md:text-xl text-black max-w-3xl mx-auto">
@@ -157,7 +157,7 @@ export default function Home() {
         <CardContent className="relative p-6 sm:p-8">
           <div className="flex items-center mb-4">
             <Calendar className="h-7 w-7 sm:h-8 sm:w-8 text-studio-orange mr-3" />
-            <h4 className="text-lg sm:text-xl font-semibold text-brand-gray drop-shadow-sm">
+            <h4 className="text-lg sm:text-xl font-semibold text-brand-sage drop-shadow-sm">
               Duración & Vigencia
             </h4>
           </div>

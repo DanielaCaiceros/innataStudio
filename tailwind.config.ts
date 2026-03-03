@@ -54,10 +54,11 @@ const config = {
           foreground: "hsl(var(--card-foreground))",
         },
         // Nueva paleta de colores naturales
-        "brand-gray": "#727D73",
-        "brand-sage": "#AAB99A",
-        "brand-mint": "#D0DDD0",
-        "brand-cream": "#F0F0D7",
+        "brand-gray": "#000029",      // Black russian
+        "brand-sage": "#000051",      // Allured night
+        "brand-mint": "#BABABA",      // Baby grey
+        "brand-cream": "#173DED",     // Palatinate blue
+        "brand-neutral": "#DCDCE2",   // Grey placidity
       },
       borderRadius: {
         lg: "var(--radius)",
