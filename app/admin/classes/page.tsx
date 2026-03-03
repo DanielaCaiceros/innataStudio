@@ -29,12 +29,16 @@ import { ClassType, Instructor, ScheduledClass, timeSlots, convertUtcToLocalDate
 import ClassTypesTab from "./components/ClassTypesTab";
 import WeeklyScheduleTab from "./components/WeeklyScheduleTab";
 import CalendarViewTab from "./components/CalendarViewTab";
+import { AdminBranchFilter } from "@/components/admin/AdminBranchFilter";
 
 // UI components Card*, Calendar removed as their usage is now within child tabs
 // Helper functions are now imported from typesAndConstants
 
 export default function ClassesPage() {
   const { toast } = useToast()
+
+  // Estado de sucursal
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("all")
 
   // Estados para tipos de clase
   const [classTypes, setClassTypes] = useState<ClassType[]>([])
@@ -55,6 +59,7 @@ export default function ClassesPage() {
     instructorId: "",
     date: "",
     time: "",
+    branchId: "",
   });
   const [isEditScheduleOpen, setIsEditScheduleOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduledClass | null>(null);
@@ -63,6 +68,7 @@ export default function ClassesPage() {
     instructorId: "",
     date: "",
     time: "",
+    branchId: "",
   });
 
   // Cargar datos iniciales
@@ -71,10 +77,10 @@ export default function ClassesPage() {
     loadInstructors()
   }, [])
 
-  // Cargar clases programadas cuando cambia la semana
+  // Cargar clases programadas cuando cambia la semana o la sucursal
   useEffect(() => {
     loadScheduledClasses()
-  }, [selectedWeek])
+  }, [selectedWeek, selectedBranchId])
 
   // useEffect for populating editScheduleForm (lifted back)
   useEffect(() => {
@@ -84,6 +90,7 @@ export default function ClassesPage() {
         instructorId: selectedSchedule.instructor.id.toString(),
         date: format(convertUtcToLocalDateForDisplay(selectedSchedule.date), "yyyy-MM-dd"),
         time: formatTime(selectedSchedule.time),
+        branchId: selectedSchedule.branch_id?.toString() || "",
       });
     }
   }, [selectedSchedule]);
@@ -125,7 +132,16 @@ export default function ClassesPage() {
       const startDate = format(currentGlobalWeekStart, "yyyy-MM-dd")
       const endDate = format(currentGlobalWeekEnd, "yyyy-MM-dd")
 
-      const response = await fetch(`/api/admin/scheduled-classes?startDate=${startDate}&endDate=${endDate}`)
+      // Construir URL con filtro de sucursal
+      const params = new URLSearchParams({
+        startDate,
+        endDate,
+      });
+      if (selectedBranchId !== "all") {
+        params.append("branchId", selectedBranchId);
+      }
+
+      const response = await fetch(`/api/admin/scheduled-classes?${params.toString()}`)
 
       if (response.ok) {
         const data = await response.json()
@@ -140,8 +156,8 @@ export default function ClassesPage() {
 
   // Handlers lifted back from WeeklyScheduleTab
   const handleCreateSchedule = async () => {
-    if (!newScheduleForm.classTypeId || !newScheduleForm.instructorId || !newScheduleForm.date || !newScheduleForm.time) {
-      toast({ title: "Error", description: "Todos los campos son obligatorios", variant: "destructive" });
+    if (!newScheduleForm.classTypeId || !newScheduleForm.instructorId || !newScheduleForm.date || !newScheduleForm.time || !newScheduleForm.branchId) {
+      toast({ title: "Error", description: "Todos los campos son obligatorios (incluyendo sucursal)", variant: "destructive" });
       return;
     }
     setIsLoading(true);
@@ -151,13 +167,14 @@ export default function ClassesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...newScheduleForm,
-          maxCapacity: "13" // Capacidad fija en 10
+          branchId: parseInt(newScheduleForm.branchId),
+          maxCapacity: "13" // Capacidad fija en 13
         }),
       });
       if (response.ok) {
         toast({ title: "Éxito", description: "Clase programada exitosamente" });
         setIsNewScheduleOpen(false);
-        setNewScheduleForm({ classTypeId: "", instructorId: "", date: "", time: "" });
+        setNewScheduleForm({ classTypeId: "", instructorId: "", date: "", time: "", branchId: "" });
         await loadScheduledClasses();
       } else {
         const errorData = await response.json();
@@ -172,8 +189,8 @@ export default function ClassesPage() {
 
   const handleEditSchedule = async () => {
     if (!selectedSchedule) return;
-    if (!editScheduleForm.classTypeId || !editScheduleForm.instructorId || !editScheduleForm.date || !editScheduleForm.time) {
-      toast({ title: "Error", description: "Todos los campos son obligatorios", variant: "destructive" });
+    if (!editScheduleForm.classTypeId || !editScheduleForm.instructorId || !editScheduleForm.date || !editScheduleForm.time || !editScheduleForm.branchId) {
+      toast({ title: "Error", description: "Todos los campos son obligatorios (incluyendo sucursal)", variant: "destructive" });
       return;
     }
     setIsLoading(true);
@@ -183,7 +200,8 @@ export default function ClassesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...editScheduleForm,
-          maxCapacity: "13" // Capacidad fija en 10
+          branchId: parseInt(editScheduleForm.branchId),
+          maxCapacity: "13" // Capacidad fija en 13
         }),
       });
       if (response.ok) {
@@ -233,6 +251,10 @@ export default function ClassesPage() {
           <h1 className="text-2xl font-bold text-[#4A102A]">Gestión de Clases y Horarios</h1>
           <p className="text-gray-600">Administra los tipos de clases y sus horarios semanales</p>
         </div>
+        <AdminBranchFilter 
+          selectedBranchId={selectedBranchId}
+          onBranchChange={setSelectedBranchId}
+        />
       </div>
 
       <Tabs defaultValue="class-types" className="w-full">
@@ -334,6 +356,16 @@ export default function ClassesPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="newBranch">Sucursal</Label>
+                <Select value={newScheduleForm.branchId} onValueChange={(value) => setNewScheduleForm((prev) => ({ ...prev, branchId: value }))}>
+                  <SelectTrigger className="bg-white border-gray-200 text-zinc-900"><SelectValue placeholder="Seleccionar sucursal" /></SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                    <SelectItem value="1">SAHAGÚN</SelectItem>
+                    <SelectItem value="2">APAN</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
@@ -384,6 +416,16 @@ export default function ClassesPage() {
                   <SelectTrigger id="editFormTime" className="bg-white border-gray-200 text-zinc-900"><SelectValue placeholder="Seleccionar hora" /></SelectTrigger>
                   <SelectContent className="bg-white border-gray-200 text-zinc-900">
                     {timeSlots.map((time) => (<SelectItem key={`edit-${time}`} value={time}>{time}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editFormBranch">Sucursal</Label>
+                <Select value={editScheduleForm.branchId} onValueChange={(value) => setEditScheduleForm((prev) => ({ ...prev, branchId: value }))}>
+                  <SelectTrigger id="editFormBranch" className="bg-white border-gray-200 text-zinc-900"><SelectValue placeholder="Seleccionar sucursal" /></SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                    <SelectItem value="1">SAHAGÚN</SelectItem>
+                    <SelectItem value="2">APAN</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

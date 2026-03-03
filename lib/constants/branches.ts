@@ -4,9 +4,9 @@ import { Branch } from '@/lib/types/branch';
 export const MOCK_BRANCHES: Branch[] = [
   {
     id: 1,
-    name: "APAN",
-    address: "Apan, Hidalgo",
-    phone: "55-1234-5678",
+    name: "SAHAGÚN",
+    address: "Sahagún, Hidalgo, México",
+    phone: "55-8765-4321",
     schedule: "Lun-Sab missing",
     imageUrl: "/innataAsset1.png",
     isActive: true,
@@ -14,9 +14,9 @@ export const MOCK_BRANCHES: Branch[] = [
   },
   {
     id: 2,
-    name: "SAHAGÚN",
-    address: "Sahagún, Hidalgo",
-    phone: "55-8765-4321",
+    name: "APAN",
+    address: "Apan, Hidalgo, México",
+    phone: "55-1234-5678",
     schedule: "Lun-Sab missing",
     imageUrl: "/innataAsset2.JPG",
     isActive: true,
@@ -24,4 +24,4 @@ export const MOCK_BRANCHES: Branch[] = [
   }
 ];
 
-export const DEFAULT_BRANCH_ID = 1; // APAN como default
+export const DEFAULT_BRANCH_ID = 2; // APAN como default
