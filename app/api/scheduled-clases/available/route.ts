@@ -8,6 +8,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const dateParam = searchParams.get("date")
+    const branchId = searchParams.get("branchId")
+    const branchIdInt = branchId ? parseInt(branchId, 10) : null
 
     console.log("📅 Fecha solicitada:", dateParam)
 
@@ -56,6 +58,7 @@ export async function GET(request: NextRequest) {
       where: {
         ...dateFilter,
         status: "scheduled",
+        ...(branchIdInt ? { branch_id: branchIdInt } : {}),
       },
       include: {
         classType: true,
@@ -74,6 +77,7 @@ export async function GET(request: NextRequest) {
             status: "confirmed",
           },
         },
+        branches: true,
       },
       orderBy: [{ date: "asc" }, { time: "asc" }],
     })
@@ -118,6 +122,13 @@ export async function GET(request: NextRequest) {
         maxCapacity: scheduledClass.maxCapacity,
         availableSpots: scheduledClass.availableSpots,
         enrolledCount: scheduledClass.reservations.length,
+        branch: scheduledClass.branches
+          ? {
+              id: scheduledClass.branches.id,
+              name: scheduledClass.branches.name,
+              address: scheduledClass.branches.address,
+            }
+          : null,
       }
       
       console.log(`🔄 Clase formateada:`, {
