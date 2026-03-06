@@ -483,6 +483,7 @@ export async function sendPackagePurchaseConfirmationEmail(
     purchaseDate: string;
     price: number;
     isUnlimitedWeek?: boolean;
+    branchName?: string;
   },
 ): Promise<void> {
   const subject = "¡Confirmación de Compra de Paquete - Innata Studio!";
@@ -528,6 +529,12 @@ export async function sendPackagePurchaseConfirmationEmail(
                 <span style="color: #6b7280; font-size: 14px;">Nombre del Paquete:</span>
                 <span style="color: #111827; font-weight: 500; margin-left: 8px;">${packageDetails.packageName}</span>
               </div>
+
+              ${packageDetails.branchName ? `
+              <div style="margin: 8px 0;">
+                <span style="color: #6b7280; font-size: 14px;">Sucursal:</span>
+                <span style="color: #111827; font-weight: 500; margin-left: 8px;">📍 ${packageDetails.branchName}</span>
+              </div>` : ''}
 
               <div style="margin: 8px 0;">
                 <span style="color: #6b7280; font-size: 14px;">Número de Clases:</span>

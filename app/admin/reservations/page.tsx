@@ -31,6 +31,7 @@ import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X, AlertCircle,
 import { cn } from "@/lib/utils"
 import { formatAdminDate } from "@/lib/utils/admin-date"
 import { useRouter } from "next/navigation"
+import { AdminBranchFilter } from "@/components/admin/AdminBranchFilter"
 // Removed: import { sendBookingConfirmationEmail } from "@/lib/email"
 import { Checkbox } from "@/components/ui/checkbox"
 import { formatTimeFromDB } from '@/lib/utils/date';
@@ -53,6 +54,7 @@ interface Reservation {
   checkedInAt: string | null
   bikeNumber: number | null
   cancelledAt?: string
+  branchName?: string
 }
 
 interface AvailableTime {
@@ -83,6 +85,7 @@ export default function ReservationsPage() {
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("all")
   const [isNewReservationOpen, setIsNewReservationOpen] = useState(false)
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -373,6 +376,10 @@ export default function ReservationsPage() {
           params.append("status", statusFilter)
         }
 
+        if (selectedBranchId !== "all") {
+          params.append("branchId", selectedBranchId)
+        }
+
         if (params.toString()) {
           url += `?${params.toString()}`
         }
@@ -402,7 +409,7 @@ export default function ReservationsPage() {
     }
 
     fetchReservations()
-  }, [date, statusFilter])
+  }, [date, statusFilter, selectedBranchId])
 
   // Filtrar reservaciones localmente para búsqueda
   const filteredReservations = reservations.filter((reservation) => {
@@ -1021,6 +1028,10 @@ export default function ReservationsPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
+          <AdminBranchFilter 
+            selectedBranchId={selectedBranchId}
+            onBranchChange={setSelectedBranchId}
+          />
           <Dialog open={isNewReservationOpen} onOpenChange={setIsNewReservationOpen}>
             <DialogTrigger asChild>
               <Button className="bg-[#4A102A] hover:bg-[#85193C] text-white">
@@ -1519,6 +1530,7 @@ export default function ReservationsPage() {
                   <tr className="border-b border-gray-200 bg-gray-50/95 backdrop-blur-sm">
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[180px]">Cliente</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[120px]">Clase</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[80px]">Sucursal</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[115px]">Fecha & Hora</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[110px]">Paquete</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[70px]">Bici</th>
@@ -1555,6 +1567,11 @@ export default function ReservationsPage() {
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="font-medium text-gray-900 truncate max-w-[110px] text-sm">{reservation.class}</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="text-xs font-medium text-gray-700">
+                          {reservation.branchName || 'N/A'}
+                        </div>
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="max-w-[120px]">

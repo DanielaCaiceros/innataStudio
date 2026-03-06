@@ -11,6 +11,7 @@ import type { WeekOption, ExistingUserUnlimitedPackage } from "@/lib/utils/unlim
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { BranchConfirmationBadge } from "@/components/branch-indicator-badge"
+import { useBranch } from "@/lib/hooks/useBranch"
 
 // Define a simplified type for what we expect from /api/user/packages GET endpoint
 interface UserPackageAPIResponse {
@@ -27,8 +28,10 @@ export default function PackageCheckoutPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const packageId = searchParams.get("packageId")
+  const branchId = searchParams.get("branchId")
   const { toast } = useToast()
   const { user, isAuthenticated } = useAuth()
+  const { selectedBranch } = useBranch()
   const [packageData, setPackageData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedUnlimitedWeek, setSelectedUnlimitedWeek] = useState<WeekOption | null>(null)
@@ -38,6 +41,9 @@ export default function PackageCheckoutPage() {
 
   // Convert packageId to a number, handling cases where it might be null or malformed
   const numericPackageId = packageId ? Number.parseInt(packageId, 10) : null
+  const numericBranchId = branchId ? Number.parseInt(branchId, 10) : null
+  // Usar sucursal del contexto como fallback si no viene branchId en la URL
+  const effectiveBranchId = numericBranchId ?? selectedBranch?.id ?? 1
 
   // Redireccionar si no hay usuario autenticado
   useEffect(() => {
@@ -51,13 +57,15 @@ export default function PackageCheckoutPage() {
     const fetchData = async () => {
       setIsLoading(true) // Start loading
       try {
-        // Fetch package details first
-        if (numericPackageId) {
-          const packageDetailsResponse = await fetch(`/api/packages/${numericPackageId}`)
-          if (!packageDetailsResponse.ok) {
-            throw new Error("Error al cargar los datos del paquete")
-          }
-          const fetchedPackageData = await packageDetailsResponse.json()
+// Fetch package details for the specific branch
+          if (numericPackageId) {
+            const packageDetailsResponse = await fetch(`/api/packages/by-branch/${effectiveBranchId}`)
+            if (!packageDetailsResponse.ok) {
+              throw new Error("Error al cargar los datos del paquete")
+            }
+            const allPackages = await packageDetailsResponse.json()
+            const fetchedPackageData = allPackages.find((p: any) => p.id === numericPackageId)
+            if (!fetchedPackageData) throw new Error("Paquete no encontrado para esta sucursal")
           setPackageData(fetchedPackageData)
 
           // If it's an unlimited week package, fetch user's existing unlimited weeks
@@ -127,9 +135,11 @@ export default function PackageCheckoutPage() {
        const fetchPackageDataOnly = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`/api/packages/${numericPackageId}`);
+        const response = await fetch(`/api/packages/by-branch/${effectiveBranchId}`);
             if (!response.ok) throw new Error("Error al cargar los datos del paquete");
-            const pkgData = await response.json();
+            const allPkgs = await response.json();
+            const pkgData = allPkgs.find((p: any) => p.id === numericPackageId);
+            if (!pkgData) throw new Error("Paquete no encontrado para esta sucursal");
             setPackageData(pkgData);
         } catch (error) {
             console.error("Error al cargar los datos del paquete:", error);
@@ -166,6 +176,7 @@ export default function PackageCheckoutPage() {
       const body: any = {
         packageId: Number(numericPackageId),
         paymentId,
+        branchId: effectiveBranchId,
         unlimitedWeek:
           numericPackageId === 3 && selectedUnlimitedWeek
             ? {
@@ -190,7 +201,7 @@ export default function PackageCheckoutPage() {
           title: "¡Compra exitosa!",
           description: "Tu paquete ha sido registrado correctamente",
         })
-        router.push(`/paquetes/confirmacion?session_id=${paymentId}&package_id=${numericPackageId}`)
+        router.push(`/paquetes/confirmacion?session_id=${paymentId}&package_id=${numericPackageId}&branch_id=${effectiveBranchId}`)
       } else {
         const errorData = await response.json()
         console.log('Entering error block in handlePaymentSuccess. Response not OK.');
