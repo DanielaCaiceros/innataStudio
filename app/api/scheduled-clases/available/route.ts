@@ -9,7 +9,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const dateParam = searchParams.get("date")
     const branchId = searchParams.get("branchId")
-    const branchIdInt = branchId ? parseInt(branchId, 10) : null
+    let branchIdInt: number | null = null
+    if (branchId !== null) {
+      const parsed = parseInt(branchId, 10)
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== branchId.trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
+      }
+      branchIdInt = parsed
+    }
 
     console.log("📅 Fecha solicitada:", dateParam)
 
@@ -77,7 +84,13 @@ export async function GET(request: NextRequest) {
             status: "confirmed",
           },
         },
-        branches: true,
+        branches: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+          },
+        },
       },
       orderBy: [{ date: "asc" }, { time: "asc" }],
     })

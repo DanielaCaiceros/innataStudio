@@ -9,14 +9,21 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const branchId = searchParams.get("branchId");
-    const branchIdInt = branchId ? parseInt(branchId, 10) : null;
+    let branchIdInt: number | null = null;
+    if (branchId !== null) {
+      const parsed = parseInt(branchId, 10);
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== branchId.trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 });
+      }
+      branchIdInt = parsed;
+    }
 
     const packages = await prisma.package.findMany({
       where: {
         isActive: true,
       },
       include: {
-        package_prices: branchIdInt
+        package_prices: branchIdInt !== null
           ? {
               where: {
                 branch_id: branchIdInt,
@@ -32,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     const result = packages.map((pkg) => {
       const branchPrice =
-        branchIdInt && pkg.package_prices && pkg.package_prices.length > 0
+        branchIdInt !== null && pkg.package_prices && pkg.package_prices.length > 0
           ? pkg.package_prices[0]
           : null;
 
