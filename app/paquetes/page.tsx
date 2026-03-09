@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/co
 import { useAuth } from "@/lib/hooks/useAuth"
 import { useState } from "react"
 import { BranchIndicatorBadge } from "@/components/branch-indicator-badge"
+import { useBranch } from "@/lib/hooks/useBranch"
 import {
   Dialog,
   DialogContent,
@@ -17,11 +18,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-const packages = [
+// Datos de UI únicamente — precios y nombres vienen de la API por sucursal
+const PACKAGES_UI_CONFIG = [
   {
     id: 1,
-    name: "PRIMERA VEZ",
-    price: "$49.00",
     description: "Perfecto para probar nuestras clases",
     features: [
       "1 clase de indoor cycling de 45 minutos",
@@ -31,78 +31,119 @@ const packages = [
     expiracion: "Válido por 30 días",
     buttonText: "COMPRAR PASE",
     type: "clase",
-    gradient: "from-[#727D73] to-[#AAB99A]",
+    gradient: "from-brand-gray to-brand-sage",
   },
   {
     id: 2,
-    name: "PASE INDIVIDUAL",
-    price: "$69.00",
-    description: "Perfecto para probar nuestras clases",
-    features: ["1 clase de indoor cycling",],
+    description: "Una clase cuando la necesites",
+    features: ["1 clase de indoor cycling"],
     popular: false,
     expiracion: "Válido por 30 días",
     buttonText: "COMPRAR PASE",
     type: "clase",
-    gradient: "from-[#AAB99A] to-[#D0DDD0]",
+    gradient: "from-brand-sage to-brand-cream",
   },
   {
     id: 3,
-    name: "SEMANA ILIMITADA",
-    price: "$299.00",
-    description: "Tiempo limitado",
-    features: ["Hasta 25 clases de indoor cycling","Sí no te presentas o cancelas la clase, se descontará de tu paquete"],
+    description: "Tiempo limitado, Lunes a Viernes",
+    features: ["Hasta 25 clases de indoor cycling", "Si no te presentas o cancelas la clase, se descontará de tu paquete"],
     popular: true,
     expiracion: "Válido por 5 días de Lunes a Viernes",
     buttonText: "COMPRAR PAQUETE",
     type: "paquete",
-    gradient: "from-[#D0DDD0] to-[#F0F0D7]",
+    gradient: "from-brand-cream to-brand-neutral",
   },
   {
     id: 4,
-    name: "PAQUETE 10 CLASES",
-    price: "$599.00",
-    description: "Ahorra $100 con este paquete",
-    features: ["10 clases de indoor cycling",],
+    description: "La opción más popular",
+    features: ["10 clases de indoor cycling"],
     popular: false,
     expiracion: "Válido por 30 días",
     buttonText: "COMPRAR PAQUETE",
     type: "paquete",
-    gradient: "from-[#F0F0D7] to-[#727D73]",
+    gradient: "from-brand-neutral to-brand-mint",
+  },
+  {
+    id: 5,
+    description: "Ahorra más con este paquete",
+    features: ["20 clases de indoor cycling"],
+    popular: false,
+    expiracion: "Válido por 60 días",
+    buttonText: "COMPRAR PAQUETE",
+    type: "paquete",
+    gradient: "from-brand-mint to-brand-gray",
+  },
+  {
+    id: 6,
+    description: "La mejor opción para practicantes frecuentes",
+    features: ["Hasta 90 clases de indoor cycling", "Clases ilimitadas durante el mes"],
+    popular: false,
+    expiracion: "Válido por 30 días",
+    buttonText: "COMPRAR PAQUETE",
+    type: "paquete",
+    gradient: "from-brand-sage to-brand-mint",
   },
 ]
 
 export default function PackagesPage() {
    const router = useRouter();
    const { isAuthenticated } = useAuth()
+   const { selectedBranch } = useBranch()
    const [showAuthModal, setShowAuthModal] = useState(false)
    const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null)
    const [hasFirstTimePackage, setHasFirstTimePackage] = useState(false)
    const [isLoading, setIsLoading] = useState(true)
-   const [filteredPackages, setFilteredPackages] = useState(packages)
-   
+   const [filteredPackages, setFilteredPackages] = useState<any[]>([])
+
+   // Cargar paquetes desde la API según la sucursal seleccionada
+   useEffect(() => {
+     const fetchPackages = async () => {
+       if (!selectedBranch) return
+       setIsLoading(true)
+       try {
+         const response = await fetch(`/api/packages/by-branch/${selectedBranch.id}`)
+         if (!response.ok) throw new Error("Error al cargar paquetes")
+         const apiData = await response.json()
+
+         // Combinar datos de API (precio, nombre) con configuración de UI (gradientes, features)
+         const merged = PACKAGES_UI_CONFIG.map(uiPkg => {
+           const apiPkg = apiData.find((a: any) => a.id === uiPkg.id)
+           if (!apiPkg) return null
+           return {
+             ...uiPkg,
+             name: apiPkg.name,
+             price: `$${Number(apiPkg.price).toFixed(2)}`,
+             classCount: apiPkg.classCount,
+             validityDays: apiPkg.validityDays,
+             isFirstTimeOnly: apiPkg.isFirstTimeOnly,
+           }
+         }).filter(Boolean)
+
+         setFilteredPackages(merged)
+       } catch (error) {
+         console.error("Error al cargar paquetes por sucursal:", error)
+         setFilteredPackages([])
+       } finally {
+         setIsLoading(false)
+       }
+     }
+     fetchPackages()
+   }, [selectedBranch])
+
    // Verificar si el usuario ha comprado el paquete primera vez
    useEffect(() => {
      const checkFirstTimePackage = async () => {
        if (isAuthenticated) {
          try {
-           const response = await fetch("/api/user/has-purchased-first-time-package");
-           const data = await response.json();
-           setHasFirstTimePackage(data.hasPurchased);
-           
-           // Siempre mostramos todos los paquetes, pero modificaremos la visualización del botón
-           setFilteredPackages(packages);
+           const response = await fetch("/api/user/has-purchased-first-time-package")
+           const data = await response.json()
+           setHasFirstTimePackage(data.hasPurchased)
          } catch (error) {
-           console.error("Error al verificar el paquete primera vez:", error);
-           setFilteredPackages(packages);
+           console.error("Error al verificar el paquete primera vez:", error)
          }
-       } else {
-         // Si no está autenticado, mostrar todos los paquetes
-         setFilteredPackages(packages);
        }
-       setIsLoading(false);
-     };
-     
-     checkFirstTimePackage();
+     }
+     checkFirstTimePackage()
    }, [isAuthenticated]);
   
    const handlePurchaseClick = (packageId: number) => {
@@ -139,14 +180,14 @@ export default function PackagesPage() {
       return;
     }
 
-    router.push(`/paquetes/checkout?packageId=${packageId}`);
+    router.push(`/paquetes/checkout?packageId=${packageId}&branchId=${selectedBranch?.id}`);
   }
   
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
       {/* Hero Section */}
 
-      <section className="py-12 pt-14 bg-white">
+      <section className="py-5 pt-14 bg-white">
         <div className="container px-4 md:px-6 text-center">
           <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-2 anim-slide-in-up">
             NUESTROS PAQUETES
@@ -164,7 +205,7 @@ export default function PackagesPage() {
       {/* Packages Section */}
       <section className="py-3 bg-white">
         <div className="container px-4 md:px-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 anim-fade-in">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 anim-fade-in">
 
             {filteredPackages.map((pkg) => (
               <Card key={pkg.id} className="bg-white border-gray-100 overflow-hidden rounded-3xl shadow-sm flex flex-col h-full">
@@ -183,9 +224,9 @@ export default function PackagesPage() {
 
                 <CardContent className="pb-4 flex-grow">
                   <ul className="space-y-2">
-                    {pkg.features.map((feature, index) => (
+                    {pkg.features.map((feature: string, index: number) => (
                       <li key={index} className="flex items-start">
-                        <Check className="h-5 w-5 text-[#AAB99A] mr-2 shrink-0" />
+                        <Check className="h-5 w-5 text-brand-cream mr-2 shrink-0" />
                         <span className="text-zinc-700">{feature}</span>
                       </li>
                     ))}
@@ -228,50 +269,50 @@ export default function PackagesPage() {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-20 bg-[#F0F0D7]/30">
+      <section className="py-20 bg-brand-neutral/20">
         <div className="container px-4 md:px-6">
           <h2 className="text-3xl font-bold text-center mb-12 anim-fade-in">
-            PREGUNTAS <span className="text-[#727D73]">FRECUENTES</span>
+            PREGUNTAS <span className="text-brand-cream">FRECUENTES</span>
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto anim-fade-in">
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-[#727D73]">¿Cuánto tiempo duran las clases?</h3>
+              <h3 className="text-xl font-bold text-brand-sage">¿Cuánto tiempo duran las clases?</h3>
               <p className="text-zinc-600">
                 Nuestras clases tienen duraciones de 45.
               </p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-[#727D73]">¿Necesito experiencia previa?</h3>
+              <h3 className="text-xl font-bold text-brand-sage">¿Necesito experiencia previa?</h3>
               <p className="text-zinc-600">
                 No, tenemos clases para todos los niveles. Nuestros instructores te guiarán durante toda la sesión.
               </p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-[#727D73]">¿Qué debo llevar a clase?</h3>
+              <h3 className="text-xl font-bold text-brand-sage">¿Qué debo llevar a clase?</h3>
   <p className="text-zinc-600">
   Te recomendamos llegar 15 minutos antes de la clase. Debes traer agua, toalla y zapatos de deporte cómodos. 
 </p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-[#727D73]">¿Puedo cancelar mi reserva?</h3>
+              <h3 className="text-xl font-bold text-brand-sage">¿Puedo cancelar mi reserva?</h3>
               <p className="text-zinc-600">
                 Para paquetes regulares: puedes cancelar hasta 12 horas antes y recibes tu crédito de vuelta. Para Semana Ilimitada: si cancelas con +12 horas no hay penalización, pero con -12 horas o no asistes sí hay penalización.
               </p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-[#727D73]">¿Los paquetes tienen fecha de expiración?</h3>
+              <h3 className="text-xl font-bold text-brand-sage">¿Los paquetes tienen fecha de expiración?</h3>
               <p className="text-zinc-600">
                 Sí, todos nuestros paquetes tienen una validez de 30 días desde la compra.
               </p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-[#727D73]">¿Hay lista de espera?</h3>
+              <h3 className="text-xl font-bold text-brand-sage">¿Hay lista de espera?</h3>
               <p className="text-zinc-600">
                 Sí, si una persona reservada no llega antes del inicio de la segunda canción, su lugar se liberará en la plataforma.
               </p>
@@ -301,7 +342,7 @@ export default function PackagesPage() {
                 asChild
                 className="bg-brand-sage hover:bg-brand-sage text-white flex gap-2"
               >
-                <Link href={`/login?redirect=/paquetes/checkout?packageId=${selectedPackageId}`}>
+                <Link href={`/login?redirect=/paquetes/checkout?packageId=${selectedPackageId}&branchId=${selectedBranch?.id}`}>
                   <LogIn className="h-4 w-4" /> Iniciar Sesión
                 </Link>
               </Button>
@@ -311,7 +352,7 @@ export default function PackagesPage() {
                 variant="outline" 
                 className="border-[#4A102A] text-[#4A102A] hover:bg-[#4A102A]/10 flex gap-2"
               >
-                <Link href={`/registro?redirect=/paquetes/checkout?packageId=${selectedPackageId}`}>
+                <Link href={`/registro?redirect=/paquetes/checkout?packageId=${selectedPackageId}&branchId=${selectedBranch?.id}`}>
                   <UserPlus className="h-4 w-4" /> Registrarse
                 </Link>
               </Button>

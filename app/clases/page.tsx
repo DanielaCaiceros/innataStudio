@@ -144,7 +144,7 @@ export default function ClassesPage() {
                   className="relative overflow-hidden rounded-3xl shadow-md transition-all duration-300 group border-0"
                 >
                   {/* Fondo con gradiente y blur */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-brand-cream/90 via-white/60 to-brand-mint/70 backdrop-blur-xl"></div>
+                  <div className="absolute inset-0 bg-gradient-to-br from-brand-mint/30 via-brand-mint/30 to-brand-mint/30 backdrop-blur-xl"></div>
 
                   {/* Overlay para mejorar legibilidad */}
                   <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
@@ -168,23 +168,23 @@ export default function ClassesPage() {
 
                     {/* Información de la clase */}
                     <div className="space-y-3 mb-6">
-                      <div className="flex items-center justify-between bg-brand-cream/10 backdrop-blur-sm rounded-xl p-3 border border-brand-cream/70">
+                      <div className="flex items-center justify-between bg-brand-cream/10 backdrop-blur-sm rounded-xl p-3 border border-brand-cream/20">
                         <div className="flex items-center gap-2 text-sm text-brand-gray/90">
                           <span>Intensidad:</span>
                         </div>
-                        <div className="bg-brand-cream/20 backdrop-blur-sm px-2 py-1 rounded-full border border-brand-cream/70">
+                        <div className="bg-brand-cream/20 backdrop-blur-sm px-2 py-1 rounded-full border border-brand-cream/20">
                           <span className="text-xs font-medium text-brand-gray">{classType.intensity}</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between bg-brand-cream/10 backdrop-blur-sm rounded-xl p-3 border border-brand-cream/70">
+                      <div className="flex items-center justify-between bg-brand-cream/10 backdrop-blur-sm rounded-xl p-3 border border-brand-cream/20">
                         <div className="flex items-center gap-2 text-sm text-brand-gray/90">
                           <span>Capacidad:</span>
                         </div>
                         <span className="text-sm font-medium text-brand-gray">{classType.capacity} personas</span>
                       </div>
 
-                      <div className="flex items-center justify-between bg-brand-cream/10 backdrop-blur-sm rounded-xl p-3 border border-brand-cream/70">
+                      <div className="flex items-center justify-between bg-brand-cream/10 backdrop-blur-sm rounded-xl p-3 border border-brand-cream/20">
                         <div className="flex items-center gap-2 text-sm text-brand-gray/90">
                           <span>Categoría:</span>
                         </div>
@@ -195,7 +195,7 @@ export default function ClassesPage() {
                     {/* Botón de reserva directo */}
                     <Button
                       asChild
-                      className="w-full bg-brand-sage/20 hover:bg-brand-sage/30 text-brand-gray border border-brand-cream/30 backdrop-blur-sm rounded-2xl transition-all duration-300"
+                      className="w-full bg-brand-cream/40 hover:bg-brand-cream/60 text-brand-gray border-0 backdrop-blur-sm rounded-3xl transition-all duration-300"
                     >
                       <Link
                         href={`/reservar?classTypeId=${classType.id}`}

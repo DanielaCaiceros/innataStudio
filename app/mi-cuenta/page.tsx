@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Calendar, Clock, LogOut, Target, ChevronRight, User, Package, Bike } from "lucide-react"
+import { Calendar, Clock, LogOut, Target, ChevronRight, User, Package, Bike, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,6 +30,8 @@ interface UserPackage {
   expiryDate: string
   isActive: boolean
   purchaseDate?: string
+  branchId?: number | null
+  branchName?: string | null
 }
 
 interface UserReservation {
@@ -547,6 +549,12 @@ export default function ProfilePage() {
                                 <Package className="h-5 w-5 text-brand-sage" />
                               </div>
                             </div>
+                            {pkg.branchName && (
+                              <div className="flex items-center gap-1 text-xs text-zinc-500 mb-3">
+                                <MapPin className="h-3 w-3" />
+                                <span>{pkg.branchName}</span>
+                              </div>
+                            )}
                             <div className="text-center">
                               <div className="text-3xl font-bold text-brand-sage mb-1">{pkg.classesRemaining}</div>
                               <p className="text-sm text-zinc-600">clases restantes</p>

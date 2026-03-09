@@ -39,6 +39,12 @@ export async function GET(request: NextRequest) {
                 price: true,
                 classCount: true
               }
+            },
+            branches: {
+              select: {
+                id: true,
+                name: true
+              }
             }
           }
         }
@@ -68,7 +74,9 @@ export async function GET(request: NextRequest) {
       },
       package: payment.userPackage?.package?.name || null,
       package_price: payment.userPackage?.package?.price ? 
-        Number(payment.userPackage.package.price) : null
+        Number(payment.userPackage.package.price) : null,
+      branch_id: payment.userPackage?.branches?.id || null,
+      branch_name: payment.userPackage?.branches?.name || null
     }))
 
     return NextResponse.json(formattedPayments)

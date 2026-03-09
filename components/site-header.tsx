@@ -85,7 +85,7 @@ export function SiteHeader() {
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                     <Avatar className="h-10 w-10">
                       <AvatarImage src={user?.profileImage || undefined} alt={user?.firstName || ""} />
-                      <AvatarFallback className="bg-brand-sage text-white">
+                      <AvatarFallback className="bg-brand-cream text-white">
                         {user?.firstName?.[0]}{user?.lastName?.[0]}
                       </AvatarFallback>
                     </Avatar>
