@@ -184,22 +184,22 @@ export default function Home() {
 
       {/* Card 2 - Límites */}
       <Card className="relative overflow-hidden rounded-3xl shadow-md transition-all duration-300 group border-0 bg-white">
-        <div className="absolute inset-0 bg-gradient-to-br from-brand-sage/80 via-brand-sage/60 to-brand-sage/40 backdrop-blur-xl" />
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-gray/80 via-brand-gray/60 to-brand-gray/40 backdrop-blur-xl" />
         <div className="absolute inset-0 bg-white/10 backdrop-blur-sm" />
         <CardContent className="relative p-6 sm:p-8">
           <div className="flex items-center mb-4">
-            <Users className="h-7 w-7 sm:h-8 sm:w-8 text-brand-gray mr-3" />
-            <h4 className="text-lg sm:text-xl font-semibold text-brand-gray drop-shadow-sm">
+            <Users className="h-7 w-7 sm:h-8 sm:w-8 text-brand-sage mr-3" />
+            <h4 className="text-lg sm:text-xl font-semibold text-brand-sage drop-shadow-sm">
               Límites
             </h4>
           </div>
-          <ul className="space-y-3 text-sm sm:text-base text-brand-gray">
+          <ul className="space-y-3 text-sm sm:text-base text-brand-sage">
             <li className="flex items-start">
-              <CheckCircle className="h-5 w-5 text-brand-gray mr-2 mt-0.5 flex-shrink-0" />
+              <CheckCircle className="h-5 w-5 text-brand-sage mr-2 mt-0.5 flex-shrink-0" />
               <span><strong>25 clases</strong> por semana</span>
             </li>
             <li className="flex items-start">
-              <CheckCircle className="h-5 w-5 text-brand-gray mr-2 mt-0.5 flex-shrink-0" />
+              <CheckCircle className="h-5 w-5 text-brand-sage mr-2 mt-0.5 flex-shrink-0" />
               <span><strong>5 clases</strong> máximo por día</span>
             </li>
           </ul>

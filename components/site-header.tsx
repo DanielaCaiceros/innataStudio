@@ -125,7 +125,7 @@ export function SiteHeader() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white rounded-full">
+              <Button asChild className="bg-brand-gray hover:bg-brand-gray text-white rounded-full">
                 <Link href="/login" className="text-sm font-medium text-white hover:text-white transition-colors">
                   Iniciar Sesión <ChevronRight className="h-4 w-4" />
                 </Link>

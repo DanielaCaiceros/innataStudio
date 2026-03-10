@@ -701,7 +701,7 @@ export default function BookingPage() {
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
-                    <CalendarIcon className="mr-2 h-5 w-5 text-brand-sage" />
+                    <CalendarIcon className="mr-2 h-5 w-5 text-brand-gray" />
                     <h3 className="text-xl font-bold text-black">Selecciona Fecha</h3>
                   </div>
                   <div className="flex justify-center items-center py-6">
@@ -766,7 +766,7 @@ export default function BookingPage() {
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
-                    <Clock className="mr-2 h-5 w-5 text-brand-sage" />
+                    <Clock className="mr-2 h-5 w-5 text-brand-gray" />
                     <h3 className="text-xl font-bold text-brand-sage-dark">Selecciona Horario</h3>
                   </div>
                   
@@ -787,9 +787,9 @@ export default function BookingPage() {
                             disabled={!hasAvailability}
                             className={`rounded-full relative ${
                               isSelected
-                                ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
+                                ? "bg-brand-gray hover:bg-brand-gray/90 text-white"
                                 : hasAvailability
-                                ? "border-brand-sage text-brand-sage hover:bg-gray-50"
+                                ? "border-brand-gray text-brand-gray hover:bg-gray-50"
                                 : "border-gray-300 text-gray-400 bg-gray-50 cursor-not-allowed"
                             } ${!hasAvailability ? "opacity-60" : ""}`}
                             onClick={() => {
@@ -839,8 +839,8 @@ export default function BookingPage() {
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
-                    <Clock className="mr-2 h-5 w-5 text-brand-sage" />
-                    <h3 className="text-xl font-bold text-brand-burgundy-dark">Selecciona Clase</h3>
+                    <Clock className="mr-2 h-5 w-5 text-brand-gray" />
+                    <h3 className="text-xl font-bold text-black">Selecciona Clase</h3>
                   </div>
                   <div className="p-4 space-y-2">
                     {isLoading ? (
@@ -937,7 +937,7 @@ export default function BookingPage() {
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
-                    <Bike className="mr-2 h-5 w-5 text-brand-sage" />
+                    <Bike className="mr-2 h-5 w-5 text-brand-gray" />
                     <h3 className="text-xl font-bold text-black">Selecciona Bicicleta</h3>
                   </div>
                   <div className="p-4">
