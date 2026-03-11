@@ -21,11 +21,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Sin permisos de administrador' }, { status: 403 });
     }
 
-    const { userPackageId, paymentConfirmed } = await request.json();
+    const { userPackageId, paymentConfirmed, branchId } = await request.json();
 
     if (!userPackageId) {
       return NextResponse.json({ error: 'ID de paquete requerido' }, { status: 400 });
     }
+
+    const branchIdInt = branchId ? parseInt(branchId, 10) : null
 
     // Obtener el paquete
     const userPackage = await prisma.userPackage.findUnique({
@@ -55,7 +57,8 @@ export async function POST(request: NextRequest) {
         where: { id: userPackageId },
         data: {
           paymentStatus: 'paid',
-          isActive: true
+          isActive: true,
+          ...(branchIdInt ? { branch_id: branchIdInt } : {}),
         }
       });
 

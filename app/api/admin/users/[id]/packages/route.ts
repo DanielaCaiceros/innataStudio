@@ -90,11 +90,13 @@ export async function POST(
     const resolvedParams = await params
     const userId = parseInt(resolvedParams.id)
     const body = await request.json()
-    const { packageId } = body
+    const { packageId, branchId } = body
 
     if (isNaN(userId) || packageId === undefined || packageId === null) {
       return NextResponse.json({ error: "Datos inválidos" }, { status: 400 })
     }
+
+    const branchIdInt = branchId ? parseInt(branchId, 10) : null
 
     // Verificar que el paquete existe
     const packageExists = await db.package.findUnique({
@@ -120,8 +122,9 @@ export async function POST(
         userId: userId,
         packageId: packageId,
         classesRemaining: packageExists.classCount,
-        paymentStatus: 'pending', // Inicialmente pendiente hasta que se pague
-        expiryDate: new Date(Date.now() + (packageExists.validityDays * 24 * 60 * 60 * 1000))
+        paymentStatus: 'pending',
+        expiryDate: new Date(Date.now() + (packageExists.validityDays * 24 * 60 * 60 * 1000)),
+        ...(branchIdInt ? { branch_id: branchIdInt } : {}),
       },
       include: {
         package: {

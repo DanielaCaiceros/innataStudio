@@ -25,6 +25,9 @@ export async function GET(
 
     const resolvedParams = await params
     const userId = parseInt(resolvedParams.id)
+    const { searchParams } = new URL(request.url)
+    const branchId = searchParams.get("branchId")
+    const branchIdInt = branchId ? parseInt(branchId, 10) : null
 
     if (isNaN(userId)) {
       return NextResponse.json({ error: "ID de usuario inválido" }, { status: 400 })
@@ -63,13 +66,20 @@ export async function GET(
     })
 
     // Obtener paquetes activos del usuario con clases disponibles
+    // Si se pasa branchId, incluir paquetes de esa sucursal Y paquetes globales (branch_id = null)
     const activePackages = await prisma.userPackage.findMany({
       where: {
         userId: userId,
         isActive: true,
         classesRemaining: { gt: 0 },
         expiryDate: { gte: new Date() },
-        paymentStatus: { in: ["paid", "completed"] } // Aceptar ambos estados de pago
+        paymentStatus: { in: ["paid", "completed"] },
+        ...(branchIdInt !== null ? {
+          OR: [
+            { branch_id: branchIdInt },
+            { branch_id: null },
+          ]
+        } : {}),
       },
       include: {
         package: {
@@ -78,7 +88,10 @@ export async function GET(
             name: true,
             classCount: true
           }
-        }
+        },
+        branches: {
+          select: { id: true, name: true }
+        },
       },
       orderBy: { expiryDate: 'asc' }
     })
@@ -99,8 +112,11 @@ const totalAvailableClasses = activePackages.reduce((total, pkg) => total + (pkg
         name: pkg.package.name,
         classesRemaining: pkg.classesRemaining,
         expiryDate: pkg.expiryDate.toISOString().split('T')[0],
-        paymentStatus: pkg.paymentStatus
+        paymentStatus: pkg.paymentStatus,
+        branchId: pkg.branch_id ?? null,
+        branchName: pkg.branches?.name ?? null,
       })),
+      filteredByBranch: branchIdInt !== null,
       needsPackage: totalAvailableClasses === 0
     }
 

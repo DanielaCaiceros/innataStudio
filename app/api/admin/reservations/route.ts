@@ -40,28 +40,32 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const date = searchParams.get("date");
     const userId = searchParams.get("userId");
-    
+    const branchId = searchParams.get("branchId");
+
     // Construir el filtro
     const filter: any = {};
-    
+
     if (status) {
       filter.status = status;
     }
-    
+
+    const scheduledClassFilter: any = {};
     if (date) {
-      // Crear el rango de fecha completo para el día seleccionado
       const targetDate = new Date(date + "T00:00:00.000Z");
       const nextDay = new Date(targetDate);
       nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-      
-      filter.scheduledClass = {
-        date: {
-          gte: targetDate,
-          lt: nextDay
-        }
-      };
+      scheduledClassFilter.date = { gte: targetDate, lt: nextDay };
     }
-    
+    if (branchId) {
+      const branchIdInt = parseInt(branchId, 10);
+      if (!isNaN(branchIdInt)) {
+        scheduledClassFilter.branch_id = branchIdInt;
+      }
+    }
+    if (Object.keys(scheduledClassFilter).length > 0) {
+      filter.scheduledClass = scheduledClassFilter;
+    }
+
     if (userId) {
       filter.userId = parseInt(userId);
     }
@@ -206,7 +210,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { userId, classId, date, time, package: packageType, paymentMethod, bikeNumber, userPackageId } = body;
+    const { userId, classId, date, time, package: packageType, paymentMethod, bikeNumber, userPackageId, branchId } = body;
 
     if (!userId || !classId || !date || !time || !packageType) {
       return NextResponse.json({ error: "Faltan datos requeridos" }, { status: 400 });
@@ -351,6 +355,12 @@ export async function POST(request: NextRequest) {
             throw new Error("El paquete seleccionado no tiene clases restantes");
           }
 
+          // Validar que el paquete sea de la misma sucursal que la clase (null = global)
+          const classBranchId = scheduledClass.branch_id;
+          if (classBranchId && userPackage.branch_id !== null && userPackage.branch_id !== classBranchId) {
+            throw new Error(`El paquete seleccionado pertenece a una sucursal diferente a la de la clase`);
+          }
+
           // Descontar la clase del paquete existente
           userPackage = await tx.userPackage.update({
             where: { id: userPackage.id },
@@ -416,7 +426,8 @@ export async function POST(request: NextRequest) {
                 classesRemaining: (packageInfo.classCount ?? 0) > 0 ? packageInfo.classCount! - 1 : 0,            classesUsed: 1,
                 paymentMethod: paymentMethod === "pending" ? "pending" : paymentMethod,
                 paymentStatus: paymentMethod === "pending" ? "pending" : "paid",
-                isActive: true
+                isActive: true,
+                ...(scheduledClass.branch_id ? { branch_id: scheduledClass.branch_id } : {}),
               },
               include: { package: true }
             });
