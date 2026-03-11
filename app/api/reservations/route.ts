@@ -549,8 +549,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Paquete especificado no válido, expirado o sin clases disponibles." }, { status: 400 });
       }
 
-      // Validar que el paquete pertenece a la misma sucursal que la clase
-      if (scheduledClass.branch_id && userPackage.branch_id !== scheduledClass.branch_id) {
+      // Validar que el paquete pertenece a la misma sucursal que la clase.
+      // Paquetes con branch_id = null se consideran globales y son válidos en cualquier sucursal.
+      if (scheduledClass.branch_id && userPackage.branch_id !== null && userPackage.branch_id !== scheduledClass.branch_id) {
         const branchName = scheduledClass.branches?.name || `ID ${scheduledClass.branch_id}`
         return NextResponse.json({
           error: `Este paquete no es válido para la sucursal "${branchName}". Por favor usa un paquete adquirido para esa sucursal.`
@@ -594,7 +595,13 @@ export async function POST(request: NextRequest) {
           isActive: true,
           classesRemaining: { gt: 0 },
           expiryDate: { gte: new Date() },
-          ...(scheduledClass.branch_id ? { branch_id: scheduledClass.branch_id } : {}),
+          // Incluir paquetes de la sucursal específica Y paquetes globales (branch_id = null)
+          ...(scheduledClass.branch_id ? {
+            OR: [
+              { branch_id: scheduledClass.branch_id },
+              { branch_id: null },
+            ]
+          } : {}),
         },
         include: {
           package: true // Necesitamos package.id para la lógica de filtrado

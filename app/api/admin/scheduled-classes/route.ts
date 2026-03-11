@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     const branchIdInt = parseInt(branchId, 10)
-    if (!Number.isInteger(branchIdInt) || branchIdInt <= 0) {
+    if (!Number.isInteger(branchIdInt) || branchIdInt <= 0 || String(branchIdInt) !== String(branchId).trim()) {
       return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
     }
 
