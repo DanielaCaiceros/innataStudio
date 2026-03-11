@@ -115,6 +115,7 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
     const userId = metadata.userId ? parseInt(metadata.userId) : null
     const packageId = metadata.packageId ? parseInt(metadata.packageId) : null
     const reservationId = metadata.reservationId ? parseInt(metadata.reservationId) : null
+    const branchId = metadata.branchId ? parseInt(metadata.branchId) : null
 
     if (userId) {
       // Crear el registro de pago
@@ -215,7 +216,8 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
               classesRemaining: calculatedClassesRemaining,
               isActive: true,
               paymentStatus: 'paid',
-              paymentMethod: 'stripe'
+              paymentMethod: 'stripe',
+              ...(branchId ? { branch_id: branchId } : {}),
             }
           })
 

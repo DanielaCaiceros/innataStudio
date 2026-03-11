@@ -122,10 +122,24 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { classTypeId, instructorId, date, time, maxCapacity } = body
+    const { classTypeId, instructorId, date, time, maxCapacity, branchId } = body
 
+    if (!branchId) {
+      return NextResponse.json({ error: "branchId es requerido" }, { status: 400 })
+    }
 
-    // Validar que no haya solapamiento de horarios
+    const branchIdInt = parseInt(branchId, 10)
+    if (!Number.isInteger(branchIdInt) || branchIdInt <= 0 || String(branchIdInt) !== String(branchId).trim()) {
+      return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
+    }
+
+    // Verificar que la sucursal existe
+    const branch = await prisma.branch.findUnique({ where: { id: branchIdInt } })
+    if (!branch) {
+      return NextResponse.json({ error: "Sucursal no encontrada" }, { status: 404 })
+    }
+
+    // Validar que no haya solapamiento de horarios en la misma sucursal
     const utcDate = new Date(date + "T00:00:00.000Z");
     const classTime = new Date(`1970-01-01T${time}:00.000Z`)
 
@@ -133,11 +147,12 @@ export async function POST(request: NextRequest) {
       where: {
         date: utcDate,
         time: classTime,
+        branch_id: branchIdInt,
       },
     })
 
     if (existingClass) {
-      return NextResponse.json({ error: "Ya existe una clase programada en este horario" }, { status: 400 })
+      return NextResponse.json({ error: "Ya existe una clase programada en este horario para esta sucursal" }, { status: 400 })
     }
 
     // Verificar que el instructor existe
@@ -168,6 +183,7 @@ export async function POST(request: NextRequest) {
         maxCapacity: Number.parseInt(maxCapacity) || 13,
         availableSpots: Number.parseInt(maxCapacity) || 13,
         status: "scheduled",
+        branch_id: branchIdInt,
       },
       include: {
         classType: true,
