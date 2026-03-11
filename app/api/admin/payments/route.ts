@@ -105,7 +105,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { user_id, amount, userPackageId, notes, selectedWeek, packageId: bodyPackageId, branchId } = body
 
-    const branchIdInt = branchId ? parseInt(branchId, 10) : null
+    let branchIdInt: number | null = null
+    if (branchId !== undefined && branchId !== null) {
+      const parsed = parseInt(String(branchId), 10)
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== String(branchId).trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
+      }
+      branchIdInt = parsed
+    }
 
     // Validaciones
     if (!user_id || !amount) {

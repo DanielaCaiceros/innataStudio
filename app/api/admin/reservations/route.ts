@@ -285,6 +285,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Crear la clase programada
+      const branchIdInt = branchId ? parseInt(String(branchId), 10) : null;
       scheduledClass = await prisma.scheduledClass.create({
         data: {
           classTypeId: classId,
@@ -293,7 +294,8 @@ export async function POST(request: NextRequest) {
           time: scheduledTimeUTC,
           maxCapacity: classType.capacity,
           availableSpots: classType.capacity - 1, // Restar 1 por la reservación que estamos creando
-          status: "scheduled"
+          status: "scheduled",
+          ...(branchIdInt !== null && !isNaN(branchIdInt) ? { branch_id: branchIdInt } : {})
         },
         include: {
           reservations: {

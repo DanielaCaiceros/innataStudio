@@ -27,7 +27,14 @@ export async function GET(
     const userId = parseInt(resolvedParams.id)
     const { searchParams } = new URL(request.url)
     const branchId = searchParams.get("branchId")
-    const branchIdInt = branchId ? parseInt(branchId, 10) : null
+    let branchIdInt: number | null = null
+    if (branchId !== null) {
+      const parsed = parseInt(branchId, 10)
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== branchId.trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
+      }
+      branchIdInt = parsed
+    }
 
     if (isNaN(userId)) {
       return NextResponse.json({ error: "ID de usuario inválido" }, { status: 400 })
@@ -116,7 +123,7 @@ const totalAvailableClasses = activePackages.reduce((total, pkg) => total + (pkg
         branchId: pkg.branch_id ?? null,
         branchName: pkg.branches?.name ?? null,
       })),
-      filteredByBranch: branchIdInt !== null,
+      filteredByBranch: branchIdInt !== null && !isNaN(branchIdInt),
       needsPackage: totalAvailableClasses === 0
     }
 

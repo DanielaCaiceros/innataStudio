@@ -27,7 +27,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ID de paquete requerido' }, { status: 400 });
     }
 
-    const branchIdInt = branchId ? parseInt(branchId, 10) : null
+    let branchIdInt: number | null = null;
+    if (branchId !== undefined && branchId !== null) {
+      const parsed = parseInt(String(branchId), 10);
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== String(branchId).trim()) {
+        return NextResponse.json({ error: 'branchId debe ser un entero positivo' }, { status: 400 });
+      }
+      branchIdInt = parsed;
+    }
 
     // Obtener el paquete
     const userPackage = await prisma.userPackage.findUnique({
