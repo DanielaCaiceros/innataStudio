@@ -34,6 +34,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'branchId debe ser un entero positivo' }, { status: 400 });
       }
       branchIdInt = parsed;
+      const branch = await prisma.branch.findUnique({ where: { id: branchIdInt } });
+      if (!branch) {
+        return NextResponse.json({ error: 'Sucursal no encontrada' }, { status: 404 });
+      }
     }
 
     // Obtener el paquete
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
         data: {
           paymentStatus: 'paid',
           isActive: true,
-          ...(branchIdInt ? { branch_id: branchIdInt } : {}),
+          ...(branchIdInt !== null ? { branch_id: branchIdInt } : {}),
         }
       });
 

@@ -224,6 +224,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 });
       }
       branchIdInt = parsed;
+      // Verificar que la sucursal existe
+      const branch = await prisma.branch.findUnique({ where: { id: branchIdInt } });
+      if (!branch) {
+        return NextResponse.json({ error: "Sucursal no encontrada" }, { status: 404 });
+      }
     }
 
     // Usar las utilidades de admin para procesar fecha y hora correctamente
@@ -249,7 +254,8 @@ export async function POST(request: NextRequest) {
           scheduledClass: {
             classTypeId: classId,
             date: scheduledDateUTC,
-            time: scheduledTimeUTC
+            time: scheduledTimeUTC,
+            branch_id: branchIdInt ?? null,
           }
         }
       });
@@ -267,7 +273,7 @@ export async function POST(request: NextRequest) {
         classTypeId: classId,
         date: scheduledDateUTC,
         time: scheduledTimeUTC,
-        ...(branchIdInt !== null ? { branch_id: branchIdInt } : {}),
+        branch_id: branchIdInt ?? null,
       },
       include: { // Include reservations to accurately check spots
         reservations: {

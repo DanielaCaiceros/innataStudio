@@ -112,6 +112,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
       }
       branchIdInt = parsed
+      const existingBranch = await db.branch.findUnique({ where: { id: branchIdInt } })
+      if (!existingBranch) {
+        return NextResponse.json({ error: "La sucursal especificada no existe" }, { status: 404 })
+      }
     }
 
     // Validaciones
