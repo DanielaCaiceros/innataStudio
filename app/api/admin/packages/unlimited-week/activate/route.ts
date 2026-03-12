@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Sin permisos de administrador' }, { status: 403 });
     }
 
-    const { userPackageId, paymentConfirmed, branchId } = await request.json();
+    const { userPackageId, branchId } = await request.json();
 
     if (!userPackageId) {
       return NextResponse.json({ error: 'ID de paquete requerido' }, { status: 400 });

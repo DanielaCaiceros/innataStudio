@@ -373,9 +373,9 @@ export async function POST(request: NextRequest) {
             throw new Error("El paquete seleccionado no tiene clases restantes");
           }
 
-          // Validar que el paquete sea de la misma sucursal que la clase (null = global)
-          const classBranchId = scheduledClass.branch_id;
-          if (classBranchId !== null && userPackage.branch_id !== null && userPackage.branch_id !== classBranchId) {
+          // Validar sucursal: null en paquete = global (válido en cualquier clase).
+          // Si el paquete tiene sucursal asignada, la clase debe pertenecer a esa misma sucursal.
+          if (userPackage.branch_id !== null && userPackage.branch_id !== scheduledClass.branch_id) {
             throw new Error(`El paquete seleccionado pertenece a una sucursal diferente a la de la clase`);
           }
 
