@@ -34,6 +34,10 @@ export async function GET(
         return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
       }
       branchIdInt = parsed
+      const branchExists = await prisma.branch.findUnique({ where: { id: branchIdInt } })
+      if (!branchExists) {
+        return NextResponse.json({ error: "Sucursal no encontrada" }, { status: 404 })
+      }
     }
 
     if (isNaN(userId)) {

@@ -61,6 +61,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'El paquete ya está activo' }, { status: 400 });
     }
 
+    // Resolver precio: usar package_prices si hay sucursal, si no, precio base
+    let resolvedAmount = Number(userPackage.package.price);
+    if (branchIdInt !== null) {
+      const branchPrice = await prisma.package_prices.findFirst({
+        where: { package_id: userPackage.packageId, branch_id: branchIdInt, is_active: true },
+      });
+      if (branchPrice) {
+        resolvedAmount = Number(branchPrice.price);
+      }
+    }
+
     // Activar el paquete
     const result = await prisma.$transaction(async (tx) => {
       // Actualizar el paquete
@@ -77,7 +88,7 @@ export async function POST(request: NextRequest) {
       const payment = await tx.payment.create({
         data: {
           userId: userPackage.userId,
-          amount: userPackage.package.price,
+          amount: resolvedAmount,
           currency: 'MXN',
           paymentMethod: 'cash',
           status: 'completed',
