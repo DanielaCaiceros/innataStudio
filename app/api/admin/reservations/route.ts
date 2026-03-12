@@ -56,11 +56,12 @@ export async function GET(request: NextRequest) {
       nextDay.setUTCDate(nextDay.getUTCDate() + 1);
       scheduledClassFilter.date = { gte: targetDate, lt: nextDay };
     }
-    if (branchId) {
-      const branchIdInt = parseInt(branchId, 10);
-      if (!isNaN(branchIdInt)) {
-        scheduledClassFilter.branch_id = branchIdInt;
+    if (branchId !== null) {
+      const parsed = parseInt(branchId, 10);
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== branchId.trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 });
       }
+      scheduledClassFilter.branch_id = parsed;
     }
     if (Object.keys(scheduledClassFilter).length > 0) {
       filter.scheduledClass = scheduledClassFilter;
@@ -216,6 +217,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Faltan datos requeridos" }, { status: 400 });
     }
 
+    let branchIdInt: number | null = null;
+    if (branchId !== undefined && branchId !== null) {
+      const parsed = parseInt(String(branchId), 10);
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== String(branchId).trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 });
+      }
+      branchIdInt = parsed;
+    }
+
     // Usar las utilidades de admin para procesar fecha y hora correctamente
     const scheduledDateUTC = parseAdminDateInput(date);
     const scheduledTimeUTC = parseAdminTimeInput(time);
@@ -256,7 +266,8 @@ export async function POST(request: NextRequest) {
       where: {
         classTypeId: classId,
         date: scheduledDateUTC,
-        time: scheduledTimeUTC
+        time: scheduledTimeUTC,
+        ...(branchIdInt !== null ? { branch_id: branchIdInt } : {}),
       },
       include: { // Include reservations to accurately check spots
         reservations: {
@@ -285,7 +296,6 @@ export async function POST(request: NextRequest) {
       }
 
       // Crear la clase programada
-      const branchIdInt = branchId ? parseInt(String(branchId), 10) : null;
       scheduledClass = await prisma.scheduledClass.create({
         data: {
           classTypeId: classId,
@@ -295,7 +305,7 @@ export async function POST(request: NextRequest) {
           maxCapacity: classType.capacity,
           availableSpots: classType.capacity - 1, // Restar 1 por la reservación que estamos creando
           status: "scheduled",
-          ...(branchIdInt !== null && !isNaN(branchIdInt) ? { branch_id: branchIdInt } : {})
+          ...(branchIdInt !== null ? { branch_id: branchIdInt } : {})
         },
         include: {
           reservations: {
@@ -359,7 +369,7 @@ export async function POST(request: NextRequest) {
 
           // Validar que el paquete sea de la misma sucursal que la clase (null = global)
           const classBranchId = scheduledClass.branch_id;
-          if (classBranchId && userPackage.branch_id !== null && userPackage.branch_id !== classBranchId) {
+          if (classBranchId !== null && userPackage.branch_id !== null && userPackage.branch_id !== classBranchId) {
             throw new Error(`El paquete seleccionado pertenece a una sucursal diferente a la de la clase`);
           }
 
@@ -429,7 +439,7 @@ export async function POST(request: NextRequest) {
                 paymentMethod: paymentMethod === "pending" ? "pending" : paymentMethod,
                 paymentStatus: paymentMethod === "pending" ? "pending" : "paid",
                 isActive: true,
-                ...(scheduledClass.branch_id ? { branch_id: scheduledClass.branch_id } : {}),
+                ...(scheduledClass.branch_id !== null ? { branch_id: scheduledClass.branch_id } : {}),
               },
               include: { package: true }
             });

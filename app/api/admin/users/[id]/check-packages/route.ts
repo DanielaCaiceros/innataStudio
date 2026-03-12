@@ -123,7 +123,7 @@ const totalAvailableClasses = activePackages.reduce((total, pkg) => total + (pkg
         branchId: pkg.branch_id ?? null,
         branchName: pkg.branches?.name ?? null,
       })),
-      filteredByBranch: branchIdInt !== null && !isNaN(branchIdInt),
+      filteredByBranch: branchIdInt !== null,
       needsPackage: totalAvailableClasses === 0
     }
 

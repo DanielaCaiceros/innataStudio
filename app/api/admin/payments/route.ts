@@ -222,8 +222,8 @@ export async function POST(request: NextRequest) {
                     purchaseDate: purchaseDate, // Correct future Monday from selectedWeek
                     expiryDate: expirationDate, // Correct future Friday from selectedWeek
                     isActive: true,
-                    paymentStatus: 'completed'
-                    // Assuming classCount, etc., are correctly set by handleAssignPackage or are standard.
+                    paymentStatus: 'completed',
+                    ...(branchIdInt !== null ? { branch_id: branchIdInt } : {}),
                 }
             });
             userPackageForPaymentLink = { id: updatedUserPackage.id };

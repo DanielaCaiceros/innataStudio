@@ -96,7 +96,14 @@ export async function POST(
       return NextResponse.json({ error: "Datos inválidos" }, { status: 400 })
     }
 
-    const branchIdInt = branchId ? parseInt(branchId, 10) : null
+    let branchIdInt: number | null = null
+    if (branchId !== undefined && branchId !== null) {
+      const parsed = parseInt(String(branchId), 10)
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== String(branchId).trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
+      }
+      branchIdInt = parsed
+    }
 
     // Verificar que el paquete existe
     const packageExists = await db.package.findUnique({
@@ -124,7 +131,7 @@ export async function POST(
         classesRemaining: packageExists.classCount,
         paymentStatus: 'pending',
         expiryDate: new Date(Date.now() + (packageExists.validityDays * 24 * 60 * 60 * 1000)),
-        ...(branchIdInt ? { branch_id: branchIdInt } : {}),
+        ...(branchIdInt !== null ? { branch_id: branchIdInt } : {}),
       },
       include: {
         package: {
