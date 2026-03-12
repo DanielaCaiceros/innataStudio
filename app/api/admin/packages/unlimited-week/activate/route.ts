@@ -21,10 +21,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Sin permisos de administrador' }, { status: 403 });
     }
 
-    const { userPackageId, paymentConfirmed } = await request.json();
+    const { userPackageId, branchId } = await request.json();
 
     if (!userPackageId) {
       return NextResponse.json({ error: 'ID de paquete requerido' }, { status: 400 });
+    }
+
+    let branchIdInt: number | null = null;
+    if (branchId !== undefined && branchId !== null) {
+      const parsed = parseInt(String(branchId), 10);
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== String(branchId).trim()) {
+        return NextResponse.json({ error: 'branchId debe ser un entero positivo' }, { status: 400 });
+      }
+      branchIdInt = parsed;
+      const branch = await prisma.branch.findUnique({ where: { id: branchIdInt } });
+      if (!branch) {
+        return NextResponse.json({ error: 'Sucursal no encontrada' }, { status: 404 });
+      }
     }
 
     // Obtener el paquete
@@ -48,6 +61,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'El paquete ya está activo' }, { status: 400 });
     }
 
+    // Resolver precio: usar package_prices si hay sucursal, si no, precio base
+    let resolvedAmount = Number(userPackage.package.price);
+    if (branchIdInt !== null) {
+      const branchPrice = await prisma.package_prices.findFirst({
+        where: { package_id: userPackage.packageId, branch_id: branchIdInt, is_active: true },
+      });
+      if (branchPrice) {
+        resolvedAmount = Number(branchPrice.price);
+      }
+    }
+
     // Activar el paquete
     const result = await prisma.$transaction(async (tx) => {
       // Actualizar el paquete
@@ -55,7 +79,8 @@ export async function POST(request: NextRequest) {
         where: { id: userPackageId },
         data: {
           paymentStatus: 'paid',
-          isActive: true
+          isActive: true,
+          ...(branchIdInt !== null ? { branch_id: branchIdInt } : {}),
         }
       });
 
@@ -63,7 +88,7 @@ export async function POST(request: NextRequest) {
       const payment = await tx.payment.create({
         data: {
           userId: userPackage.userId,
-          amount: userPackage.package.price,
+          amount: resolvedAmount,
           currency: 'MXN',
           paymentMethod: 'cash',
           status: 'completed',

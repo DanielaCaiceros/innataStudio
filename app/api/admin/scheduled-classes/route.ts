@@ -25,23 +25,24 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
+    const branchId = searchParams.get("branchId")
 
-    let queryDateObject = {};
+    const whereClause: any = {};
     if (startDate && endDate) {
-      const queryStartDate = new Date(startDate + "T00:00:00.000Z");
-      const queryEndDate = new Date(endDate + "T23:59:59.999Z");
-      queryDateObject = {
-        date: {
-          gte: queryStartDate,
-          lte: queryEndDate,
-        },
+      whereClause.date = {
+        gte: new Date(startDate + "T00:00:00.000Z"),
+        lte: new Date(endDate + "T23:59:59.999Z"),
       };
+    }
+    if (branchId) {
+      const branchIdInt = parseInt(branchId, 10);
+      if (!isNaN(branchIdInt)) {
+        whereClause.branch_id = branchIdInt;
+      }
     }
 
     const scheduledClassesRaw = await prisma.scheduledClass.findMany({
-      where: {
-        ...queryDateObject,
-      },
+      where: whereClause,
       include: {
         classType: true,
         instructor: {
@@ -55,7 +56,6 @@ export async function GET(request: NextRequest) {
           },
         },
         reservations: {
-          // Fetch ALL reservations, not just confirmed
           include: {
             user: {
               select: {
@@ -75,6 +75,13 @@ export async function GET(request: NextRequest) {
                 email: true,
               },
             },
+          },
+        },
+        branches: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
           },
         },
       },

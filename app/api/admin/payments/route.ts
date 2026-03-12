@@ -103,7 +103,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { user_id, amount, userPackageId, notes, selectedWeek, packageId: bodyPackageId } = body // Destructure packageId as bodyPackageId for clarity
+    const { user_id, amount, userPackageId, notes, selectedWeek, packageId: bodyPackageId, branchId } = body
+
+    let branchIdInt: number | null = null
+    if (branchId !== undefined && branchId !== null) {
+      const parsed = parseInt(String(branchId), 10)
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== String(branchId).trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
+      }
+      branchIdInt = parsed
+      const existingBranch = await db.branch.findUnique({ where: { id: branchIdInt } })
+      if (!existingBranch) {
+        return NextResponse.json({ error: "La sucursal especificada no existe" }, { status: 404 })
+      }
+    }
 
     // Validaciones
     if (!user_id || !amount) {
@@ -147,11 +160,22 @@ export async function POST(request: NextRequest) {
 
     // Obtener información del paquete
     let packageData = null;
-    if (bodyPackageId) { // Use destructured bodyPackageId
+    if (bodyPackageId) {
       packageData = await db.package.findUnique({ where: { id: bodyPackageId } });
       if (!packageData) {
         console.error(`[PAYMENT_API_LOG] Error: Paquete no encontrado con id: ${bodyPackageId}`);
         return NextResponse.json({ error: "Paquete no encontrado" }, { status: 404 });
+      }
+    }
+
+    // Leer precio desde package_prices si se pasa branchId
+    let resolvedAmount = parseFloat(amount);
+    if (bodyPackageId && branchIdInt) {
+      const branchPrice = await db.package_prices.findFirst({
+        where: { package_id: bodyPackageId, branch_id: branchIdInt, is_active: true },
+      });
+      if (branchPrice) {
+        resolvedAmount = Number(branchPrice.price);
       }
     }
 
@@ -202,12 +226,12 @@ export async function POST(request: NextRequest) {
                     purchaseDate: purchaseDate, // Correct future Monday from selectedWeek
                     expiryDate: expirationDate, // Correct future Friday from selectedWeek
                     isActive: true,
-                    paymentStatus: 'completed'
-                    // Assuming classCount, etc., are correctly set by handleAssignPackage or are standard.
+                    paymentStatus: 'completed',
+                    ...(branchIdInt !== null ? { branch_id: branchIdInt } : {}),
                 }
             });
             userPackageForPaymentLink = { id: updatedUserPackage.id };
-        } else { 
+        } else {
             const unlimitedBase = await db.package.findUnique({ where: { id: 3 } });
             if (!unlimitedBase) {
                 return NextResponse.json({ error: "Paquete base de semana ilimitada no encontrado" }, { status: 404 });
@@ -216,12 +240,13 @@ export async function POST(request: NextRequest) {
                 data: {
                     userId: user_id,
                     packageId: 3,
-                    purchaseDate: purchaseDate, // Correct future Monday
-                    expiryDate: expirationDate, // Correct future Friday
+                    purchaseDate: purchaseDate,
+                    expiryDate: expirationDate,
                     classesRemaining: unlimitedBase.classCount,
                     isActive: true,
                     paymentStatus: 'completed',
                     paymentMethod: 'cash',
+                    ...(branchIdInt ? { branch_id: branchIdInt } : {}),
                 }
             });
             userPackageForPaymentLink = { id: newUserPackage.id };
@@ -231,12 +256,12 @@ export async function POST(request: NextRequest) {
             where: { id: userPackageId },
             data: {
                 isActive: true,
-                paymentStatus: 'completed'
+                paymentStatus: 'completed',
+                ...(branchIdInt ? { branch_id: branchIdInt } : {}),
             }
         });
         userPackageForPaymentLink = { id: updatedUserPackage.id };
     } else if (bodyPackageId) {
-        // Create UserPackage for other package types when not pre-existing
         const packageBase = await db.package.findUnique({ where: { id: bodyPackageId } });
         if (!packageBase) {
             return NextResponse.json({ error: "Paquete no encontrado" }, { status: 404 });
@@ -251,6 +276,7 @@ export async function POST(request: NextRequest) {
                 isActive: true,
                 paymentStatus: 'completed',
                 paymentMethod: 'cash',
+                ...(branchIdInt ? { branch_id: branchIdInt } : {}),
             }
         });
         userPackageForPaymentLink = { id: newUserPackage.id };
@@ -270,8 +296,8 @@ export async function POST(request: NextRequest) {
     const payment = await db.payment.create({
       data: {
         userId: user_id,
-        amount: parseFloat(amount),
-        paymentMethod: 'cash', 
+        amount: resolvedAmount,
+        paymentMethod: 'cash',
         status: 'completed', 
         userPackageId: userPackageForPaymentLink ? userPackageForPaymentLink.id : null,
         paymentDate: new Date(),
