@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
 export default function SeleccionarSucursalPage() {
   const router = useRouter()
-  const { branches, changeBranch, selectedBranch } = useBranch()
+  const { branches, changeBranch, selectedBranch, isLoading } = useBranch()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const handleSelectBranch = (branch: Branch) => {
@@ -28,6 +28,14 @@ export default function SeleccionarSucursalPage() {
     { title: "Paquetes", href: "/paquetes" },
     { title: "Nosotros", href: "/nosotros" },
   ]
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <p className="text-white/80 text-lg">Cargando sucursales...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden">

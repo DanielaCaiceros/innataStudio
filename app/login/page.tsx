@@ -364,7 +364,7 @@ function LoginContent() {
 
           <div className="mt-6 text-center text-sm text-black">
             ¿No tienes una cuenta?{" "}
-            <Link href="/registro" className="text-brand-gray font-medium hover:underline">
+            <Link href={`/registro?redirect=${encodeURIComponent(searchParams.get("redirect") || "/mi-cuenta")}`} className="text-brand-gray font-medium hover:underline">
               Regístrate
             </Link>
           </div>
