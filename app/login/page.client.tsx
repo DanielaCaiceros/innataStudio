@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle } from "lucide-react";
+import { getSafeRedirectPath } from "@/lib/utils";
 
 export default function LoginClient() {
   const router = useRouter();
@@ -28,7 +29,7 @@ export default function LoginClient() {
   const registered = searchParams.get("registered");
   const verified = searchParams.get("verified");
   const error = searchParams.get("error");
-  const redirect = searchParams.get("redirect") || "/mi-cuenta";
+  const redirect = getSafeRedirectPath(searchParams.get("redirect"), "/mi-cuenta");
 
   useEffect(() => {
     if (registered === "true") {

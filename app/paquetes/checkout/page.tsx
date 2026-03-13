@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { BranchConfirmationBadge } from "@/components/branch-indicator-badge"
 import { useBranch } from "@/lib/hooks/useBranch"
+import { parsePositiveInt } from "@/lib/utils"
 
 // Define a simplified type for what we expect from /api/user/packages GET endpoint
 interface UserPackageAPIResponse {
@@ -39,11 +40,26 @@ export default function PackageCheckoutPage() {
   const [userExistingUnlimitedWeeks, setUserExistingUnlimitedWeeks] = useState<ExistingUserUnlimitedPackage[]>([])
   const [availableWeekOptions, setAvailableWeekOptions] = useState<WeekOption[]>([])
 
-  // Convert packageId to a number, handling cases where it might be null or malformed
-  const numericPackageId = packageId ? Number.parseInt(packageId, 10) : null
-  const numericBranchId = branchId ? Number.parseInt(branchId, 10) : null
+  const numericPackageId = parsePositiveInt(packageId)
+  const numericBranchId = parsePositiveInt(branchId)
   // Sucursal obligatoria: URL > contexto (sin fallback por defecto)
   const effectiveBranchId = numericBranchId ?? selectedBranch?.id ?? null
+
+  useEffect(() => {
+    if (packageId !== null && !numericPackageId) {
+      toast({
+        title: "Paquete inválido",
+        description: "El paquete solicitado no es válido.",
+        variant: "destructive",
+      })
+      router.push("/paquetes")
+      return
+    }
+
+    if (packageId === null) {
+      router.push("/paquetes")
+    }
+  }, [packageId, numericPackageId, router, toast])
 
   useEffect(() => {
     if (!isBranchLoading && !effectiveBranchId) {
@@ -64,7 +80,7 @@ export default function PackageCheckoutPage() {
   // Cargar los datos del paquete seleccionado
   useEffect(() => {
     const fetchData = async () => {
-      if (!effectiveBranchId) return
+      if (!effectiveBranchId || !numericPackageId) return
       setIsLoading(true) // Start loading
       try {
 // Fetch package details for the specific branch

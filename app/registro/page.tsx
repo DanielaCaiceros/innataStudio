@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/components/ui/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2, Eye, EyeOff, CheckCircle } from "lucide-react"
+import { getSafeRedirectPath } from "@/lib/utils"
 
 interface FormData {
   firstName: string
@@ -36,7 +37,7 @@ export default function RegistroPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const redirect = searchParams.get("redirect") || "/mi-cuenta"
+  const redirect = getSafeRedirectPath(searchParams.get("redirect"), "/mi-cuenta")
   
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)

@@ -1,24 +1,26 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useBranch } from "@/lib/hooks/useBranch"
 import { Branch } from "@/lib/types/branch"
 import { MapPin, Phone, Clock, ArrowRight, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { cn, getSafeRedirectPath } from "@/lib/utils"
 import Image from "next/image"
 import Link from "next/link"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
 export default function SeleccionarSucursalPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { branches, changeBranch, selectedBranch, isLoading } = useBranch()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const redirectPath = getSafeRedirectPath(searchParams.get("redirect"), "/paquetes")
 
   const handleSelectBranch = (branch: Branch) => {
     changeBranch(branch)
-    router.push("/paquetes")
+    router.push(redirectPath)
   }
 
   // Menú de navegación
