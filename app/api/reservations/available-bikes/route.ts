@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
+import { getBranchBikeLayout } from "@/lib/config/branch-bike-layouts"
 
 const prisma = new PrismaClient()
 
@@ -13,6 +14,17 @@ export async function GET(request: NextRequest) {
     if (!scheduledClassId) {
       return NextResponse.json({ error: "ID de clase requerido" }, { status: 400 })
     }
+
+    const scheduledClass = await prisma.scheduledClass.findUnique({
+      where: { id: Number(scheduledClassId) },
+      select: { id: true, branch_id: true },
+    })
+
+    if (!scheduledClass) {
+      return NextResponse.json({ error: "Clase no encontrada" }, { status: 404 })
+    }
+
+    const layout = getBranchBikeLayout(scheduledClass.branch_id)
 
     // Verificar autenticación para obtener el userId
     const token = request.cookies.get("auth_token")?.value
@@ -56,8 +68,8 @@ export async function GET(request: NextRequest) {
       r.userPackage?.package?.name?.toLowerCase().includes('semana ilimitada')
     )
 
-    // Crear array de todas las bicicletas (1-13)
-    const allBikes = Array.from({ length: 13 }, (_, i) => {
+    // Crear array de bicicletas basado en configuración de la sucursal.
+    const allBikes = Array.from({ length: layout.bikeCount }, (_, i) => {
       const bikeNumber = i + 1
       const isReservedByOthers = reservations.some(r => 
         r.bikeNumber === bikeNumber && r.userId !== userId
@@ -94,7 +106,12 @@ export async function GET(request: NextRequest) {
       bikes: allBikes,
       userHasReservation: userReservations.length > 0,
       userHasUnlimitedPackage: hasUnlimitedPackage,
-      canMakeMultipleReservations: userId && userReservations.length > 0 && !hasUnlimitedPackage
+      canMakeMultipleReservations: userId && userReservations.length > 0 && !hasUnlimitedPackage,
+      branchId: scheduledClass.branch_id,
+      layout: {
+        bikeCount: layout.bikeCount,
+        positions: layout.positions,
+      },
     })
   } catch (error) {
     console.error("Error al obtener bicicletas disponibles:", error)

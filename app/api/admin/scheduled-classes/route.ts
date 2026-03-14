@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
+import { getBranchBikeCapacity } from "@/lib/config/branch-bike-layouts"
 
 const prisma = new PrismaClient()
 
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { classTypeId, instructorId, date, time, maxCapacity, branchId } = body
+    const { classTypeId, instructorId, date, time, branchId } = body
 
     if (!branchId) {
       return NextResponse.json({ error: "branchId es requerido" }, { status: 400 })
@@ -180,6 +181,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Tipo de clase no encontrado" }, { status: 404 })
     }
 
+    const resolvedCapacity = getBranchBikeCapacity(branchIdInt)
+
     // Crear la clase programada
     const scheduledClass = await prisma.scheduledClass.create({
       data: {
@@ -187,8 +190,8 @@ export async function POST(request: NextRequest) {
         instructorId: Number.parseInt(instructorId),
         date: utcDate,
         time: classTime,
-        maxCapacity: Number.parseInt(maxCapacity) || 13,
-        availableSpots: Number.parseInt(maxCapacity) || 13,
+        maxCapacity: resolvedCapacity,
+        availableSpots: resolvedCapacity,
         status: "scheduled",
         branch_id: branchIdInt,
       },

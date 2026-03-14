@@ -118,6 +118,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+      // Package purchases must always be tied to a concrete branch because pricing and credits are branch-specific.
+      if (bodyPackageId && !branchIdInt) {
+        return NextResponse.json(
+          { error: "Para compras de paquete, branchId es obligatorio" },
+          { status: 400 }
+        )
+      }
+
     // Validaciones
     if (!user_id || !amount) {
       return NextResponse.json(
