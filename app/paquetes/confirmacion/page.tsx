@@ -13,6 +13,8 @@ interface Package {
   classCount: number;
   validityDays: number;
   description: string;
+  branchId?: number;
+  branchName?: string;
 }
 
 function ConfirmationContent() {
@@ -137,6 +139,14 @@ function ConfirmationContent() {
                   <span className="text-gray-600">Válido por:</span>
                   <span className="font-semibold">{packageData.validityDays} días</span>
                 </div>
+
+                {packageData.branchName && (
+                  <div className="flex items-center space-x-2 col-span-2">
+                    <Package className="h-4 w-4 text-gray-600" />
+                    <span className="text-gray-600">Sucursal:</span>
+                    <span className="font-semibold">{packageData.branchName}</span>
+                  </div>
+                )}
               </div>
               
               <p className="text-gray-600 text-sm">

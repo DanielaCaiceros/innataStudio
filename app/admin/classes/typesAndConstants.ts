@@ -21,6 +21,12 @@ export interface Instructor {
 
 export interface ScheduledClass {
   id: number;
+  branch_id?: number | null;
+  branches?: {
+    id: number;
+    name: string;
+    address?: string | null;
+  } | null;
   date: string; // This will be a UTC date string like YYYY-MM-DDTHH:mm:ss.sssZ
   time: string; // This is also a date string, 1970-01-01THH:mm:00.000Z
   maxCapacity: number;

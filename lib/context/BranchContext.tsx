@@ -1,61 +1,129 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Branch, BranchContextType } from '@/lib/types/branch';
-import { MOCK_BRANCHES, DEFAULT_BRANCH_ID } from '@/lib/constants/branches';
+import { MOCK_BRANCHES } from '@/lib/constants/branches';
 
 const BranchContext = createContext<BranchContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'innata_selected_branch';
 
 export function BranchProvider({ children }: { children: ReactNode }) {
+  const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [hasSelectedBefore, setHasSelectedBefore] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  const redirectToBranchSelection = () => {
+    if (pathname !== '/seleccionar-sucursal' && !pathname?.startsWith('/admin')) {
+      const search = searchParams?.toString();
+      const redirectTarget = `${pathname ?? '/'}${search ? `?${search}` : ''}`;
+      const encodedRedirect = encodeURIComponent(redirectTarget);
+      router.push(`/seleccionar-sucursal?redirect=${encodedRedirect}`);
+    }
+  };
+
+  const getBranchVisualDefaults = (id: number) => {
+    const mock = MOCK_BRANCHES.find((b) => b.id === id);
+    return {
+      phone: mock?.phone ?? 'Sin teléfono',
+      schedule: mock?.schedule ?? 'Horario por confirmar',
+      imageUrl: mock?.imageUrl,
+      color: mock?.color ?? '#2845D6',
+    };
+  };
+
   // Cargar sucursal guardada en localStorage al montar
   useEffect(() => {
-    const loadSavedBranch = () => {
+    const loadBranchesAndSelection = async () => {
       try {
+        const response = await fetch('/api/branches');
+        if (!response.ok) {
+          throw new Error('No se pudieron cargar sucursales desde API');
+        }
+
+        const apiBranches = await response.json();
+        const mappedBranches: Branch[] = apiBranches.map((branch: { id: number; name: string; address?: string | null }) => {
+          const visual = getBranchVisualDefaults(branch.id);
+          return {
+            id: branch.id,
+            name: branch.name,
+            address: branch.address ?? 'Dirección por confirmar',
+            phone: visual.phone,
+            schedule: visual.schedule,
+            imageUrl: visual.imageUrl,
+            isActive: true,
+            color: visual.color,
+          };
+        });
+
+        setBranches(mappedBranches);
+
         const saved = localStorage.getItem(STORAGE_KEY);
-        
+
         if (saved) {
           const savedBranch = JSON.parse(saved) as Branch;
-          // Verificar que la sucursal guardada aún existe y está activa
-          const validBranch = MOCK_BRANCHES.find(
-            b => b.id === savedBranch.id && b.isActive
-          );
-          
+
+          // Verificar que la sucursal guardada aún existe y está activa en API
+          const validBranch = mappedBranches.find((b) => b.id === savedBranch.id && b.isActive);
+
           if (validBranch) {
             setSelectedBranch(validBranch);
             setHasSelectedBefore(true);
           } else {
-            // Si la sucursal guardada ya no es válida, usar default
-            const defaultBranch = MOCK_BRANCHES.find(b => b.id === DEFAULT_BRANCH_ID);
-            setSelectedBranch(defaultBranch || MOCK_BRANCHES[0]);
+            // Si la sucursal guardada ya no es válida, forzar nueva selección
+            localStorage.removeItem(STORAGE_KEY);
+            setSelectedBranch(null);
+            setHasSelectedBefore(false);
+            redirectToBranchSelection();
           }
         } else {
           // Primera visita - redirigir directo a seleccionar-sucursal
           setSelectedBranch(null);
-          // Solo redirigir si no estamos ya en esa página y no es admin
-          if (pathname !== '/seleccionar-sucursal' && !pathname?.startsWith('/admin')) {
-            router.push('/seleccionar-sucursal');
-          }
+          redirectToBranchSelection();
         }
       } catch (error) {
         console.error('Error loading saved branch:', error);
-        // En caso de error, usar sucursal default
-        const defaultBranch = MOCK_BRANCHES.find(b => b.id === DEFAULT_BRANCH_ID);
-        setSelectedBranch(defaultBranch || MOCK_BRANCHES[0]);
+
+        // Fallback a mock para no bloquear UX si API falla
+        const fallbackBranches = MOCK_BRANCHES.filter((b) => b.isActive);
+        setBranches(fallbackBranches);
+
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          try {
+            const savedBranch = JSON.parse(saved) as Branch;
+            const validFallback = fallbackBranches.find((b) => b.id === savedBranch.id);
+            if (validFallback) {
+              setSelectedBranch(validFallback);
+              setHasSelectedBefore(true);
+            } else {
+              localStorage.removeItem(STORAGE_KEY);
+              setSelectedBranch(null);
+              setHasSelectedBefore(false);
+              redirectToBranchSelection();
+            }
+          } catch {
+            localStorage.removeItem(STORAGE_KEY);
+            setSelectedBranch(null);
+            setHasSelectedBefore(false);
+            redirectToBranchSelection();
+          }
+        } else {
+          setSelectedBranch(null);
+          setHasSelectedBefore(false);
+          redirectToBranchSelection();
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadSavedBranch();
+    loadBranchesAndSelection();
   }, [router, pathname]);
 
   const changeBranch = (branch: Branch) => {
@@ -72,7 +140,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     <BranchContext.Provider
       value={{
         selectedBranch,
-        branches: MOCK_BRANCHES.filter(b => b.isActive),
+        branches,
         changeBranch,
         hasSelectedBefore,
         isLoading,

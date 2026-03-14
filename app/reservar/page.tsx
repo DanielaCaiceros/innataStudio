@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { StripeCheckout } from "@/components/stripe-checkout"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/hooks/useAuth"
+import { useBranch } from "@/lib/hooks/useBranch"
 import { useRouter } from "next/navigation"
 import { BikeSelectionInline } from "@/components/bike-selection-inline"
 import { 
@@ -42,6 +43,7 @@ interface ClassType {
 
 interface ScheduledClass {
   id: number
+  className?: string
   classType: ClassType
   instructor: {
     id: number
@@ -59,6 +61,7 @@ export default function BookingPage() {
   const { toast } = useToast()
   const router = useRouter()
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
+  const { selectedBranch, isLoading: isBranchLoading } = useBranch()
   const [isLoading, setIsLoading] = useState(true)
   const reservationSummaryRef = useRef<HTMLDivElement>(null)
 
@@ -163,11 +166,17 @@ export default function BookingPage() {
   
   // Obtener clases disponibles al cargar o cambiar la fecha
   const loadAvailableClasses = async () => {
+    if (!selectedBranch?.id) return
+
     setIsLoading(true)
     try {
-      const dateParam = date ? `date=${format(date, 'yyyy-MM-dd')}` : '';
-      
-      const response = await fetch(`/api/scheduled-clases/available?${dateParam}`);
+      const params = new URLSearchParams()
+      if (date) {
+        params.set('date', format(date, 'yyyy-MM-dd'))
+      }
+      params.set('branchId', String(selectedBranch.id))
+
+      const response = await fetch(`/api/scheduled-clases/available?${params.toString()}`);
       if (response.ok) {
         const data: ScheduledClass[] = await response.json();
         setAvailableClasses(data);
@@ -192,8 +201,16 @@ export default function BookingPage() {
   }
 
   useEffect(() => {
-    loadAvailableClasses();
-  }, [date]);
+    if (!isBranchLoading && !selectedBranch) {
+      router.push('/seleccionar-sucursal?redirect=/reservar')
+    }
+  }, [isBranchLoading, selectedBranch, router])
+
+  useEffect(() => {
+    if (selectedBranch?.id) {
+      loadAvailableClasses();
+    }
+  }, [date, selectedBranch?.id]);
 
   // When the date changes, auto-select the first available class and trigger validation
   useEffect(() => {
@@ -607,6 +624,14 @@ export default function BookingPage() {
       setBookingAlert(null);
     }
   }, [canUseUnlimitedForSelectedClass, selectedClass, userAvailableClasses]);
+
+  if (isBranchLoading || !selectedBranch) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <p className="text-gray-600">Cargando sucursal...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
@@ -1313,7 +1338,7 @@ export default function BookingPage() {
               <Button 
                 className="w-full bg-brand-mint hover:bg-brand-mint/90 text-white font-semibold py-3" 
                 onClick={() => {
-                  router.push("/login?redirect=/reservar");
+                  router.push(`/login?redirect=${encodeURIComponent('/reservar')}`);
                   setIsAuthModalOpen(false);
                 }}
               >
@@ -1323,7 +1348,7 @@ export default function BookingPage() {
                 variant="outline" 
                 className="w-full border-brand-mint text-brand-mint hover:bg-brand-mint/10 font-semibold py-3"
                 onClick={() => {
-                  router.push("/registro?redirect=/reservar");
+                  router.push(`/registro?redirect=${encodeURIComponent('/reservar')}`);
                   setIsAuthModalOpen(false);
                 }}
               >

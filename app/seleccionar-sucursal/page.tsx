@@ -1,24 +1,40 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useBranch } from "@/lib/hooks/useBranch"
 import { Branch } from "@/lib/types/branch"
 import { MapPin, Phone, Clock, ArrowRight, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { cn, getSafeRedirectPath } from "@/lib/utils"
 import Image from "next/image"
 import Link from "next/link"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { useToast } from "@/hooks/use-toast"
 
 export default function SeleccionarSucursalPage() {
   const router = useRouter()
-  const { branches, changeBranch, selectedBranch } = useBranch()
+  const searchParams = useSearchParams()
+  const { toast } = useToast()
+  const { branches, changeBranch, selectedBranch, isLoading } = useBranch()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const warningShownRef = useRef(false)
+  const redirectPath = getSafeRedirectPath(searchParams.get("redirect"), "/paquetes")
+
+  useEffect(() => {
+    if (isLoading || selectedBranch || warningShownRef.current) return
+
+    warningShownRef.current = true
+    toast({
+      title: "Selecciona una sucursal",
+      description: "Debes seleccionar sucursal para continuar.",
+      variant: "destructive",
+    })
+  }, [isLoading, selectedBranch, toast])
 
   const handleSelectBranch = (branch: Branch) => {
     changeBranch(branch)
-    router.push("/paquetes")
+    router.push(redirectPath)
   }
 
   // Menú de navegación
@@ -28,6 +44,14 @@ export default function SeleccionarSucursalPage() {
     { title: "Paquetes", href: "/paquetes" },
     { title: "Nosotros", href: "/nosotros" },
   ]
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <p className="text-white/80 text-lg">Cargando sucursales...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden">

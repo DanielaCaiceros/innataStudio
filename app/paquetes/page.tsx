@@ -88,12 +88,18 @@ const PACKAGES_UI_CONFIG = [
 export default function PackagesPage() {
    const router = useRouter();
    const { isAuthenticated } = useAuth()
-   const { selectedBranch } = useBranch()
+  const { selectedBranch, isLoading: isBranchLoading } = useBranch()
    const [showAuthModal, setShowAuthModal] = useState(false)
    const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null)
    const [hasFirstTimePackage, setHasFirstTimePackage] = useState(false)
    const [isLoading, setIsLoading] = useState(true)
    const [filteredPackages, setFilteredPackages] = useState<any[]>([])
+
+   useEffect(() => {
+     if (!isBranchLoading && !selectedBranch) {
+       router.push("/seleccionar-sucursal?redirect=/paquetes")
+     }
+   }, [isBranchLoading, selectedBranch, router])
 
    // Cargar paquetes desde la API según la sucursal seleccionada
    useEffect(() => {
@@ -183,6 +189,14 @@ export default function PackagesPage() {
     router.push(`/paquetes/checkout?packageId=${packageId}&branchId=${selectedBranch?.id}`);
   }
   
+  if (isBranchLoading || !selectedBranch) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <p className="text-gray-600">Cargando sucursal...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
       {/* Hero Section */}
@@ -330,6 +344,9 @@ export default function PackagesPage() {
           </DialogHeader>
           
           <div className="flex flex-col gap-5 py-6">
+            <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl text-sm text-blue-900 text-center">
+              Tu compra se registrará en la sucursal: <span className="font-semibold">{selectedBranch?.name}</span>
+            </div>
             <div className="bg-gray-50 p-4 rounded-xl text-sm text-zinc-700">
               <p>
                 Los paquetes se agregarán a tu cuenta y podrás utilizarlos para reservar
@@ -342,7 +359,7 @@ export default function PackagesPage() {
                 asChild
                 className="bg-brand-sage hover:bg-brand-sage text-white flex gap-2"
               >
-                <Link href={`/login?redirect=/paquetes/checkout?packageId=${selectedPackageId}&branchId=${selectedBranch?.id}`}>
+                <Link href={`/login?redirect=${encodeURIComponent(`/paquetes/checkout?packageId=${selectedPackageId}&branchId=${selectedBranch?.id}`)}`}>
                   <LogIn className="h-4 w-4" /> Iniciar Sesión
                 </Link>
               </Button>
@@ -352,7 +369,7 @@ export default function PackagesPage() {
                 variant="outline" 
                 className="border-[#4A102A] text-[#4A102A] hover:bg-[#4A102A]/10 flex gap-2"
               >
-                <Link href={`/registro?redirect=/paquetes/checkout?packageId=${selectedPackageId}&branchId=${selectedBranch?.id}`}>
+                <Link href={`/registro?redirect=${encodeURIComponent(`/paquetes/checkout?packageId=${selectedPackageId}&branchId=${selectedBranch?.id}`)}`}>
                   <UserPlus className="h-4 w-4" /> Registrarse
                 </Link>
               </Button>

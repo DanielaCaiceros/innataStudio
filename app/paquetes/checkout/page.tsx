@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { StripeCheckout } from "@/components/stripe-checkout"
 import { ArrowLeft, Package, Clock, Users, CheckCircle } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { getAvailableWeekOptions } from "@/lib/utils/unlimited-week"
 import type { WeekOption, ExistingUserUnlimitedPackage } from "@/lib/utils/unlimited-week" // Import ExistingUserUnlimitedPackage
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { BranchConfirmationBadge } from "@/components/branch-indicator-badge"
 import { useBranch } from "@/lib/hooks/useBranch"
+import { parsePositiveInt } from "@/lib/utils"
 
 // Define a simplified type for what we expect from /api/user/packages GET endpoint
 interface UserPackageAPIResponse {
@@ -30,8 +31,8 @@ export default function PackageCheckoutPage() {
   const packageId = searchParams.get("packageId")
   const branchId = searchParams.get("branchId")
   const { toast } = useToast()
-  const { user, isAuthenticated } = useAuth()
-  const { selectedBranch } = useBranch()
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
+  const { selectedBranch, isLoading: isBranchLoading } = useBranch()
   const [packageData, setPackageData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedUnlimitedWeek, setSelectedUnlimitedWeek] = useState<WeekOption | null>(null)
@@ -39,22 +40,51 @@ export default function PackageCheckoutPage() {
   const [userExistingUnlimitedWeeks, setUserExistingUnlimitedWeeks] = useState<ExistingUserUnlimitedPackage[]>([])
   const [availableWeekOptions, setAvailableWeekOptions] = useState<WeekOption[]>([])
 
-  // Convert packageId to a number, handling cases where it might be null or malformed
-  const numericPackageId = packageId ? Number.parseInt(packageId, 10) : null
-  const numericBranchId = branchId ? Number.parseInt(branchId, 10) : null
-  // Usar sucursal del contexto como fallback si no viene branchId en la URL
-  const effectiveBranchId = numericBranchId ?? selectedBranch?.id ?? 1
+  const numericPackageId = parsePositiveInt(packageId)
+  const numericBranchId = parsePositiveInt(branchId)
+  // Sucursal obligatoria: URL > contexto (sin fallback por defecto)
+  const effectiveBranchId = numericBranchId ?? selectedBranch?.id ?? null
+
+  useEffect(() => {
+    if (packageId !== null && !numericPackageId) {
+      toast({
+        title: "Paquete inválido",
+        description: "El paquete solicitado no es válido.",
+        variant: "destructive",
+      })
+      router.push("/paquetes")
+      return
+    }
+
+    if (packageId === null) {
+      router.push("/paquetes")
+    }
+  }, [packageId, numericPackageId, router, toast])
+
+  useEffect(() => {
+    if (!isBranchLoading && !effectiveBranchId) {
+      const checkoutRedirect = numericPackageId
+        ? `/paquetes/checkout?packageId=${numericPackageId}`
+        : "/paquetes"
+      router.push(`/seleccionar-sucursal?redirect=${encodeURIComponent(checkoutRedirect)}`)
+    }
+  }, [isBranchLoading, effectiveBranchId, numericPackageId, router])
 
   // Redireccionar si no hay usuario autenticado
   useEffect(() => {
+    if (isAuthLoading) return
+
     if (!isAuthenticated) {
       router.push("/login?redirect=/paquetes")
     }
-  }, [isAuthenticated, router])
+  }, [isAuthLoading, isAuthenticated, router])
 
   // Cargar los datos del paquete seleccionado
   useEffect(() => {
+    if (isBranchLoading) return
+
     const fetchData = async () => {
+      if (!effectiveBranchId || !numericPackageId) return
       setIsLoading(true) // Start loading
       try {
 // Fetch package details for the specific branch
@@ -124,15 +154,16 @@ export default function PackageCheckoutPage() {
       }
     }
 
-    if (isAuthenticated === null) return; // Wait until auth status is known
+    if (isAuthLoading) return; // Wait until auth status is known
 
-    if (isAuthenticated === false && numericPackageId ) { // if not authenticated but trying to checkout
+    if (isAuthenticated === false && numericPackageId && effectiveBranchId) { // if not authenticated but trying to checkout
        // For unlimited week, we can still show default week options
        if (numericPackageId === 3) {
         setAvailableWeekOptions(getAvailableWeekOptions());
       }
       // Fetch general package data even if not authenticated
        const fetchPackageDataOnly = async () => {
+      if (!effectiveBranchId || !numericPackageId) return
         setIsLoading(true);
         try {
         const response = await fetch(`/api/packages/by-branch/${effectiveBranchId}`);
@@ -155,7 +186,7 @@ export default function PackageCheckoutPage() {
     }
 
 
-  }, [numericPackageId, router, toast, isAuthenticated])
+  }, [numericPackageId, router, toast, isAuthenticated, effectiveBranchId, isBranchLoading, isAuthLoading])
   
   // Regenerate week options if existingUserUnlimitedWeeks changes (e.g. after a purchase elsewhere)
   // Or if numericPackageId changes to 3
@@ -168,8 +199,21 @@ export default function PackageCheckoutPage() {
 
   const handlePaymentSuccess = async (paymentId: string) => {
     try {
+      if (!effectiveBranchId) {
+        toast({
+          title: "Sucursal requerida",
+          description: "Selecciona una sucursal para continuar con tu compra.",
+          variant: "destructive",
+        })
+        return
+      }
+
       if (numericPackageId === 3 && !selectedUnlimitedWeek) {
-        alert("Debes seleccionar una semana para tu paquete ilimitado.")
+        toast({
+          title: "Semana requerida",
+          description: "Debes seleccionar una semana para tu paquete ilimitado.",
+          variant: "destructive",
+        })
         return
       }
       setWaitingConfirmation(true)
@@ -204,20 +248,23 @@ export default function PackageCheckoutPage() {
         router.push(`/paquetes/confirmacion?session_id=${paymentId}&package_id=${numericPackageId}&branch_id=${effectiveBranchId}`)
       } else {
         const errorData = await response.json()
-        console.log('Entering error block in handlePaymentSuccess. Response not OK.');
-        console.log('Error data from response:', errorData);
         setWaitingConfirmation(false); 
         const errorDescription = errorData.error || "Hubo un problema al registrar tu compra";
-        console.log('Attempting to show alert with error description:', errorDescription);
-        alert('API Error: ' + errorDescription);
+        toast({
+          title: "No se pudo completar la compra",
+          description: errorDescription,
+          variant: "destructive",
+        })
       }
     } catch (error) {
-      console.error("Error al procesar la compra:", error) // Original console.error
-      console.log('Entering catch block in handlePaymentSuccess. Error:', error); // New diagnostic log
+      console.error("Error al procesar la compra:", error)
       const description = error instanceof Error ? error.message : "Error de conexión al procesar tu compra";
       setWaitingConfirmation(false);
-      console.log('Attempting to show alert due to caught error. Description:', description); // New diagnostic log
-      alert('Purchase Processing Error: ' + description);
+      toast({
+        title: "Error de compra",
+        description,
+        variant: "destructive",
+      })
     }
   }
 
@@ -230,7 +277,7 @@ export default function PackageCheckoutPage() {
   }
 
   // Si está cargando o no hay datos del paquete
-  if (isLoading || !packageData) {
+  if (isBranchLoading || !effectiveBranchId || isLoading || !packageData) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
@@ -298,6 +345,9 @@ export default function PackageCheckoutPage() {
               {/* Branch Confirmation */}
               <div className="mb-6">
                 <BranchConfirmationBadge />
+                <p className="text-xs text-gray-600 mt-2">
+                  Esta compra quedará registrada en la sucursal <span className="font-semibold">{packageData?.branchName || selectedBranch?.name}</span>.
+                </p>
               </div>
 
               {/* Unlimited Week Selection */}

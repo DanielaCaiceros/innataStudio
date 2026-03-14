@@ -13,12 +13,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle, Loader2, Eye, EyeOff } from "lucide-react"
 import { ForgotPasswordModal } from "@/components/ui/forgot-password-modal"
 import { ResetPasswordModal } from "@/components/ui/reset-password-modal"
+import { getSafeRedirectPath } from "@/lib/utils"
 
 function LoginContent() {
   const router = useRouter()
   const { login } = useAuth()
   const { toast } = useToast()
   const searchParams = useSearchParams()
+  const safeRedirect = getSafeRedirectPath(searchParams.get("redirect"), "/mi-cuenta")
   
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -147,8 +149,7 @@ function LoginContent() {
         description: "Has iniciado sesión correctamente.",
       })
       
-      const redirect = searchParams.get("redirect") || "/mi-cuenta"
-      router.push(redirect)
+      router.push(safeRedirect)
     } catch (error: any) {
       console.error("Login error:", error)
       
@@ -364,7 +365,7 @@ function LoginContent() {
 
           <div className="mt-6 text-center text-sm text-black">
             ¿No tienes una cuenta?{" "}
-            <Link href="/registro" className="text-brand-gray font-medium hover:underline">
+            <Link href={`/registro?redirect=${encodeURIComponent(safeRedirect)}`} className="text-brand-gray font-medium hover:underline">
               Regístrate
             </Link>
           </div>
