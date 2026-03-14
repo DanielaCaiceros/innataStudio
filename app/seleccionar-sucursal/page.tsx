@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useBranch } from "@/lib/hooks/useBranch"
 import { Branch } from "@/lib/types/branch"
@@ -10,13 +10,27 @@ import { cn, getSafeRedirectPath } from "@/lib/utils"
 import Image from "next/image"
 import Link from "next/link"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { useToast } from "@/hooks/use-toast"
 
 export default function SeleccionarSucursalPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { toast } = useToast()
   const { branches, changeBranch, selectedBranch, isLoading } = useBranch()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const warningShownRef = useRef(false)
   const redirectPath = getSafeRedirectPath(searchParams.get("redirect"), "/paquetes")
+
+  useEffect(() => {
+    if (isLoading || selectedBranch || warningShownRef.current) return
+
+    warningShownRef.current = true
+    toast({
+      title: "Selecciona una sucursal",
+      description: "Debes seleccionar sucursal para continuar.",
+      variant: "destructive",
+    })
+  }, [isLoading, selectedBranch, toast])
 
   const handleSelectBranch = (branch: Branch) => {
     changeBranch(branch)

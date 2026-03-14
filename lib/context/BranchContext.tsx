@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Branch, BranchContextType } from '@/lib/types/branch';
 import { MOCK_BRANCHES } from '@/lib/constants/branches';
 
@@ -10,6 +10,7 @@ const BranchContext = createContext<BranchContextType | undefined>(undefined);
 const STORAGE_KEY = 'innata_selected_branch';
 
 export function BranchProvider({ children }: { children: ReactNode }) {
+  const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -19,7 +20,10 @@ export function BranchProvider({ children }: { children: ReactNode }) {
 
   const redirectToBranchSelection = () => {
     if (pathname !== '/seleccionar-sucursal' && !pathname?.startsWith('/admin')) {
-      router.push('/seleccionar-sucursal');
+      const search = searchParams?.toString();
+      const redirectTarget = `${pathname ?? '/'}${search ? `?${search}` : ''}`;
+      const encodedRedirect = encodeURIComponent(redirectTarget);
+      router.push(`/seleccionar-sucursal?redirect=${encodedRedirect}`);
     }
   };
 
