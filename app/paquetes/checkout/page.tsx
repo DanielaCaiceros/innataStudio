@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { StripeCheckout } from "@/components/stripe-checkout"
 import { ArrowLeft, Package, Clock, Users, CheckCircle } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { getAvailableWeekOptions } from "@/lib/utils/unlimited-week"
 import type { WeekOption, ExistingUserUnlimitedPackage } from "@/lib/utils/unlimited-week" // Import ExistingUserUnlimitedPackage
@@ -31,7 +31,7 @@ export default function PackageCheckoutPage() {
   const packageId = searchParams.get("packageId")
   const branchId = searchParams.get("branchId")
   const { toast } = useToast()
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const { selectedBranch, isLoading: isBranchLoading } = useBranch()
   const [packageData, setPackageData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -72,10 +72,12 @@ export default function PackageCheckoutPage() {
 
   // Redireccionar si no hay usuario autenticado
   useEffect(() => {
+    if (isAuthLoading) return
+
     if (!isAuthenticated) {
       router.push("/login?redirect=/paquetes")
     }
-  }, [isAuthenticated, router])
+  }, [isAuthLoading, isAuthenticated, router])
 
   // Cargar los datos del paquete seleccionado
   useEffect(() => {
@@ -152,7 +154,7 @@ export default function PackageCheckoutPage() {
       }
     }
 
-    if (isAuthenticated === null) return; // Wait until auth status is known
+    if (isAuthLoading) return; // Wait until auth status is known
 
     if (isAuthenticated === false && numericPackageId && effectiveBranchId) { // if not authenticated but trying to checkout
        // For unlimited week, we can still show default week options
@@ -184,7 +186,7 @@ export default function PackageCheckoutPage() {
     }
 
 
-  }, [numericPackageId, router, toast, isAuthenticated, effectiveBranchId, isBranchLoading])
+  }, [numericPackageId, router, toast, isAuthenticated, effectiveBranchId, isBranchLoading, isAuthLoading])
   
   // Regenerate week options if existingUserUnlimitedWeeks changes (e.g. after a purchase elsewhere)
   // Or if numericPackageId changes to 3
