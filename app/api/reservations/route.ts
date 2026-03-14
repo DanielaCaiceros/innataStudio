@@ -467,6 +467,9 @@ export async function POST(request: NextRequest) {
                 include: {
                   user: true
                 }
+              },
+              branches: {
+                select: { name: true }
               }
             }
           }
@@ -495,6 +498,7 @@ export async function POST(request: NextRequest) {
             date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
             time: formatTimeFromDB(reservationWithDetails.scheduledClass.time.toISOString()),
             instructor: `${reservationWithDetails.scheduledClass.instructor.user.firstName} ${reservationWithDetails.scheduledClass.instructor.user.lastName}`,
+            branchName: reservationWithDetails.scheduledClass.branches?.name || undefined,
             confirmationCode: reservationWithDetails.id.toString().padStart(6, '0'),
             bikeNumber: reservationWithDetails.bikeNumber || undefined,
             isUnlimitedWeek: true,
@@ -807,6 +811,9 @@ export async function POST(request: NextRequest) {
               include: {
                 user: true
               }
+            },
+            branches: {
+              select: { name: true }
             }
           }
         }
@@ -837,6 +844,7 @@ export async function POST(request: NextRequest) {
           date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
           time: formatTimeFromDB(reservationWithDetails.scheduledClass.time.toISOString()),
           instructor: `${reservationWithDetails.scheduledClass.instructor.user.firstName} ${reservationWithDetails.scheduledClass.instructor.user.lastName}`,
+          branchName: reservationWithDetails.scheduledClass.branches?.name || undefined,
           confirmationCode: reservationWithDetails.id.toString().padStart(6, '0'),
           bikeNumber: reservationWithDetails.bikeNumber || undefined
         };

@@ -136,9 +136,13 @@ export default function ReservationsPage() {
   const router = useRouter()
 
   // Función para verificar paquetes del usuario
-  const checkUserPackages = async (userId: number) => {
+  const checkUserPackages = async (userId: number, branchId?: string) => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}/check-packages`)
+      const params = new URLSearchParams()
+      if (branchId && branchId !== "all") {
+        params.append("branchId", branchId)
+      }
+      const response = await fetch(`/api/admin/users/${userId}/check-packages${params.toString() ? `?${params.toString()}` : ""}`)
       if (response.ok) {
         const data = await response.json()
         return data
@@ -160,7 +164,7 @@ export default function ReservationsPage() {
 
     setIsCheckingUserClasses(true)
     try {
-      const packageData = await checkUserPackages(Number(userId))
+      const packageData = await checkUserPackages(Number(userId), selectedBranchId)
       
       if (packageData) {
         setUserHasClasses(packageData.hasAvailableClasses)
@@ -189,7 +193,7 @@ export default function ReservationsPage() {
   // Función mejorada para crear reservación con verificación de paquetes
   const createReservationWithPackageCheck = async (reservationData: any) => {
     try {
-      const packageCheck = await checkUserPackages(Number(reservationData.userId))
+      const packageCheck = await checkUserPackages(Number(reservationData.userId), selectedBranchId)
       if (!packageCheck) {
         alert("Error al verificar los paquetes del usuario")
         return
@@ -200,7 +204,8 @@ export default function ReservationsPage() {
           userInfo: packageCheck.user,
           redirectFrom: 'reservations'
         }))
-        router.push(`/admin/payments?userId=${reservationData.userId}&context=reservation`)
+        const branchQuery = selectedBranchId !== "all" ? `&branchId=${selectedBranchId}` : ""
+        router.push(`/admin/payments?userId=${reservationData.userId}&context=reservation${branchQuery}`)
         return
       }
       // Si hay más de un paquete y el admin seleccionó uno, incluirlo
@@ -306,6 +311,10 @@ export default function ReservationsPage() {
 
       if (statusFilter !== "all") {
         params.append("status", statusFilter)
+      }
+
+      if (selectedBranchId !== "all") {
+        params.append("branchId", selectedBranchId)
       }
 
       if (params.toString()) {
@@ -809,11 +818,16 @@ export default function ReservationsPage() {
         return
       }
 
+        if (selectedBranchId === "all") {
+          setAvailableTimes([])
+          return
+        }
+
       setIsLoadingTimes(true)
       try {
         const formattedDate = formatAdminDate(date)
         const response = await fetch(
-          `/api/admin/reservations/available-times?date=${formattedDate}`
+          `/api/admin/reservations/available-times?date=${formattedDate}&branchId=${selectedBranchId}`
         )
         
         if (response.ok) {
@@ -834,7 +848,7 @@ export default function ReservationsPage() {
     if (isNewReservationOpen) {
       loadAvailableTimes()
     }
-  }, [date, isNewReservationOpen])
+  }, [date, isNewReservationOpen, selectedBranchId])
 
   // Cargar bicicletas disponibles cuando cambia la hora seleccionada
   useEffect(() => {
@@ -1046,6 +1060,12 @@ export default function ReservationsPage() {
                 </DialogDescription>
               </DialogHeader>
 
+              {selectedBranchId === "all" && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  Para crear una reservación, selecciona primero una sucursal en el filtro superior.
+                </div>
+              )}
+
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -1117,6 +1137,10 @@ export default function ReservationsPage() {
                         {isLoadingTimes ? (
                           <SelectItem value="loading" disabled>
                             Cargando horarios...
+                          </SelectItem>
+                        ) : selectedBranchId === "all" ? (
+                          <SelectItem value="select-branch" disabled>
+                            Selecciona una sucursal para ver horarios
                           </SelectItem>
                         ) : availableTimes.length > 0 ? (
                           availableTimes.map((availableTime) => (
@@ -1298,7 +1322,8 @@ export default function ReservationsPage() {
                       // Redirigir a pagos con el usuario seleccionado
                       const userData = users.find(u => u.id.toString() === selectedUser)
                       if (userData) {
-                        window.location.href = `/admin/payments?userId=${selectedUser}&context=reservation`
+                        const branchQuery = selectedBranchId !== "all" ? `&branchId=${selectedBranchId}` : ""
+                        window.location.href = `/admin/payments?userId=${selectedUser}&context=reservation${branchQuery}`
                       }
                     }}
                   >
@@ -1309,6 +1334,7 @@ export default function ReservationsPage() {
                   <Button
                     className="bg-[#4A102A] hover:bg-[#85193C] text-white"
                     disabled={
+                      selectedBranchId === "all" ||
                       !selectedUser || 
                       !date || 
                       !selectedTime || 
@@ -1320,6 +1346,11 @@ export default function ReservationsPage() {
                     onClick={async () => {
                       setIsCreatingReservation(true); // Set loading true
                       try {
+                        if (selectedBranchId === "all") {
+                          alert("Selecciona una sucursal para crear la reservación.")
+                          return
+                        }
+
                         if (!selectedUser || !date || !selectedTime || !selectedPackage) {
                           const camposFaltantes = []
                           if (!selectedUser) camposFaltantes.push("Cliente")
