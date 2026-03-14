@@ -79,6 +79,8 @@ export default function PackageCheckoutPage() {
 
   // Cargar los datos del paquete seleccionado
   useEffect(() => {
+    if (isBranchLoading) return
+
     const fetchData = async () => {
       if (!effectiveBranchId || !numericPackageId) return
       setIsLoading(true) // Start loading
@@ -152,13 +154,14 @@ export default function PackageCheckoutPage() {
 
     if (isAuthenticated === null) return; // Wait until auth status is known
 
-    if (isAuthenticated === false && numericPackageId ) { // if not authenticated but trying to checkout
+    if (isAuthenticated === false && numericPackageId && effectiveBranchId) { // if not authenticated but trying to checkout
        // For unlimited week, we can still show default week options
        if (numericPackageId === 3) {
         setAvailableWeekOptions(getAvailableWeekOptions());
       }
       // Fetch general package data even if not authenticated
        const fetchPackageDataOnly = async () => {
+      if (!effectiveBranchId || !numericPackageId) return
         setIsLoading(true);
         try {
         const response = await fetch(`/api/packages/by-branch/${effectiveBranchId}`);
@@ -181,7 +184,7 @@ export default function PackageCheckoutPage() {
     }
 
 
-  }, [numericPackageId, router, toast, isAuthenticated, effectiveBranchId])
+  }, [numericPackageId, router, toast, isAuthenticated, effectiveBranchId, isBranchLoading])
   
   // Regenerate week options if existingUserUnlimitedWeeks changes (e.g. after a purchase elsewhere)
   // Or if numericPackageId changes to 3
