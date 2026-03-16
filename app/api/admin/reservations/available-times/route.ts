@@ -24,9 +24,19 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
+    const branchId = searchParams.get("branchId");
 
     if (!date) {
       return NextResponse.json({ error: "Fecha es requerida" }, { status: 400 });
+    }
+
+    if (!branchId) {
+      return NextResponse.json({ error: "branchId es requerido" }, { status: 400 });
+    }
+
+    const branchIdInt = parseInt(branchId, 10);
+    if (!Number.isInteger(branchIdInt) || branchIdInt <= 0 || String(branchIdInt) !== branchId.trim()) {
+      return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 });
     }
 
     // Crear el rango de fecha para el día seleccionado
@@ -41,7 +51,8 @@ export async function GET(request: NextRequest) {
           gte: targetDate,
           lt: nextDay
         },
-        status: "scheduled"
+        status: "scheduled",
+        branch_id: branchIdInt,
       },
       include: {
         classType: true,

@@ -16,6 +16,7 @@ import {
   calculateDailyUsage,
   isWithinUnlimitedWeekSchedule 
 } from '@/lib/utils/unlimited-week';
+import { getBranchBikeCapacity } from '@/lib/config/branch-bike-layouts';
 
 
 
@@ -87,6 +88,12 @@ export async function GET(request: NextRequest) {
         scheduledClass: {
           include: {
             classType: true,
+            branches: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
             instructor: {
               include: {
                 user: {
@@ -185,7 +192,8 @@ export async function GET(request: NextRequest) {
         checkedIn: res.status === "attended",
         checkedInAt: res.checked_in_at,
         bikeNumber: res.bikeNumber,
-        cancelledAt: res.cancelledAt
+        cancelledAt: res.cancelledAt,
+        branchName: res.scheduledClass.branches?.name || (res.scheduledClass.branch_id ? `Sucursal ${res.scheduledClass.branch_id}` : undefined),
       };
     });
 
@@ -301,6 +309,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "No se encontró ningún instructor disponible" }, { status: 404 });
       }
 
+      const resolvedCapacity = getBranchBikeCapacity(branchIdInt);
+
       // Crear la clase programada
       scheduledClass = await prisma.scheduledClass.create({
         data: {
@@ -308,8 +318,8 @@ export async function POST(request: NextRequest) {
           instructorId: instructor.id,
           date: scheduledDateUTC,
           time: scheduledTimeUTC,
-          maxCapacity: classType.capacity,
-          availableSpots: classType.capacity - 1, // Restar 1 por la reservación que estamos creando
+          maxCapacity: resolvedCapacity,
+          availableSpots: resolvedCapacity - 1, // Restar 1 por la reservación que estamos creando
           status: "scheduled",
           ...(branchIdInt !== null ? { branch_id: branchIdInt } : {})
         },

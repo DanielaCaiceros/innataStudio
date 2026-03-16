@@ -45,6 +45,11 @@ export async function POST(
         scheduledClass: {
           include: {
             classType: true,
+            branches: {
+              select: {
+                name: true
+              }
+            },
             instructor: {
               include: {
                 user: {
@@ -186,6 +191,7 @@ export async function POST(
           className: reservation.scheduledClass.classType.name,
           date: formattedDateEmail,
           time: formattedTimeEmail,
+          branchName: reservation.scheduledClass.branches?.name || undefined,
           isRefundable: false, // Explicitly false for admin cancellations
           packageName: reservation.userPackage?.package?.name
         };

@@ -18,6 +18,17 @@ export async function GET(request: NextRequest) {
 
     const payload = await verifyToken(token)
     const userId = Number.parseInt(payload.userId)
+    const { searchParams } = new URL(request.url)
+    const branchId = searchParams.get("branchId")
+
+    let branchIdInt: number | null = null
+    if (branchId !== null) {
+      const parsed = Number.parseInt(branchId, 10)
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== branchId.trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
+      }
+      branchIdInt = parsed
+    }
 
     // Obtener paquetes activos del usuario
     const userPackages = await prisma.userPackage.findMany({
@@ -26,6 +37,7 @@ export async function GET(request: NextRequest) {
         isActive: true,
         classesRemaining: { gt: 0 },
         expiryDate: { gte: new Date() },
+        ...(branchIdInt !== null ? { branch_id: branchIdInt } : {}),
       },
       include: {
         package: true,
@@ -56,6 +68,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       packages: formattedPackages,
       totalAvailableClasses: normalClassesCount,
+      filteredByBranch: branchIdInt !== null,
+      branchId: branchIdInt,
     })
   } catch (error) {
     console.error('Error fetching user packages:', error)

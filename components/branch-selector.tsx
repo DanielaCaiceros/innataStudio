@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { MapPin, Check, ChevronDown } from "lucide-react"
 import {
   DropdownMenu,
@@ -16,15 +16,49 @@ import { useBranch } from "@/lib/hooks/useBranch"
 import { cn } from "@/lib/utils"
 
 export function BranchSelector() {
+  const pathname = usePathname()
   const router = useRouter()
   const { selectedBranch, branches, changeBranch, isBranchSelected } = useBranch()
   const [open, setOpen] = useState(false)
+  const [branchSelectorLocked, setBranchSelectorLocked] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const readLockState = () => {
+      setBranchSelectorLocked(localStorage.getItem("innata_branch_selector_lock") === "1")
+    }
+
+    const handleCustomLockEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<{ locked?: boolean }>
+      if (typeof customEvent.detail?.locked === "boolean") {
+        setBranchSelectorLocked(customEvent.detail.locked)
+      } else {
+        readLockState()
+      }
+    }
+
+    readLockState()
+    window.addEventListener("innata:branch-selector-lock", handleCustomLockEvent as EventListener)
+    window.addEventListener("storage", readLockState)
+
+    return () => {
+      window.removeEventListener("innata:branch-selector-lock", handleCustomLockEvent as EventListener)
+      window.removeEventListener("storage", readLockState)
+    }
+  }, [])
+
+  const shouldLockInThisPage = pathname === "/reservar" && branchSelectorLocked
 
   if (!selectedBranch) {
     return null // No mostrar si no hay sucursal seleccionada (debe manejarse por el modal)
   }
 
   const handleChangeBranch = (branchId: number) => {
+    if (shouldLockInThisPage) {
+      return
+    }
+
     const branch = branches.find(b => b.id === branchId)
     if (branch) {
       changeBranch(branch)
@@ -33,16 +67,25 @@ export function BranchSelector() {
   }
 
   const handleViewAll = () => {
+    if (shouldLockInThisPage) {
+      return
+    }
+
     setOpen(false)
     router.push("/seleccionar-sucursal")
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={(nextOpen) => setOpen(shouldLockInThisPage ? false : nextOpen)}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="outline"
-          className="gap-2 rounded-full px-3 py-1 h-auto border border-brand-gray bg-gray-30 hover:bg-gray-100 hover:border-gray-300 transition-all"
+          disabled={shouldLockInThisPage}
+          title={shouldLockInThisPage ? "Finaliza o ajusta tu reserva actual antes de cambiar de sucursal" : undefined}
+          className={cn(
+            "gap-2 rounded-full px-3 py-1 h-auto border border-brand-gray bg-gray-30 hover:bg-gray-100 hover:border-gray-300 transition-all",
+            shouldLockInThisPage && "opacity-60 cursor-not-allowed"
+          )}
         >
           <span className="font-medium text-base text-brand-gray">{selectedBranch.name}</span>
           <ChevronDown className="h-4 w-4 text-brand-gray" />
