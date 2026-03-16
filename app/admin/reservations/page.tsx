@@ -875,15 +875,17 @@ export default function ReservationsPage() {
         
         if (response.ok) {
           const data = await response.json()
-          // Generar opciones de bicicleta (1-10)
-          const bikeOptions: BikeOption[] = Array.from({length: 10}, (_, i) => {
-            const bikeId = i + 1
-            const bikeInfo = data.bikes?.find((b: any) => b.id === bikeId)
-            return {
-              id: bikeId,
-              available: bikeInfo ? bikeInfo.available : true
-            }
-          })
+          // Consumir bicicletas dinámicamente según la configuración de la sucursal.
+          const bikeOptions: BikeOption[] = Array.isArray(data.bikes)
+            ? data.bikes
+                .map((b: any) => ({
+                  id: Number(b.id),
+                  available: Boolean(b.available),
+                }))
+                .filter((b: BikeOption) => Number.isInteger(b.id) && b.id > 0)
+                .sort((a: BikeOption, b: BikeOption) => a.id - b.id)
+            : []
+
           setAvailableBikes(bikeOptions)
         } else {
           console.error("Error al cargar bicicletas disponibles")

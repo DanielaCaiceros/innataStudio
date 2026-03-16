@@ -41,6 +41,7 @@ export interface BookingEmailDetails {
   date: string;
   time: string;
   instructor: string;
+  branchName?: string;
   confirmationCode: string;
   bikeNumber?: number;
   isUnlimitedWeek?: boolean;
@@ -186,6 +187,13 @@ export async function sendBookingConfirmationEmail(
                     <span style="color: #111827; font-weight: 500; margin-left: 8px;">${details.instructor}</span>
                   </div>
 
+                  ${details.branchName ? `
+                  <div style="margin: 8px 0;">
+                    <span style="color: #6b7280; font-size: 14px;">Sucursal:</span>
+                    <span style="color: #111827; font-weight: 500; margin-left: 8px;">${details.branchName}</span>
+                  </div>
+                  ` : ""}
+
                   ${bikeInfo}
 
                 </div>
@@ -224,6 +232,7 @@ export async function sendBookingConfirmationEmail(
         Fecha: ${details.date}
         Hora: ${details.time}
         Instructor: ${details.instructor}
+        ${details.branchName ? `Sucursal: ${details.branchName}` : ""}
         ${details.bikeNumber ? `Bicicleta: #${details.bikeNumber}` : ""}
 
         Recuerda llegar 15 minutos antes de tu clase.
@@ -672,6 +681,7 @@ export async function sendCancellationConfirmationEmail(
     className: string;
     date: string;
     time: string;
+    branchName?: string;
     isRefundable: boolean;
     packageName?: string;
   },
@@ -722,6 +732,7 @@ export async function sendCancellationConfirmationEmail(
             <p style="color: #374151; margin: 8px 0;"><strong>Clase:</strong> ${details.className}</p>
             <p style="color: #374151; margin: 8px 0;"><strong>Fecha:</strong> ${details.date}</p>
             <p style="color: #374151; margin: 8px 0;"><strong>Hora:</strong> ${details.time} hrs</p>
+            ${details.branchName ? `<p style="color: #374151; margin: 8px 0;"><strong>Sucursal:</strong> ${details.branchName}</p>` : ""}
           </div>
 
           <div style="text-align: center; margin: 32px 0;">
@@ -778,6 +789,7 @@ export async function sendCancellationConfirmationEmail(
             <p style="color: #374151; margin: 8px 0;"><strong>Clase:</strong> ${details.className}</p>
             <p style="color: #374151; margin: 8px 0;"><strong>Fecha:</strong> ${details.date}</p>
             <p style="color: #374151; margin: 8px 0;"><strong>Hora:</strong> ${details.time} hrs</p>
+            ${details.branchName ? `<p style="color: #374151; margin: 8px 0;"><strong>Sucursal:</strong> ${details.branchName}</p>` : ""}
           </div>
 
           <p style="color: #374151; text-align: center; margin: 24px 0;">
@@ -806,6 +818,7 @@ Detalles de la clase cancelada:
 Clase: ${details.className}
 Fecha: ${details.date}
 Hora: ${details.time} hrs
+${details.branchName ? `Sucursal: ${details.branchName}` : ""}
 
 Puedes reservar otra clase aquí: ${process.env.NEXT_PUBLIC_APP_URL}/reservar
 
@@ -825,6 +838,7 @@ Detalles de la clase cancelada:
 Clase: ${details.className}
 Fecha: ${details.date}
 Hora: ${details.time} hrs
+${details.branchName ? `Sucursal: ${details.branchName}` : ""}
 
 Entendemos que pueden surgir imprevistos. Si tienes alguna pregunta o situación especial, por favor contáctanos.
 

@@ -1,8 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Bike } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { getBranchBikeLayout } from "@/lib/config/branch-bike-layouts"
 
