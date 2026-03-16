@@ -131,6 +131,10 @@ const ClassReservationCard = ({
             <p className="text-sm text-gray-600">
               {classInfo.dateFormatted} • {classInfo.time} • {classInfo.duration}
             </p>
+            <p className="text-sm text-gray-600 flex items-center gap-1 mt-1">
+              <MapPin className="h-3.5 w-3.5" />
+              Sucursal: {classInfo.location}
+            </p>
           </div>
           <Badge variant={allCancelled ? "secondary" : "default"}className="self-start sm:self-auto bg-white border-gray-200 text-gray-800 hover:bg-gray-50"> 
             {reservations.length} reserva{reservations.length > 1 ? 's' : ''}

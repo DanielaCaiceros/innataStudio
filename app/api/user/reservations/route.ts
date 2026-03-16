@@ -32,6 +32,12 @@ export async function GET(request: NextRequest) {
         scheduledClass: {
           include: {
             classType: true,
+            branches: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
             instructor: {
               include: {
                 user: {
@@ -98,7 +104,7 @@ export async function GET(request: NextRequest) {
         dateFormatted: formatDateToSpanish(res.scheduledClass.date.toISOString()),
         time: formatTimeFromDB(res.scheduledClass.time.toISOString()),
         duration: `${res.scheduledClass.classType.duration} min`,
-        location: "Sala Principal",
+        location: res.scheduledClass.branches?.name || "Sucursal no definida",
         status: res.status,
         canCancel: status !== "past" && res.status !== "cancelled",
         package: res.userPackage?.package.name || "Pase individual",
