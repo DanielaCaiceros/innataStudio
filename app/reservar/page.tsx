@@ -83,7 +83,7 @@ export default function BookingPage() {
     hasActiveUnlimitedWeek,
     getWeeklyUsageMessage,
     isLoading: isLoadingWeekly,
-  } = useUnlimitedWeek()
+  } = useUnlimitedWeek(selectedBranch?.id)
 
   // Auto-activar Semana Ilimitada si el usuario tiene paquete activo
   const isUsingUnlimitedWeek = hasActiveUnlimitedWeek && Boolean(weeklyUsage)
