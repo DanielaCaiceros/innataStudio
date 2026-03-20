@@ -499,7 +499,7 @@ export default function ProfilePage() {
                         </div>
                         <h3 className="text-xl font-semibold mb-2 text-zinc-800">No tienes clases reservadas</h3>
                         <p className="text-zinc-600 mb-6">¡Es hora de reservar tu próxima sesión!</p>
-                        <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white shadow-sm">
+                        <Button asChild className="bg-brand-mint hover:bg-brand-gray text-white shadow-sm">
                           <Link href="/reservar">
                             Reservar una clase
                             <ChevronRight className="ml-2 h-4 w-4" />

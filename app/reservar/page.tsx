@@ -698,7 +698,7 @@ export default function BookingPage() {
       <section className="py-12 pt-14 bg-white">
         <div className="container px-4 md:px-6 text-center">
           <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-4 anim-slide-in-up">
-            RESERVA TU <span className="text-brand-sage">CLASE</span>
+            RESERVA TU <span className="text-brand-cream">CLASE</span>
           </h1>
           <p className="text-xl max-w-3xl mx-auto text-zinc-700 mb-4">
             Selecciona fecha, clase y horario para asegurar tu lugar
@@ -1191,7 +1191,7 @@ export default function BookingPage() {
                       isProcessingBooking ||
                       isCheckingUnlimitedWeek
                     }
-                    className="w-full mt-6 bg-brand-sage/90 hover:bg-brand-sage/100 font-bold text-lg py-6 rounded-full text-white"
+                    className="w-full mt-6 bg-brand-cream/90 hover:bg-brand-cream/100 font-bold text-lg py-6 rounded-full text-white"
                   >
                     <span className="flex items-center justify-center gap-1">
                       {isProcessingBooking ? (

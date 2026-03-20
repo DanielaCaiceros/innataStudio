@@ -349,7 +349,7 @@ function LoginContent() {
             
             <Button 
               type="submit"
-              className="w-full h-12 bg-gradient-to-r from-brand-sage to-brand-gray hover:from-brand-mint hover:to-brand-sage text-white"
+              className="w-full h-12 bg-gradient-to-r from-brand-cream to-brand-gray hover:from-brand-cream/90 hover:to-brand-gray/90 text-white"
               disabled={isLoading}
             >
               {isLoading ? (

@@ -116,7 +116,7 @@ export function BikeSelectionInline({
           )}
 
           {/* Mapa de bicicletas */}
-          <div className="relative w-full h-[160px] rounded-lg bg-gradient-to-b from-brand-cream to-brand-mint  text-white overflow-hidden">
+          <div className="relative w-full h-[160px] rounded-lg bg-gradient-to-b from-brand-sage/50 to-brand-sage/70  text-white overflow-hidden">
             {/* COACH en el centro */}
             <div
               className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10"
@@ -125,7 +125,7 @@ export function BikeSelectionInline({
                 top: "25%",
               }}
             >
-              <div className="w-8 h-8 bg-brand-sage rounded-full flex items-center justify-center text-black text-xs font-bold">
+              <div className="w-8 h-8 bg-brand-mint rounded-full flex items-center justify-center text-black text-xs font-bold">
                 C
               </div>
             </div>
