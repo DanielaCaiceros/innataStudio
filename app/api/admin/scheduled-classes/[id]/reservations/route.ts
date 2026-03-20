@@ -156,7 +156,8 @@ export async function GET(
       totalReservations: activeReservations.length,
       cancelledReservations: cancelledReservations.length,
       canCheckIn: checkInStatus.canCheckIn,
-      checkInMessage: checkInStatus.reason
+      checkInMessage: checkInStatus.reason,
+      branchId: scheduledClass.branch_id
     }
 
     return NextResponse.json({
