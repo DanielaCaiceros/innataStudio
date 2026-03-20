@@ -33,7 +33,7 @@ interface WeeklyUsage {
   allUnlimitedPackages: any[]
 }
 
-export function useUnlimitedWeek() {
+export function useUnlimitedWeek(branchId?: number) {
   const { isAuthenticated } = useAuth()
   const [weeklyUsage, setWeeklyUsage] = useState<WeeklyUsage | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -51,8 +51,12 @@ export function useUnlimitedWeek() {
     setIsLoading(true)
     setError(null)
 
+    const usageUrl = branchId
+      ? `/api/reservations/validate-unlimited-week?branchId=${branchId}`
+      : '/api/reservations/validate-unlimited-week'
+
     try {
-      const response = await fetch('/api/reservations/validate-unlimited-week', {
+      const response = await fetch(usageUrl, {
         method: 'GET',
         credentials: 'include',
       })
@@ -85,7 +89,7 @@ export function useUnlimitedWeek() {
     } finally {
       setIsLoading(false)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, branchId])
 
   // Validar si se puede usar Semana Ilimitada para una clase específica
   const validateUnlimitedWeek = useCallback(

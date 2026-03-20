@@ -155,14 +155,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Debe seleccionar una semana para el paquete ilimitado." }, { status: 400 });
       }
 
+      if (!numericBranchId) {
+        return NextResponse.json({ error: "Debe seleccionar una sucursal para el paquete de semana ilimitada." }, { status: 400 });
+      }
+
       const newSelectedWeekStart = new Date(selectedWeekStartDate);
       const newSelectedWeekEnd = getUnlimitedWeekExpiryDate(newSelectedWeekStart); // Friday of the selected week
 
-      // Fetch user's existing/future unlimited weeks
+      // Fetch user's existing/future unlimited weeks FOR THE SAME BRANCH
+      // Packages are branch-specific: a week in Sahagún doesn't block a week in Apan
       const existingUnlimitedUserPackages = await prisma.userPackage.findMany({
         where: {
           userId: userId,
           packageId: 3, // Unlimited week package ID
+          branch_id: numericBranchId,
           OR: [
             { expiryDate: { gte: new Date() } }, // Active or future
             { purchaseDate: { gte: new Date() } } // Specifically future-dated (purchaseDate is Monday)

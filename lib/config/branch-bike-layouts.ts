@@ -39,7 +39,7 @@ export const BRANCH_BIKE_LAYOUTS: Record<number, BranchBikeLayout> = {
   1: {
     branchId: 1,
     name: "SAHAGUN",
-    bikeCount: 13,
+    bikeCount: 10,
     positions: defaultLayoutPositions,
   },
   2: defaultLayout,

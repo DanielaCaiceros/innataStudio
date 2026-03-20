@@ -145,6 +145,11 @@ export default function PaymentsPage() {
       setSelectedPurchaseBranchId(branchFilter)
     }
 
+    // Cargar usuarios solo cuando se abre el modal (lazy load)
+    if (users.length === 0) {
+      loadUsers()
+    }
+
     setIsNewPaymentOpen(true)
   }
 
@@ -617,9 +622,9 @@ export default function PaymentsPage() {
   // TODOS LOS useEffect DEBEN IR AQUÍ, ANTES DEL RETURN
   
   // Cargar datos al montar el componente
+  // loadUsers() se llama lazy en handleNewPaymentClick para no bloquear la carga inicial
   useEffect(() => {
     loadPayments()
-    loadUsers()
   }, [])
 
   // Detectar contexto de reservación al cargar
@@ -632,6 +637,8 @@ export default function PaymentsPage() {
       setIsFromReservation(true)
       setShowReservationBanner(true) // Mostrar banner solo al cargar la página
       setReservationContext({ userId })
+      // Cargar usuarios porque el modal se abrirá automáticamente en este contexto
+      loadUsers()
       if (branchId && ["1", "2"].includes(branchId)) {
         setSelectedPurchaseBranchId(branchId)
       }

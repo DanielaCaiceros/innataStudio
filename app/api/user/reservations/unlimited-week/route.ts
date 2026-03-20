@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
           include: {
             user: true
           }
-        }
+        },
+        branches: true,
       }
     });
 
@@ -67,12 +68,21 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Buscar paquete de semana ilimitada activo
+    // Buscar paquete de semana ilimitada activo para la misma sucursal que la clase
+    const classBranchId = scheduledClass.branch_id;
+
+    if (!classBranchId) {
+      return NextResponse.json({
+        error: 'La clase no tiene sucursal asignada'
+      }, { status: 400 });
+    }
+
     const unlimitedWeekPackage = await prisma.userPackage.findFirst({
       where: {
         userId: user.user_id,
         packageId: 3,
         isActive: true,
+        branch_id: classBranchId,
         expiryDate: {
           gte: new Date()
         }
@@ -87,8 +97,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (!unlimitedWeekPackage) {
-      return NextResponse.json({ 
-        error: 'No tienes un paquete de semana ilimitada activo' 
+      return NextResponse.json({
+        error: `No tienes un paquete de semana ilimitada activo para la sucursal ${scheduledClass.branches?.name ?? classBranchId}`
       }, { status: 400 });
     }
 

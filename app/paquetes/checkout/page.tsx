@@ -101,7 +101,7 @@ export default function PackageCheckoutPage() {
           // If it's an unlimited week package, fetch user's existing unlimited weeks
           if (numericPackageId === 3 && isAuthenticated) {
             try {
-              const userPackagesResponse = await fetch("/api/user/packages")
+              const userPackagesResponse = await fetch(`/api/user/packages?branchId=${effectiveBranchId}`)
               if (userPackagesResponse.ok) {
                 const userPackagesData: { packages: UserPackageAPIResponse[] } = await userPackagesResponse.json()
                 const unlimitedWeeks = userPackagesData.packages

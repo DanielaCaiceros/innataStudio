@@ -93,6 +93,7 @@ export class UnlimitedWeekService {
           isActive: true,
           purchaseDate: { lte: classDateUTC },
           expiryDate: { gte: classDateUTC },
+          ...(scheduledClass.branch_id ? { branch_id: scheduledClass.branch_id } : {}),
         },
       });
 
@@ -100,7 +101,12 @@ export class UnlimitedWeekService {
         console.log(`❌ [UW-MAIN-DEBUG] Step 2 FAILED: No valid package found for class date`);
         
         const anyActiveUnlimitedPackage = await prisma.userPackage.findFirst({
-          where: { userId, packageId: this.UNLIMITED_WEEK_PACKAGE_ID, isActive: true },
+          where: {
+            userId,
+            packageId: this.UNLIMITED_WEEK_PACKAGE_ID,
+            isActive: true,
+            ...(scheduledClass.branch_id ? { branch_id: scheduledClass.branch_id } : {}),
+          },
           orderBy: { purchaseDate: 'desc' },
         });
 
@@ -118,7 +124,12 @@ export class UnlimitedWeekService {
         }
         
         const anyUnlimitedPackageToShowMsg = await prisma.userPackage.findFirst({
-          where: { userId, packageId: this.UNLIMITED_WEEK_PACKAGE_ID, isActive: true },
+          where: {
+            userId,
+            packageId: this.UNLIMITED_WEEK_PACKAGE_ID,
+            isActive: true,
+            ...(scheduledClass.branch_id ? { branch_id: scheduledClass.branch_id } : {}),
+          },
           orderBy: { purchaseDate: 'desc' },
         });
         let finalMessage = 'No tienes un paquete de Semana Ilimitada válido para esta fecha.';
@@ -353,7 +364,7 @@ export class UnlimitedWeekService {
   /**
    * Obtiene el uso semanal actual del usuario
    */
-  static async getWeeklyUsage(userId: number): Promise<{
+  static async getWeeklyUsage(userId: number, branchId?: number): Promise<{
     used: number
     limit: number
     remaining: number
@@ -368,12 +379,13 @@ export class UnlimitedWeekService {
   }> {
     const now = new Date()
 
-    // 1. Obtener TODOS los paquetes de semana ilimitada del usuario
+    // 1. Obtener TODOS los paquetes de semana ilimitada del usuario (filtrado por sucursal si se proporciona)
     const allUserPackages = await prisma.userPackage.findMany({
       where: {
         userId,
         packageId: this.UNLIMITED_WEEK_PACKAGE_ID,
         isActive: true,
+        ...(branchId ? { branch_id: branchId } : {}),
       },
       orderBy: { purchaseDate: 'desc' },
     })

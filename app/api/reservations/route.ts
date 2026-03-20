@@ -343,8 +343,10 @@ export async function POST(request: NextRequest) {
           classesRemaining: { gt: 0 }, // Ensure package has classes
           // Ensure the class date falls within the package's purchase and expiry dates
           // Note: DB dates are DATE type, Prisma handles them as JS Date objects (usually UTC midnight)
-          purchaseDate: { lte: classDateFromDb }, 
-          expiryDate: { gte: classDateFromDb }    
+          purchaseDate: { lte: classDateFromDb },
+          expiryDate: { gte: classDateFromDb },
+          // El paquete debe ser de la misma sucursal que la clase
+          ...(scheduledClass.branch_id ? { branch_id: scheduledClass.branch_id } : {}),
         }
       });
 

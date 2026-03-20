@@ -31,7 +31,7 @@ const PACKAGES_UI_CONFIG = [
     expiracion: "Válido por 30 días",
     buttonText: "COMPRAR PASE",
     type: "clase",
-    gradient: "from-brand-gray to-brand-sage",
+    gradient: "from-brand-gray to-brand-gray/90",
   },
   {
     id: 2,
@@ -41,7 +41,7 @@ const PACKAGES_UI_CONFIG = [
     expiracion: "Válido por 30 días",
     buttonText: "COMPRAR PASE",
     type: "clase",
-    gradient: "from-brand-sage to-brand-cream",
+    gradient: "from-brand-gray to-brand-mint/90",
   },
   {
     id: 3,
@@ -51,7 +51,7 @@ const PACKAGES_UI_CONFIG = [
     expiracion: "Válido por 5 días de Lunes a Viernes",
     buttonText: "COMPRAR PAQUETE",
     type: "paquete",
-    gradient: "from-brand-cream to-brand-neutral",
+    gradient: "from-brand-cream to-brand-cream/90",
   },
   {
     id: 4,
@@ -81,7 +81,7 @@ const PACKAGES_UI_CONFIG = [
     expiracion: "Válido por 30 días",
     buttonText: "COMPRAR PAQUETE",
     type: "paquete",
-    gradient: "from-brand-sage to-brand-mint",
+    gradient: "from-brand-mint to-brand-mint/90",
   },
 ]
 
@@ -202,13 +202,23 @@ export default function PackagesPage() {
       {/* Hero Section */}
 
       <section className="py-5 pt-14 bg-white">
-        <div className="container px-4 md:px-6 text-center">
-          <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-2 anim-slide-in-up">
-            NUESTROS PAQUETES
-          </h1>
-          <p className="text-xl max-w-3xl mx-auto text-zinc-700 mb-4">
-            Flexibilidad para adaptarse a tu estilo de vida. Elige el paquete que mejor se ajuste a tus objetivos.
-          </p>
+        <div className="container px-4 md:px-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 items-center">
+            <div className="text-center md:text-left">
+              <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-2 anim-slide-in-up">
+                NUESTROS PAQUETES
+              </h1>
+              <p className="text-xl text-zinc-700">
+                Flexibilidad para adaptarse a tu estilo de vida. Elige el paquete que mejor se ajuste a tus objetivos.
+              </p>
+            </div>
+
+            <div className="text-center md:text-right">
+              <p className="text-sm md:text-base text-brand-cream font-medium">
+                Recuerda: los precios mostrados corresponden a la sucursal {selectedBranch?.name}. Si cambias de sucursal, los precios pueden variar.
+              </p>
+            </div>
+          </div>
           {/* Indicador de sucursal */}
           <div className="flex justify-center mt-4">
             <BranchIndicatorBadge />
@@ -291,42 +301,42 @@ export default function PackagesPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto anim-fade-in">
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-brand-sage">¿Cuánto tiempo duran las clases?</h3>
+              <h3 className="text-xl font-bold text-black">¿Cuánto tiempo duran las clases?</h3>
               <p className="text-zinc-600">
                 Nuestras clases tienen duraciones de 45.
               </p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-brand-sage">¿Necesito experiencia previa?</h3>
+              <h3 className="text-xl font-bold text-black">¿Necesito experiencia previa?</h3>
               <p className="text-zinc-600">
                 No, tenemos clases para todos los niveles. Nuestros instructores te guiarán durante toda la sesión.
               </p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-brand-sage">¿Qué debo llevar a clase?</h3>
+              <h3 className="text-xl font-bold text-black">¿Qué debo llevar a clase?</h3>
   <p className="text-zinc-600">
   Te recomendamos llegar 15 minutos antes de la clase. Debes traer agua, toalla y zapatos de deporte cómodos. 
 </p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-brand-sage">¿Puedo cancelar mi reserva?</h3>
+              <h3 className="text-xl font-bold text-black">¿Puedo cancelar mi reserva?</h3>
               <p className="text-zinc-600">
                 Para paquetes regulares: puedes cancelar hasta 12 horas antes y recibes tu crédito de vuelta. Para Semana Ilimitada: si cancelas con +12 horas no hay penalización, pero con -12 horas o no asistes sí hay penalización.
               </p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-brand-sage">¿Los paquetes tienen fecha de expiración?</h3>
+              <h3 className="text-xl font-bold text-black">¿Los paquetes tienen fecha de expiración?</h3>
               <p className="text-zinc-600">
                 Sí, todos nuestros paquetes tienen una validez de 30 días desde la compra.
               </p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
-              <h3 className="text-xl font-bold text-brand-sage">¿Hay lista de espera?</h3>
+              <h3 className="text-xl font-bold text-black">¿Hay lista de espera?</h3>
               <p className="text-zinc-600">
                 Sí, si una persona reservada no llega antes del inicio de la segunda canción, su lugar se liberará en la plataforma.
               </p>

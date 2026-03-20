@@ -171,7 +171,11 @@ export async function DELETE(
     const existingClass = await prisma.scheduledClass.findUnique({
       where: { id: parseInt(id) },
       include: {
-        reservations: true,
+        reservations: {
+          where: {
+            status: { not: "cancelled" },
+          },
+        },
       },
     })
 
@@ -182,7 +186,7 @@ export async function DELETE(
       )
     }
 
-    // Verificar si hay reservas confirmadas
+    // Verificar si hay reservas activas (no canceladas)
     if (existingClass.reservations.length > 0) {
       return NextResponse.json(
         { error: "No se puede eliminar una clase con reservas confirmadas" },

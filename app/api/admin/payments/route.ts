@@ -19,8 +19,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Acceso denegado" }, { status: 403 })
     }
 
-    // Obtener todos los pagos con información del usuario usando Prisma
+    const { searchParams } = new URL(request.url)
+    const limitParam = searchParams.get('limit')
+    const offsetParam = searchParams.get('offset')
+    const limit = limitParam ? Math.min(parseInt(limitParam, 10), 200) : 100
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0
+
+    // Obtener pagos con paginación para evitar cargar toda la tabla de una vez
     const payments = await db.payment.findMany({
+      take: limit,
+      skip: offset,
       include: {
         user: {
           select: {

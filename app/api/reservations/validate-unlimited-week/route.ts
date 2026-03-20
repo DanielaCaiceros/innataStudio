@@ -53,7 +53,11 @@ export async function GET(request: NextRequest) {
     const payload = await verifyToken(token)
     const userId = Number(payload.userId)
 
-    const weeklyUsage = await UnlimitedWeekService.getWeeklyUsage(userId)
+    const { searchParams } = new URL(request.url)
+    const branchIdParam = searchParams.get('branchId')
+    const branchId = branchIdParam ? Number(branchIdParam) : undefined
+
+    const weeklyUsage = await UnlimitedWeekService.getWeeklyUsage(userId, branchId)
     
     return NextResponse.json(weeklyUsage)
   } catch (error) {
