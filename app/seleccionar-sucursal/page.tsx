@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useBranch } from "@/lib/hooks/useBranch"
 import { Branch } from "@/lib/types/branch"
-import { MapPin, Phone, Clock, ArrowRight, Menu, X } from "lucide-react"
+import { Phone, ArrowRight, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn, getSafeRedirectPath } from "@/lib/utils"
 import Image from "next/image"
@@ -128,10 +128,6 @@ export default function SeleccionarSucursalPage() {
                 {/* Details siempre visibles */}
                 <div className="space-y-4 text-lg mt-8">
                   <div className="flex items-center justify-center gap-3">
-                    <Clock className="h-5 w-5" />
-                    <span>{branch.schedule}</span>
-                  </div>
-                  <div className="flex items-center justify-center gap-3">
                     <Phone className="h-5 w-5" />
                     <span>{branch.phone}</span>
                   </div>
@@ -193,10 +189,6 @@ export default function SeleccionarSucursalPage() {
 
                 {/* Details compactos */}
                 <div className="space-y-2 text-sm sm:text-base mt-6 opacity-90">
-                  <div className="flex items-center justify-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    <span>{branch.schedule}</span>
-                  </div>
                   <div className="flex items-center justify-center gap-2">
                     <Phone className="h-4 w-4" />
                     <span>{branch.phone}</span>
