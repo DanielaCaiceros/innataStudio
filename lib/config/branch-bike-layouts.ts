@@ -33,12 +33,12 @@ const sahagunLayoutPositions: Record<number, BikePosition> = {
   3: { x: 40, y: 58 },
   2: { x: 30, y: 58 },
   7: { x: 80, y: 58 },
-  8: { x: 75, y: 77 },
-  9: { x: 65, y: 77 },
-  10: { x: 55, y: 77 },
-  11: { x: 45, y: 77 },
-  12: { x: 35, y: 77 },
-  13: { x: 25, y: 77 },
+  8: { x: 25, y: 77 },
+  9: { x: 35, y: 77 },
+  10: { x: 45, y: 77 },
+  11: { x: 55, y: 77 },
+  12: { x: 65, y: 77 },
+  13: { x: 75, y: 77 },
 }
 
 const defaultLayout: BranchBikeLayout = {
