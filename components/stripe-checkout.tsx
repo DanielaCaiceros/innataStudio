@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CardElement, Elements, useStripe, useElements } from "@stripe/react-stripe-js"
@@ -32,6 +32,8 @@ function CheckoutForm({
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  // Stable idempotency key per form instance – prevents duplicate payment intents on retry
+  const idempotencyKeyRef = useRef<string>(crypto.randomUUID())
   const defaultName = initialName || (firstName || "") + (lastName ? ` ${lastName}` : "")
   const [email, setEmail] = useState(initialEmail)
   const [name, setName] = useState(defaultName)
@@ -61,8 +63,6 @@ function CheckoutForm({
       return
     }
 
-    const paymentMethodCard = cardElement as any
-
     try {
       const response = await fetch("/api/create-payment-intent", {
         method: "POST",
@@ -74,6 +74,7 @@ function CheckoutForm({
           description,
           email,
           name,
+          idempotencyKey: idempotencyKeyRef.current,
         }),
       })
 
@@ -85,7 +86,7 @@ function CheckoutForm({
 
       const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(data.clientSecret, {
         payment_method: {
-          card: paymentMethodCard,
+          card: cardElement,
           billing_details: {
             name,
             email,

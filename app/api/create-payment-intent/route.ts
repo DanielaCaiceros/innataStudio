@@ -7,25 +7,28 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: Request) {
   try {
-    const { amount, description, email, name, userId, packageId, reservationId, branchId } = await req.json();
+    const { amount, description, email, name, userId, packageId, reservationId, branchId, idempotencyKey } = await req.json();
 
     // Create a PaymentIntent with the order amount and currency
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount, // Amount is already in centavos for MXN
-      currency: 'mxn',
-      description,
-      receipt_email: email,
-      metadata: {
-        customerName: name,
-        userId: userId?.toString(),
-        packageId: packageId?.toString(),
-        reservationId: reservationId?.toString(),
-        branchId: branchId?.toString(),
+    const paymentIntent = await stripe.paymentIntents.create(
+      {
+        amount: amount, // Amount is already in centavos for MXN
+        currency: 'mxn',
+        description,
+        receipt_email: email,
+        metadata: {
+          customerName: name,
+          userId: userId?.toString(),
+          packageId: packageId?.toString(),
+          reservationId: reservationId?.toString(),
+          branchId: branchId?.toString(),
+        },
+        automatic_payment_methods: {
+          enabled: true,
+        },
       },
-      automatic_payment_methods: {
-        enabled: true,
-      },
-    });
+      idempotencyKey ? { idempotencyKey } : undefined
+    );
 
     return NextResponse.json({
       clientSecret: paymentIntent.client_secret,
