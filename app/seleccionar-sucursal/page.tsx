@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useBranch } from "@/lib/hooks/useBranch"
 import { Branch } from "@/lib/types/branch"
@@ -12,7 +12,7 @@ import Link from "next/link"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useToast } from "@/hooks/use-toast"
 
-export default function SeleccionarSucursalPage() {
+function SeleccionarSucursalContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -216,5 +216,13 @@ export default function SeleccionarSucursalPage() {
         ))}
       </div>
     </div>
+  )
+}
+
+export default function SeleccionarSucursalPage() {
+  return (
+    <Suspense fallback={null}>
+      <SeleccionarSucursalContent />
+    </Suspense>
   )
 }
