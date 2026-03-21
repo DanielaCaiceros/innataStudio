@@ -1394,13 +1394,14 @@ export default function ReservationsPage() {
 
                         const newReservationData = {
                           userId: Number.parseInt(selectedUser),
-                          classId: selectedAvailableTime.typeId, 
+                          classId: selectedAvailableTime.typeId,
                           date: date ? formatAdminDate(date) : formatAdminDate(new Date()),
                           time: selectedTime,
                           package: selectedPackage,
-                          paymentMethod: "paid", 
-                          bikeNumber: selectedBike, 
+                          paymentMethod: "paid",
+                          bikeNumber: selectedBike,
                           userPackageId: (userHasClasses && selectedUserPackageId && selectedUserPackageId !== "") ? Number(selectedUserPackageId) : undefined,
+                          branchId: selectedBranchId !== "all" ? Number(selectedBranchId) : undefined,
                         }
 
                         await createReservationWithPackageCheck(newReservationData)
