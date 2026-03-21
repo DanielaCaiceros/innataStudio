@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { StripeCheckout } from "@/components/stripe-checkout"
 import { ArrowLeft, Package, Clock, Users, CheckCircle } from "lucide-react"
@@ -25,7 +25,7 @@ interface UserPackageAPIResponse {
   isActive: boolean;
 }
 
-export default function PackageCheckoutPage() {
+function PackageCheckoutContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const packageId = searchParams.get("packageId")
@@ -452,5 +452,13 @@ export default function PackageCheckoutPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function PackageCheckoutPage() {
+  return (
+    <Suspense fallback={null}>
+      <PackageCheckoutContent />
+    </Suspense>
   )
 }
