@@ -446,6 +446,7 @@ export default function PaymentsPage() {
               // Add more specific expiry logic if needed for other non-unlimited packages
             }
 
+            const branchNameMap: Record<string, string> = { "1": "SAHAGÚN", "2": "APAN" }
             const emailDetails = {
               packageName: packageForEmail.name,
               classCount: typeof packageForEmail.classCount === 'number' ? packageForEmail.classCount : 0,
@@ -453,6 +454,7 @@ export default function PaymentsPage() {
               purchaseDate: format(emailPurchaseDate, "dd/MM/yyyy", { locale: es }),
               price: parseFloat(packageForEmail.price as any),
               isUnlimitedWeek: isUnlimited,
+              branchName: selectedPurchaseBranchId ? branchNameMap[selectedPurchaseBranchId] : undefined,
             };
 
             // Log the prepared emailDetails to verify types before sending

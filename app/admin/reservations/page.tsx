@@ -248,15 +248,15 @@ export default function ReservationsPage() {
           // Ensure reservationData.date is a Date object before formatting
           const reservationDateObject = typeof reservationData.date === 'string' ? new Date(reservationData.date.replace(/-/g, '\/')) : reservationData.date;
           
+          const branchNameMap: Record<string, string> = { "1": "SAHAGÚN", "2": "APAN" }
           const emailDetails = {
             className: availableTime.className,
-            date: format(reservationDateObject, "PPP", { locale: es }), // Format date for email
-            time: availableTime.time, // Time is already formatted as HH:mm by the API
+            date: format(reservationDateObject, "PPP", { locale: es }),
+            time: availableTime.time,
             instructor: availableTime.instructorName,
             confirmationCode: createdReservation.id.toString(),
             bikeNumber: reservationData.bikeNumber || undefined,
-            // isUnlimitedWeek and graceTimeHours can be omitted if not applicable for admin manual bookings
-            // or set to default values if necessary by the email template.
+            branchName: modalBranchId !== "all" ? branchNameMap[modalBranchId] : undefined,
           };
 
           // Call the new API endpoint

@@ -367,7 +367,7 @@ export default function PackagesPage() {
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button 
                 asChild
-                className="bg-brand-sage hover:bg-brand-sage text-white flex gap-2"
+                className="bg-brand-mint hover:bg-brand-mint/90 text-white flex gap-2"
               >
                 <Link href={`/login?redirect=${encodeURIComponent(`/paquetes/checkout?packageId=${selectedPackageId}&branchId=${selectedBranch?.id}`)}`}>
                   <LogIn className="h-4 w-4" /> Iniciar Sesión
