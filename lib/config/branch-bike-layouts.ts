@@ -27,6 +27,20 @@ const defaultLayoutPositions: Record<number, BikePosition> = {
   13: { x: 25, y: 77 },
 }
 
+// Sahagun uses a different studio distribution (10 bikes).
+const sahagunLayoutPositions: Record<number, BikePosition> = {
+  1: { x: 24, y: 56 },
+  2: { x: 34, y: 56 },
+  3: { x: 44, y: 56 },
+  4: { x: 54, y: 56 },
+  5: { x: 64, y: 56 },
+  6: { x: 76, y: 56 },
+  10: { x: 70, y: 76 },
+  9: { x: 58, y: 76 },
+  8: { x: 46, y: 76 },
+  7: { x: 34, y: 76 },
+}
+
 const defaultLayout: BranchBikeLayout = {
   branchId: 2,
   name: "APAN",
@@ -35,12 +49,11 @@ const defaultLayout: BranchBikeLayout = {
 }
 
 export const BRANCH_BIKE_LAYOUTS: Record<number, BranchBikeLayout> = {
-  // TODO: Replace with real Sahagun coordinates once final map is confirmed.
   1: {
     branchId: 1,
     name: "SAHAGUN",
     bikeCount: 10,
-    positions: defaultLayoutPositions,
+    positions: sahagunLayoutPositions,
   },
   2: defaultLayout,
 }
