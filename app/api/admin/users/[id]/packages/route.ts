@@ -90,10 +90,23 @@ export async function POST(
     const resolvedParams = await params
     const userId = parseInt(resolvedParams.id)
     const body = await request.json()
-    const { packageId } = body
+    const { packageId, branchId } = body
 
     if (isNaN(userId) || packageId === undefined || packageId === null) {
       return NextResponse.json({ error: "Datos inválidos" }, { status: 400 })
+    }
+
+    let branchIdInt: number | null = null
+    if (branchId !== undefined && branchId !== null) {
+      const parsed = parseInt(String(branchId), 10)
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== String(branchId).trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
+      }
+      branchIdInt = parsed
+      const branchExists = await db.branch.findUnique({ where: { id: branchIdInt } })
+      if (!branchExists) {
+        return NextResponse.json({ error: "Sucursal no encontrada" }, { status: 404 })
+      }
     }
 
     // Verificar que el paquete existe
@@ -120,8 +133,9 @@ export async function POST(
         userId: userId,
         packageId: packageId,
         classesRemaining: packageExists.classCount,
-        paymentStatus: 'pending', // Inicialmente pendiente hasta que se pague
-        expiryDate: new Date(Date.now() + (packageExists.validityDays * 24 * 60 * 60 * 1000))
+        paymentStatus: 'pending',
+        expiryDate: new Date(Date.now() + (packageExists.validityDays * 24 * 60 * 60 * 1000)),
+        ...(branchIdInt !== null ? { branch_id: branchIdInt } : {}),
       },
       include: {
         package: {

@@ -261,7 +261,10 @@ export async function POST(request: NextRequest) {
           include: {
             user: true
           }
-        }
+        },
+        branches: {
+          select: { id: true, name: true }
+        },
       },
     })
 
@@ -340,8 +343,10 @@ export async function POST(request: NextRequest) {
           classesRemaining: { gt: 0 }, // Ensure package has classes
           // Ensure the class date falls within the package's purchase and expiry dates
           // Note: DB dates are DATE type, Prisma handles them as JS Date objects (usually UTC midnight)
-          purchaseDate: { lte: classDateFromDb }, 
-          expiryDate: { gte: classDateFromDb }    
+          purchaseDate: { lte: classDateFromDb },
+          expiryDate: { gte: classDateFromDb },
+          // El paquete debe ser de la misma sucursal que la clase
+          ...(scheduledClass.branch_id ? { branch_id: scheduledClass.branch_id } : {}),
         }
       });
 
@@ -464,6 +469,9 @@ export async function POST(request: NextRequest) {
                 include: {
                   user: true
                 }
+              },
+              branches: {
+                select: { name: true }
               }
             }
           }
@@ -492,6 +500,7 @@ export async function POST(request: NextRequest) {
             date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
             time: formatTimeFromDB(reservationWithDetails.scheduledClass.time.toISOString()),
             instructor: `${reservationWithDetails.scheduledClass.instructor.user.firstName} ${reservationWithDetails.scheduledClass.instructor.user.lastName}`,
+            branchName: reservationWithDetails.scheduledClass.branches?.name || undefined,
             confirmationCode: reservationWithDetails.id.toString().padStart(6, '0'),
             bikeNumber: reservationWithDetails.bikeNumber || undefined,
             isUnlimitedWeek: true,
@@ -546,6 +555,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Paquete especificado no válido, expirado o sin clases disponibles." }, { status: 400 });
       }
 
+      // Validar que el paquete pertenece a la misma sucursal que la clase.
+      // Paquetes con branch_id = null se consideran globales y son válidos en cualquier sucursal.
+      if (scheduledClass.branch_id && userPackage.branch_id !== null && userPackage.branch_id !== scheduledClass.branch_id) {
+        const branchName = scheduledClass.branches?.name || `ID ${scheduledClass.branch_id}`
+        return NextResponse.json({
+          error: `Este paquete no es válido para la sucursal "${branchName}". Por favor usa un paquete adquirido para esa sucursal.`
+        }, { status: 400 });
+      }
+
       // Si el paquete especificado es Semana Ilimitada, validar sus reglas específicas para esta clase
       if (userPackage.packageId === 3) { // 3 is the ID for Unlimited Week package
         const classDateForValidation = new Date(scheduledClass.date); // UTC Date from DB
@@ -583,6 +601,13 @@ export async function POST(request: NextRequest) {
           isActive: true,
           classesRemaining: { gt: 0 },
           expiryDate: { gte: new Date() },
+          // Incluir paquetes de la sucursal específica Y paquetes globales (branch_id = null)
+          ...(scheduledClass.branch_id ? {
+            OR: [
+              { branch_id: scheduledClass.branch_id },
+              { branch_id: null },
+            ]
+          } : {}),
         },
         include: {
           package: true // Necesitamos package.id para la lógica de filtrado
@@ -594,8 +619,12 @@ export async function POST(request: NextRequest) {
       });
 
       if (!availablePackages || availablePackages.length === 0) {
-        return NextResponse.json({ 
-          error: "No tienes clases disponibles en tus paquetes. Necesitas comprar un paquete o pagar por esta clase individual." 
+        const branchName = scheduledClass.branch_id
+          ? scheduledClass.branches?.name || `ID ${scheduledClass.branch_id}`
+          : null
+        const branchMsg = branchName ? ` para la sucursal "${branchName}"` : ''
+        return NextResponse.json({
+          error: `No tienes clases disponibles en tus paquetes${branchMsg}. Necesitas comprar un paquete o pagar por esta clase individual.`
         }, { status: 400 });
       }
 
@@ -784,6 +813,9 @@ export async function POST(request: NextRequest) {
               include: {
                 user: true
               }
+            },
+            branches: {
+              select: { name: true }
             }
           }
         }
@@ -814,6 +846,7 @@ export async function POST(request: NextRequest) {
           date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
           time: formatTimeFromDB(reservationWithDetails.scheduledClass.time.toISOString()),
           instructor: `${reservationWithDetails.scheduledClass.instructor.user.firstName} ${reservationWithDetails.scheduledClass.instructor.user.lastName}`,
+          branchName: reservationWithDetails.scheduledClass.branches?.name || undefined,
           confirmationCode: reservationWithDetails.id.toString().padStart(6, '0'),
           bikeNumber: reservationWithDetails.bikeNumber || undefined
         };

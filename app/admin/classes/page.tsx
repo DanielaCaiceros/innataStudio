@@ -29,12 +29,28 @@ import { ClassType, Instructor, ScheduledClass, timeSlots, convertUtcToLocalDate
 import ClassTypesTab from "./components/ClassTypesTab";
 import WeeklyScheduleTab from "./components/WeeklyScheduleTab";
 import CalendarViewTab from "./components/CalendarViewTab";
+import { AdminBranchFilter } from "@/components/admin/AdminBranchFilter";
+import { getBranchBikeCapacity } from "@/lib/config/branch-bike-layouts";
 
 // UI components Card*, Calendar removed as their usage is now within child tabs
 // Helper functions are now imported from typesAndConstants
 
 export default function ClassesPage() {
   const { toast } = useToast()
+
+  const getBranchName = (branchId: string) => {
+    if (branchId === "1") return "SAHAGÚN"
+    if (branchId === "2") return "APAN"
+    return `ID ${branchId}`
+  }
+
+  const getBranchCapacity = (branchId: string) => {
+    const parsed = Number.parseInt(branchId, 10)
+    return getBranchBikeCapacity(Number.isInteger(parsed) ? parsed : null)
+  }
+
+  // Estado de sucursal
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("all")
 
   // Estados para tipos de clase
   const [classTypes, setClassTypes] = useState<ClassType[]>([])
@@ -55,6 +71,7 @@ export default function ClassesPage() {
     instructorId: "",
     date: "",
     time: "",
+    branchId: "",
   });
   const [isEditScheduleOpen, setIsEditScheduleOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduledClass | null>(null);
@@ -63,6 +80,7 @@ export default function ClassesPage() {
     instructorId: "",
     date: "",
     time: "",
+    branchId: "",
   });
 
   // Cargar datos iniciales
@@ -71,10 +89,18 @@ export default function ClassesPage() {
     loadInstructors()
   }, [])
 
-  // Cargar clases programadas cuando cambia la semana
+  // Cargar clases programadas cuando cambia la semana o la sucursal
   useEffect(() => {
     loadScheduledClasses()
-  }, [selectedWeek])
+  }, [selectedWeek, selectedBranchId])
+
+  // Si el admin filtra por una sucursal específica, preseleccionar esa sucursal en formularios
+  useEffect(() => {
+    if (selectedBranchId !== "all") {
+      setNewScheduleForm((prev) => ({ ...prev, branchId: selectedBranchId }))
+      setEditScheduleForm((prev) => ({ ...prev, branchId: prev.branchId || selectedBranchId }))
+    }
+  }, [selectedBranchId])
 
   // useEffect for populating editScheduleForm (lifted back)
   useEffect(() => {
@@ -84,6 +110,7 @@ export default function ClassesPage() {
         instructorId: selectedSchedule.instructor.id.toString(),
         date: format(convertUtcToLocalDateForDisplay(selectedSchedule.date), "yyyy-MM-dd"),
         time: formatTime(selectedSchedule.time),
+        branchId: selectedSchedule.branch_id?.toString() || "",
       });
     }
   }, [selectedSchedule]);
@@ -125,7 +152,16 @@ export default function ClassesPage() {
       const startDate = format(currentGlobalWeekStart, "yyyy-MM-dd")
       const endDate = format(currentGlobalWeekEnd, "yyyy-MM-dd")
 
-      const response = await fetch(`/api/admin/scheduled-classes?startDate=${startDate}&endDate=${endDate}`)
+      // Construir URL con filtro de sucursal
+      const params = new URLSearchParams({
+        startDate,
+        endDate,
+      });
+      if (selectedBranchId !== "all") {
+        params.append("branchId", selectedBranchId);
+      }
+
+      const response = await fetch(`/api/admin/scheduled-classes?${params.toString()}`)
 
       if (response.ok) {
         const data = await response.json()
@@ -139,32 +175,54 @@ export default function ClassesPage() {
   // handleCreateClassType moved to ClassTypesTab
 
   // Handlers lifted back from WeeklyScheduleTab
-  const handleCreateSchedule = async () => {
-    if (!newScheduleForm.classTypeId || !newScheduleForm.instructorId || !newScheduleForm.date || !newScheduleForm.time) {
-      toast({ title: "Error", description: "Todos los campos son obligatorios", variant: "destructive" });
+  const createScheduledClass = async (payload: {
+    classTypeId: string
+    instructorId: string
+    date: string
+    time: string
+    branchId: string
+  }) => {
+    const response = await fetch("/api/admin/scheduled-classes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        branchId: parseInt(payload.branchId),
+        maxCapacity: String(getBranchCapacity(payload.branchId)),
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || "Error al programar la clase")
+    }
+  }
+
+  const handleCreateSchedule = async (options?: { keepDialogOpen?: boolean }) => {
+    if (!newScheduleForm.classTypeId || !newScheduleForm.instructorId || !newScheduleForm.date || !newScheduleForm.time || !newScheduleForm.branchId) {
+      toast({ title: "Error", description: "Todos los campos son obligatorios (incluyendo sucursal)", variant: "destructive" });
       return;
     }
     setIsLoading(true);
     try {
-      const response = await fetch("/api/admin/scheduled-classes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...newScheduleForm,
-          maxCapacity: "13" // Capacidad fija en 10
-        }),
-      });
-      if (response.ok) {
-        toast({ title: "Éxito", description: "Clase programada exitosamente" });
-        setIsNewScheduleOpen(false);
-        setNewScheduleForm({ classTypeId: "", instructorId: "", date: "", time: "" });
-        await loadScheduledClasses();
+      await createScheduledClass(newScheduleForm)
+
+      const createdBranchName = getBranchName(newScheduleForm.branchId)
+      toast({ title: "Éxito", description: `Clase programada exitosamente en ${createdBranchName}` })
+
+      await loadScheduledClasses()
+
+      if (options?.keepDialogOpen) {
+        setNewScheduleForm((prev) => ({
+          ...prev,
+          time: "",
+        }))
       } else {
-        const errorData = await response.json();
-        toast({ title: "Error", description: errorData.error || "Error al programar la clase", variant: "destructive" });
+        setIsNewScheduleOpen(false)
+        setNewScheduleForm({ classTypeId: "", instructorId: "", date: "", time: "", branchId: selectedBranchId !== "all" ? selectedBranchId : "" })
       }
     } catch (error) {
-      toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Error de conexión", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -172,8 +230,8 @@ export default function ClassesPage() {
 
   const handleEditSchedule = async () => {
     if (!selectedSchedule) return;
-    if (!editScheduleForm.classTypeId || !editScheduleForm.instructorId || !editScheduleForm.date || !editScheduleForm.time) {
-      toast({ title: "Error", description: "Todos los campos son obligatorios", variant: "destructive" });
+    if (!editScheduleForm.classTypeId || !editScheduleForm.instructorId || !editScheduleForm.date || !editScheduleForm.time || !editScheduleForm.branchId) {
+      toast({ title: "Error", description: "Todos los campos son obligatorios (incluyendo sucursal)", variant: "destructive" });
       return;
     }
     setIsLoading(true);
@@ -183,11 +241,13 @@ export default function ClassesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...editScheduleForm,
-          maxCapacity: "13" // Capacidad fija en 10
+          branchId: parseInt(editScheduleForm.branchId),
+          maxCapacity: String(getBranchCapacity(editScheduleForm.branchId))
         }),
       });
       if (response.ok) {
-        toast({ title: "Éxito", description: "Clase actualizada exitosamente" });
+        const branchName = getBranchName(editScheduleForm.branchId)
+        toast({ title: "Éxito", description: `Clase actualizada exitosamente en ${branchName}` });
         setIsEditScheduleOpen(false);
         setSelectedSchedule(null); // Clear selected schedule
         await loadScheduledClasses();
@@ -233,6 +293,10 @@ export default function ClassesPage() {
           <h1 className="text-2xl font-bold text-[#4A102A]">Gestión de Clases y Horarios</h1>
           <p className="text-gray-600">Administra los tipos de clases y sus horarios semanales</p>
         </div>
+        <AdminBranchFilter 
+          selectedBranchId={selectedBranchId}
+          onBranchChange={setSelectedBranchId}
+        />
       </div>
 
       <Tabs defaultValue="class-types" className="w-full">
@@ -266,12 +330,18 @@ export default function ClassesPage() {
         <TabsContent value="weekly-schedule">
           <WeeklyScheduleTab
             selectedWeek={selectedWeek}
+            selectedBranchId={selectedBranchId}
             setSelectedWeek={setSelectedWeek}
             scheduledClasses={scheduledClasses}
             loadScheduledClasses={loadScheduledClasses}
             instructors={instructors}
             classTypes={classTypes}
-            onOpenNewScheduleDialog={() => setIsNewScheduleOpen(true)}
+            onOpenNewScheduleDialog={() => {
+              if (selectedBranchId !== "all") {
+                setNewScheduleForm((prev) => ({ ...prev, branchId: selectedBranchId }))
+              }
+              setIsNewScheduleOpen(true)
+            }}
             onOpenEditScheduleDialog={(schedule) => { setSelectedSchedule(schedule); setIsEditScheduleOpen(true); }}
             onDeleteSchedule={handleDeleteSchedule}
           />
@@ -281,6 +351,7 @@ export default function ClassesPage() {
         <TabsContent value="calendar-view">
           <CalendarViewTab
             scheduledClasses={scheduledClasses}
+            selectedBranchId={selectedBranchId}
             date={date}
             setDate={setDate}
             setSelectedWeek={setSelectedWeek}
@@ -334,16 +405,30 @@ export default function ClassesPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="newBranch">Sucursal</Label>
+                <Select value={newScheduleForm.branchId} onValueChange={(value) => setNewScheduleForm((prev) => ({ ...prev, branchId: value }))}>
+                  <SelectTrigger className="bg-white border-gray-200 text-zinc-900"><SelectValue placeholder="Seleccionar sucursal" /></SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                    <SelectItem value="1">SAHAGÚN</SelectItem>
+                    <SelectItem value="2">APAN</SelectItem>
+                  </SelectContent>
+                </Select>
+                {selectedBranchId !== "all" && (
+                  <p className="text-xs text-blue-700">Sucursal preseleccionada según el filtro activo.</p>
+                )}
+              </div>
             </div>
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Nota:</strong> La capacidad máxima se establece automáticamente en 13 personas por clase.
+                <strong>Nota:</strong> La capacidad máxima se establece automáticamente según la sucursal seleccionada ({newScheduleForm.branchId ? getBranchCapacity(newScheduleForm.branchId) : "-"} bicis).
               </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsNewScheduleOpen(false)} className="border-gray-200 text-zinc-900 hover:bg-gray-100">Cancelar</Button>
-            <Button className="bg-[#4A102A] hover:bg-[#85193C] text-white" onClick={handleCreateSchedule} disabled={isLoading}>{isLoading ? "Programando..." : "Programar Clase"}</Button>
+            <Button variant="outline" className="border-gray-200 text-zinc-900 hover:bg-gray-100" onClick={() => handleCreateSchedule({ keepDialogOpen: true })} disabled={isLoading}>{isLoading ? "Guardando..." : "Guardar y crear otra"}</Button>
+            <Button className="bg-[#4A102A] hover:bg-[#85193C] text-white" onClick={() => handleCreateSchedule()} disabled={isLoading}>{isLoading ? "Programando..." : "Programar Clase"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -387,10 +472,20 @@ export default function ClassesPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="editFormBranch">Sucursal</Label>
+                <Select value={editScheduleForm.branchId} onValueChange={(value) => setEditScheduleForm((prev) => ({ ...prev, branchId: value }))}>
+                  <SelectTrigger id="editFormBranch" className="bg-white border-gray-200 text-zinc-900"><SelectValue placeholder="Seleccionar sucursal" /></SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                    <SelectItem value="1">SAHAGÚN</SelectItem>
+                    <SelectItem value="2">APAN</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Nota:</strong> La capacidad máxima se mantiene en 13 personas por clase.
+                <strong>Nota:</strong> La capacidad máxima se mantiene según la sucursal seleccionada ({editScheduleForm.branchId ? getBranchCapacity(editScheduleForm.branchId) : "-"} bicis).
               </p>
             </div>
           </div>

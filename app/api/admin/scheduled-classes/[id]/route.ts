@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
+import { getBranchBikeCapacity } from "@/lib/config/branch-bike-layouts"
 
 const prisma = new PrismaClient()
 
@@ -46,11 +47,21 @@ export async function PUT(
     const { id } = resolvedParams;
     const body = await request.json()
 
-    if (!body.classTypeId || !body.instructorId || !body.date || !body.time) {
+    if (!body.classTypeId || !body.instructorId || !body.date || !body.time || !body.branchId) {
       return NextResponse.json(
-        { error: "Todos los campos son obligatorios" },
+        { error: "Todos los campos son obligatorios, incluyendo sucursal" },
         { status: 400 }
       )
+    }
+
+    const branchIdInt = parseInt(String(body.branchId), 10)
+    if (!Number.isInteger(branchIdInt) || branchIdInt <= 0 || String(branchIdInt) !== String(body.branchId).trim()) {
+      return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
+    }
+
+    const branchExists = await prisma.branch.findUnique({ where: { id: branchIdInt } })
+    if (!branchExists) {
+      return NextResponse.json({ error: "Sucursal no encontrada" }, { status: 404 })
     }
 
     const existingClass = await prisma.scheduledClass.findUnique({
@@ -88,7 +99,7 @@ export async function PUT(
       },
     })
 
-    const newMax = parseInt(body.maxCapacity)
+    const newMax = getBranchBikeCapacity(branchIdInt)
     if (confirmedReservations > newMax) {
       return NextResponse.json({
         error: "Hay más reservas confirmadas que la nueva capacidad",
@@ -102,6 +113,7 @@ export async function PUT(
         instructorId: parseInt(body.instructorId),
         date: utcDate,
         time: classTime,
+        branch_id: branchIdInt,
         maxCapacity: newMax,
         availableSpots: newMax - confirmedReservations,
       },
@@ -159,7 +171,11 @@ export async function DELETE(
     const existingClass = await prisma.scheduledClass.findUnique({
       where: { id: parseInt(id) },
       include: {
-        reservations: true,
+        reservations: {
+          where: {
+            status: { not: "cancelled" },
+          },
+        },
       },
     })
 
@@ -170,7 +186,7 @@ export async function DELETE(
       )
     }
 
-    // Verificar si hay reservas confirmadas
+    // Verificar si hay reservas activas (no canceladas)
     if (existingClass.reservations.length > 0) {
       return NextResponse.json(
         { error: "No se puede eliminar una clase con reservas confirmadas" },

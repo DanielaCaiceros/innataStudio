@@ -40,6 +40,9 @@ export async function POST(
         scheduledClass: {
           include: {
             classType: true, // Include classType for className
+            branches: {
+              select: { name: true }
+            },
           },
         },
         userPackage: {
@@ -227,6 +230,7 @@ export async function POST(
           className: reservation.scheduledClass.classType.name,
           date: formatInTimeZone(scheduledDateTimeUTC, mexicoCityTimeZone, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }),
           time: formatTimeFromDB(reservation.scheduledClass.time.toISOString()),
+          branchName: reservation.scheduledClass.branches?.name || undefined,
           isRefundable: canRefund,
           packageName: reservation.userPackage?.package?.name,
           isUnlimitedWeek: isUnlimitedWeek

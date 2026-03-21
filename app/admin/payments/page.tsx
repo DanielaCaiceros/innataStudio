@@ -43,13 +43,14 @@ import {
   User,
   Mail,
 } from "lucide-react"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { Textarea } from "@/components/ui/textarea"
 import { getAvailableWeekOptions } from '@/lib/utils/unlimited-week'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 // Removed: import { sendPackagePurchaseConfirmationEmail } from "@/lib/email"
 import { Checkbox } from "@/components/ui/checkbox"
+import { AdminBranchFilter } from "@/components/admin/AdminBranchFilter"
 
 interface Payment {
   id: number
@@ -64,6 +65,8 @@ interface Payment {
   stripePaymentIntentId?: string
   userPackageId?: number
   userId: number
+  branchId?: number | null
+  branchName?: string | null
   // Datos adicionales para el menú de detalles
   createdAt: string
   paymentDate: string
@@ -98,6 +101,8 @@ export default function PaymentsPage() {
 
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [branchFilter, setBranchFilter] = useState("all")
+  const [selectedPurchaseBranchId, setSelectedPurchaseBranchId] = useState<string>("")
   const [isNewPaymentOpen, setIsNewPaymentOpen] = useState(false)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [payments, setPayments] = useState<Payment[]>([])
@@ -134,6 +139,17 @@ export default function PaymentsPage() {
     if (isFromReservation) {
       setShowReservationBanner(false)
     }
+
+    // If admin is already filtered by a concrete branch, prefill purchase branch to speed up the flow.
+    if (!selectedPurchaseBranchId && ["1", "2"].includes(branchFilter)) {
+      setSelectedPurchaseBranchId(branchFilter)
+    }
+
+    // Cargar usuarios solo cuando se abre el modal (lazy load)
+    if (users.length === 0) {
+      loadUsers()
+    }
+
     setIsNewPaymentOpen(true)
   }
 
@@ -153,6 +169,7 @@ export default function PaymentsPage() {
     setUserSearchEmail("")
     setSearchedUsers([])
     setSelectedUnlimitedWeek(null)
+    setSelectedPurchaseBranchId("")
     setNewUserData({
       firstName: "",
       lastName: "",
@@ -269,6 +286,8 @@ export default function PaymentsPage() {
           stripePaymentIntentId: payment.stripe_payment_intent_id,
           userPackageId: payment.userPackageId,
           userId: payment.user_id,
+          branchId: payment.branch_id || null,
+          branchName: payment.branch_name || null,
           // Datos adicionales para detalles
           createdAt: payment.created_at,
           paymentDate: payment.payment_date,
@@ -307,23 +326,26 @@ export default function PaymentsPage() {
     }
   }
 
-  const loadPackages = async () => {
+  const loadPackages = async (branchId?: string) => {
     try {
-      console.log("Cargando paquetes...")
-      const response = await fetch("/api/packages")
-      console.log("Respuesta de paquetes:", response.status, response.ok)
+      const hasBranch = Boolean(branchId && ["1", "2"].includes(branchId))
+      if (!hasBranch) {
+        setPackages([])
+        return
+      }
+
+      const endpoint = `/api/packages/by-branch/${branchId}`
+      const response = await fetch(endpoint)
       
       if (response.ok) {
         const data = await response.json()
-        console.log("Datos de paquetes recibidos:", data)
         setPackages(data)
       } else {
-        console.error("Error en respuesta de paquetes:", response.status, response.statusText)
-        const errorText = await response.text()
-        console.error("Texto de error:", errorText)
+        setPackages([])
       }
     } catch (error) {
       console.error("Error loading packages:", error)
+      setPackages([])
     }
   }
 
@@ -346,6 +368,16 @@ export default function PaymentsPage() {
       })
       return
     }
+
+    if (selectedPackageId && !selectedPurchaseBranchId) {
+      toast({
+        title: "Sucursal requerida",
+        description: "Selecciona la sucursal de compra para asignar el paquete correctamente.",
+        variant: "destructive",
+      })
+      return
+    }
+
     // Si es semana ilimitada, debe seleccionar semana
     if (selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && !selectedUnlimitedWeek) {
       toast({
@@ -357,27 +389,12 @@ export default function PaymentsPage() {
     }
     setIsProcessingPayment(true)
     try {
-      // Log current state values before building the request body
-      console.log('[ADMIN_PAYMENTS_FRONTEND_LOG] States before building request body:');
-      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedUserId: ${selectedUserId}`);
-      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   paymentAmount (raw string): ${paymentAmount}`);
-      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   paymentNotes: ${paymentNotes}`);
-      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedPackageId: ${selectedPackageId}`);
-      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   selectedUnlimitedWeek: ${JSON.stringify(selectedUnlimitedWeek)}`);
-      // The `amount` variable is already parsed parseFloat(paymentAmount), log it too for clarity
-      const parsedAmount = parseFloat(paymentAmount); // Re-parse for logging consistency if `amount` isn't used above this log
-      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   amount (parsed for API): ${parsedAmount}`);
-
-
+      const parsedAmount = parseFloat(paymentAmount)
       const packageIdToSend = selectedPackageId ? parseInt(selectedPackageId) : null;
-      
-      // selectedPackage is a derived state variable, let's log its perceived ID too
-      console.log(`[ADMIN_PAYMENTS_FRONTEND_LOG]   Derived selectedPackage?.id: ${selectedPackage?.id}`);
-
-
       const selectedWeekToSend = (selectedPackage?.id.toString() === "3" && selectedUnlimitedWeek) 
                                  ? selectedUnlimitedWeek.start 
                                  : null;
+      const branchIdToSend = selectedPurchaseBranchId ? parseInt(selectedPurchaseBranchId, 10) : null
 
       const apiRequestBody = {
         user_id: parseInt(selectedUserId),
@@ -385,9 +402,8 @@ export default function PaymentsPage() {
         notes: paymentNotes.trim() || null,
         packageId: packageIdToSend, 
         selectedWeek: selectedWeekToSend,
+        branchId: branchIdToSend,
       };
-
-      console.log('[ADMIN_PAYMENTS_FRONTEND_LOG] Creating payment with request body:', JSON.stringify(apiRequestBody, null, 2));
 
       const response = await fetch("/api/admin/payments", {
         method: "POST",
@@ -430,6 +446,7 @@ export default function PaymentsPage() {
               // Add more specific expiry logic if needed for other non-unlimited packages
             }
 
+            const branchNameMap: Record<string, string> = { "1": "SAHAGÚN", "2": "APAN" }
             const emailDetails = {
               packageName: packageForEmail.name,
               classCount: typeof packageForEmail.classCount === 'number' ? packageForEmail.classCount : 0,
@@ -437,6 +454,7 @@ export default function PaymentsPage() {
               purchaseDate: format(emailPurchaseDate, "dd/MM/yyyy", { locale: es }),
               price: parseFloat(packageForEmail.price as any),
               isUnlimitedWeek: isUnlimited,
+              branchName: selectedPurchaseBranchId ? branchNameMap[selectedPurchaseBranchId] : undefined,
             };
 
             // Log the prepared emailDetails to verify types before sending
@@ -606,26 +624,26 @@ export default function PaymentsPage() {
   // TODOS LOS useEffect DEBEN IR AQUÍ, ANTES DEL RETURN
   
   // Cargar datos al montar el componente
+  // loadUsers() se llama lazy en handleNewPaymentClick para no bloquear la carga inicial
   useEffect(() => {
     loadPayments()
-    loadUsers()
-    loadPackages()
   }, [])
-
-  // Debug para verificar el estado de packages
-  useEffect(() => {
-    console.log("Estado actual de packages:", packages)
-  }, [packages])
 
   // Detectar contexto de reservación al cargar
   useEffect(() => {
     const userId = searchParams.get('userId')
     const context = searchParams.get('context')
+    const branchId = searchParams.get('branchId')
     
     if (userId && context === 'reservation') {
       setIsFromReservation(true)
       setShowReservationBanner(true) // Mostrar banner solo al cargar la página
       setReservationContext({ userId })
+      // Cargar usuarios porque el modal se abrirá automáticamente en este contexto
+      loadUsers()
+      if (branchId && ["1", "2"].includes(branchId)) {
+        setSelectedPurchaseBranchId(branchId)
+      }
       
       // Pre-seleccionar el usuario
       setSelectedUserId(userId)
@@ -652,6 +670,16 @@ export default function PaymentsPage() {
       }
     }
   }, [searchParams])
+
+  useEffect(() => {
+    if (selectedPurchaseBranchId) {
+      loadPackages(selectedPurchaseBranchId)
+    } else {
+      setSelectedPackageId("")
+      setPaymentAmount("")
+      setPackages([])
+    }
+  }, [selectedPurchaseBranchId])
 
   // Actualizar el monto cuando cambie el paquete seleccionado
   useEffect(() => {
@@ -685,7 +713,12 @@ export default function PaymentsPage() {
 
     const matchesStatus = statusFilter === "all" || payment.status === statusFilter
 
-    return matchesSearch && matchesStatus
+    const matchesBranch =
+      branchFilter === "all" ||
+      (branchFilter === "none" && !payment.branchId) ||
+      payment.branchId?.toString() === branchFilter
+
+    return matchesSearch && matchesStatus && matchesBranch
   })
 
   const selectedUser = users.find((u) => u.id && u.id.toString() === selectedUserId)
@@ -964,6 +997,31 @@ export default function PaymentsPage() {
               )}
 
               <div className="grid gap-6 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="purchase-branch">Sucursal de la compra *</Label>
+                  <Select
+                    value={selectedPurchaseBranchId}
+                    onValueChange={(branchId) => {
+                      setSelectedPurchaseBranchId(branchId)
+                      setSelectedPackageId("")
+                      setPaymentAmount("")
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecciona sucursal de compra" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">SAHAGÚN</SelectItem>
+                      <SelectItem value="2">APAN</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {!selectedPurchaseBranchId && (
+                    <p className="text-xs text-amber-700">
+                      Selecciona una sucursal para cargar precios correctos y asignar créditos al usuario.
+                    </p>
+                  )}
+                </div>
+
                 {/* Búsqueda de usuario */}
                 <div className="space-y-2">
                   <Label htmlFor="user-search">Buscar Cliente por Email</Label>
@@ -1039,7 +1097,11 @@ export default function PaymentsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="package-select">Paquete</Label>
                     <div className="flex gap-2">
-                      <Select value={selectedPackageId} onValueChange={setSelectedPackageId}>
+                      <Select
+                        value={selectedPackageId}
+                        onValueChange={setSelectedPackageId}
+                        disabled={!selectedPurchaseBranchId}
+                      >
                         <SelectTrigger className="flex-1">
                           <SelectValue placeholder="Seleccionar paquete..." />
                         </SelectTrigger>
@@ -1052,6 +1114,11 @@ export default function PaymentsPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    {selectedPurchaseBranchId && packages.length === 0 && (
+                      <p className="text-xs text-gray-500">
+                        No hay paquetes disponibles para la sucursal seleccionada.
+                      </p>
+                    )}
                     {/* Mostrar paquete seleccionado */}
                     {selectedPackageId && selectedPackageId !== "none" && (
                       <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
@@ -1059,6 +1126,9 @@ export default function PaymentsPage() {
                         <div className="text-sm text-blue-700">
                           {packages.find(p => p.id.toString() === selectedPackageId)?.name} - 
                           ${packages.find(p => p.id.toString() === selectedPackageId)?.price}
+                        </div>
+                        <div className="text-xs text-blue-700 mt-1">
+                          Sucursal: {selectedPurchaseBranchId === "1" ? "SAHAGÚN" : selectedPurchaseBranchId === "2" ? "APAN" : "No definida"}
                         </div>
                       </div>
                     )}
@@ -1154,7 +1224,7 @@ export default function PaymentsPage() {
                 </AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleCreatePayment}
-                  disabled={isProcessingPayment || !selectedUserId || !paymentAmount || (selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && !selectedUnlimitedWeek)}
+                  disabled={isProcessingPayment || !selectedUserId || !paymentAmount || !selectedPurchaseBranchId || (selectedPackage && selectedPackage.name.toLowerCase().includes("ilimitada") && !selectedUnlimitedWeek)}
                   className="bg-[#4A102A] hover:bg-[#5A1A3A]"
                 >
                   {isProcessingPayment ? (
@@ -1273,6 +1343,12 @@ export default function PaymentsPage() {
             <SelectItem value="Fallido">Fallidos</SelectItem>
           </SelectContent>
         </Select>
+
+        <AdminBranchFilter
+          selectedBranchId={branchFilter}
+          onBranchChange={setBranchFilter}
+          className="w-full sm:w-[220px]"
+        />
       </div>
 
       {/* Tabla de pagos */}
@@ -1287,6 +1363,7 @@ export default function PaymentsPage() {
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[120px]">ID. del Pago</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[200px]">Cliente</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[150px]">Paquete</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[110px]">Sucursal</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[100px]">Monto</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[110px]">Fecha</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[120px]">Método</th>
@@ -1308,6 +1385,15 @@ export default function PaymentsPage() {
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="text-sm text-gray-900 truncate font-medium max-w-[140px]">{payment.package}</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {payment.branchName ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            {payment.branchName}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="text-sm font-medium text-gray-900">

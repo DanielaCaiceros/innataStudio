@@ -3,14 +3,15 @@
 import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2, Eye, EyeOff, CheckCircle } from "lucide-react"
+import { getSafeRedirectPath } from "@/lib/utils"
 
 interface FormData {
   firstName: string
@@ -34,7 +35,9 @@ interface FieldErrors {
 
 export default function RegistroPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
+  const redirect = getSafeRedirectPath(searchParams.get("redirect"), "/mi-cuenta")
   
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -215,7 +218,7 @@ export default function RegistroPage() {
 
       // Redirigir después de 2 segundos
       setTimeout(() => {
-        router.push('/login?registered=true')
+        router.push(`/login?registered=true&redirect=${encodeURIComponent(redirect)}`)
       }, 2000)
 
     } catch (error: any) {
@@ -263,7 +266,7 @@ export default function RegistroPage() {
       {/* Formulario */}
       <div className="w-full md:w-1/2 flex flex-col justify-center items-center p-8 md:p-12 bg-white">
         <div className="w-full max-w-md">
-          <h1 className="text-3xl font-bold text-brand-sage mb-2">Únete a Innata</h1>
+          <h1 className="text-3xl font-bold text-brand-mint mb-2">Únete a Innata</h1>
           <p className="text-gray-500 mb-8">
             Crea tu cuenta y comienza tu transformación con nuestras clases de ciclismo indoor.
           </p>
@@ -449,11 +452,11 @@ export default function RegistroPage() {
                   }`}
                 >
                   Acepto los{" "}
-                  <Link href="/terminos" className="text-brand-sage hover:underline">
+                  <Link href="/terminos" className="text-brand-cream hover:underline">
                     Términos y Condiciones
                   </Link>{" "}
                   y la{" "}
-                  <Link href="/privacidad" className="text-brand-sage hover:underline">
+                  <Link href="/privacidad" className="text-brand-cream hover:underline">
                     Política de Privacidad
                   </Link>
                 </label>
@@ -465,7 +468,7 @@ export default function RegistroPage() {
             
             <Button 
               type="submit"
-              className="w-full h-12 bg-gradient-to-r from-brand-sage to-brand-mint hover:from-brand-sage hover:to-brand-mint text-white"
+              className="w-full h-12 bg-gradient-to-r from-brand-cream to-brand-mint hover:from-brand-cream/90 hover:to-brand-mint/90 text-white"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -481,7 +484,7 @@ export default function RegistroPage() {
 
           <div className="mt-6 text-center text-sm text-black">
             ¿Ya tienes una cuenta?{" "}
-            <Link href="/login" className="text-brand-sage font-medium hover:underline">
+            <Link href="/login" className="text-brand-cream font-medium hover:underline">
               Inicia Sesión
             </Link>
           </div>

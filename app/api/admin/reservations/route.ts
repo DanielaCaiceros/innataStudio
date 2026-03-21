@@ -16,6 +16,7 @@ import {
   calculateDailyUsage,
   isWithinUnlimitedWeekSchedule 
 } from '@/lib/utils/unlimited-week';
+import { getBranchBikeCapacity } from '@/lib/config/branch-bike-layouts';
 
 
 
@@ -40,28 +41,33 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const date = searchParams.get("date");
     const userId = searchParams.get("userId");
-    
+    const branchId = searchParams.get("branchId");
+
     // Construir el filtro
     const filter: any = {};
-    
+
     if (status) {
       filter.status = status;
     }
-    
+
+    const scheduledClassFilter: any = {};
     if (date) {
-      // Crear el rango de fecha completo para el día seleccionado
       const targetDate = new Date(date + "T00:00:00.000Z");
       const nextDay = new Date(targetDate);
       nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-      
-      filter.scheduledClass = {
-        date: {
-          gte: targetDate,
-          lt: nextDay
-        }
-      };
+      scheduledClassFilter.date = { gte: targetDate, lt: nextDay };
     }
-    
+    if (branchId !== null) {
+      const parsed = parseInt(branchId, 10);
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== branchId.trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 });
+      }
+      scheduledClassFilter.branch_id = parsed;
+    }
+    if (Object.keys(scheduledClassFilter).length > 0) {
+      filter.scheduledClass = scheduledClassFilter;
+    }
+
     if (userId) {
       filter.userId = parseInt(userId);
     }
@@ -82,6 +88,12 @@ export async function GET(request: NextRequest) {
         scheduledClass: {
           include: {
             classType: true,
+            branches: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
             instructor: {
               include: {
                 user: {
@@ -180,7 +192,8 @@ export async function GET(request: NextRequest) {
         checkedIn: res.status === "attended",
         checkedInAt: res.checked_in_at,
         bikeNumber: res.bikeNumber,
-        cancelledAt: res.cancelledAt
+        cancelledAt: res.cancelledAt,
+        branchName: res.scheduledClass.branches?.name || (res.scheduledClass.branch_id ? `Sucursal ${res.scheduledClass.branch_id}` : undefined),
       };
     });
 
@@ -206,10 +219,24 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { userId, classId, date, time, package: packageType, paymentMethod, bikeNumber, userPackageId } = body;
+    const { userId, classId, date, time, package: packageType, paymentMethod, bikeNumber, userPackageId, branchId } = body;
 
     if (!userId || !classId || !date || !time || !packageType) {
       return NextResponse.json({ error: "Faltan datos requeridos" }, { status: 400 });
+    }
+
+    let branchIdInt: number | null = null;
+    if (branchId !== undefined && branchId !== null) {
+      const parsed = parseInt(String(branchId), 10);
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== String(branchId).trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 });
+      }
+      branchIdInt = parsed;
+      // Verificar que la sucursal existe
+      const branch = await prisma.branch.findUnique({ where: { id: branchIdInt } });
+      if (!branch) {
+        return NextResponse.json({ error: "Sucursal no encontrada" }, { status: 404 });
+      }
     }
 
     // Usar las utilidades de admin para procesar fecha y hora correctamente
@@ -235,7 +262,8 @@ export async function POST(request: NextRequest) {
           scheduledClass: {
             classTypeId: classId,
             date: scheduledDateUTC,
-            time: scheduledTimeUTC
+            time: scheduledTimeUTC,
+            branch_id: branchIdInt ?? null,
           }
         }
       });
@@ -252,7 +280,8 @@ export async function POST(request: NextRequest) {
       where: {
         classTypeId: classId,
         date: scheduledDateUTC,
-        time: scheduledTimeUTC
+        time: scheduledTimeUTC,
+        branch_id: branchIdInt ?? null,
       },
       include: { // Include reservations to accurately check spots
         reservations: {
@@ -280,6 +309,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "No se encontró ningún instructor disponible" }, { status: 404 });
       }
 
+      const resolvedCapacity = getBranchBikeCapacity(branchIdInt);
+
       // Crear la clase programada
       scheduledClass = await prisma.scheduledClass.create({
         data: {
@@ -287,9 +318,10 @@ export async function POST(request: NextRequest) {
           instructorId: instructor.id,
           date: scheduledDateUTC,
           time: scheduledTimeUTC,
-          maxCapacity: classType.capacity,
-          availableSpots: classType.capacity - 1, // Restar 1 por la reservación que estamos creando
-          status: "scheduled"
+          maxCapacity: resolvedCapacity,
+          availableSpots: resolvedCapacity - 1, // Restar 1 por la reservación que estamos creando
+          status: "scheduled",
+          ...(branchIdInt !== null ? { branch_id: branchIdInt } : {})
         },
         include: {
           reservations: {
@@ -349,6 +381,12 @@ export async function POST(request: NextRequest) {
           }
           if (userPackage.classesRemaining === null || userPackage.classesRemaining <= 0) {
             throw new Error("El paquete seleccionado no tiene clases restantes");
+          }
+
+          // Validar sucursal: null en paquete = global (válido en cualquier clase).
+          // Si el paquete tiene sucursal asignada, la clase debe pertenecer a esa misma sucursal.
+          if (userPackage.branch_id !== null && userPackage.branch_id !== scheduledClass.branch_id) {
+            throw new Error(`El paquete seleccionado pertenece a una sucursal diferente a la de la clase`);
           }
 
           // Descontar la clase del paquete existente
@@ -416,7 +454,8 @@ export async function POST(request: NextRequest) {
                 classesRemaining: (packageInfo.classCount ?? 0) > 0 ? packageInfo.classCount! - 1 : 0,            classesUsed: 1,
                 paymentMethod: paymentMethod === "pending" ? "pending" : paymentMethod,
                 paymentStatus: paymentMethod === "pending" ? "pending" : "paid",
-                isActive: true
+                isActive: true,
+                ...(scheduledClass.branch_id !== null ? { branch_id: scheduledClass.branch_id } : {}),
               },
               include: { package: true }
             });

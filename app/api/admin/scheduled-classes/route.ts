@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
+import { getBranchBikeCapacity } from "@/lib/config/branch-bike-layouts"
 
 const prisma = new PrismaClient()
 
@@ -25,23 +26,24 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
+    const branchId = searchParams.get("branchId")
 
-    let queryDateObject = {};
+    const whereClause: any = {};
     if (startDate && endDate) {
-      const queryStartDate = new Date(startDate + "T00:00:00.000Z");
-      const queryEndDate = new Date(endDate + "T23:59:59.999Z");
-      queryDateObject = {
-        date: {
-          gte: queryStartDate,
-          lte: queryEndDate,
-        },
+      whereClause.date = {
+        gte: new Date(startDate + "T00:00:00.000Z"),
+        lte: new Date(endDate + "T23:59:59.999Z"),
       };
+    }
+    if (branchId) {
+      const branchIdInt = parseInt(branchId, 10);
+      if (!isNaN(branchIdInt)) {
+        whereClause.branch_id = branchIdInt;
+      }
     }
 
     const scheduledClassesRaw = await prisma.scheduledClass.findMany({
-      where: {
-        ...queryDateObject,
-      },
+      where: whereClause,
       include: {
         classType: true,
         instructor: {
@@ -55,7 +57,6 @@ export async function GET(request: NextRequest) {
           },
         },
         reservations: {
-          // Fetch ALL reservations, not just confirmed
           include: {
             user: {
               select: {
@@ -75,6 +76,13 @@ export async function GET(request: NextRequest) {
                 email: true,
               },
             },
+          },
+        },
+        branches: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
           },
         },
       },
@@ -122,10 +130,24 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { classTypeId, instructorId, date, time, maxCapacity } = body
+    const { classTypeId, instructorId, date, time, branchId } = body
 
+    if (!branchId) {
+      return NextResponse.json({ error: "branchId es requerido" }, { status: 400 })
+    }
 
-    // Validar que no haya solapamiento de horarios
+    const branchIdInt = parseInt(branchId, 10)
+    if (!Number.isInteger(branchIdInt) || branchIdInt <= 0 || String(branchIdInt) !== String(branchId).trim()) {
+      return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
+    }
+
+    // Verificar que la sucursal existe
+    const branch = await prisma.branch.findUnique({ where: { id: branchIdInt } })
+    if (!branch) {
+      return NextResponse.json({ error: "Sucursal no encontrada" }, { status: 404 })
+    }
+
+    // Validar que no haya solapamiento de horarios en la misma sucursal
     const utcDate = new Date(date + "T00:00:00.000Z");
     const classTime = new Date(`1970-01-01T${time}:00.000Z`)
 
@@ -133,11 +155,12 @@ export async function POST(request: NextRequest) {
       where: {
         date: utcDate,
         time: classTime,
+        branch_id: branchIdInt,
       },
     })
 
     if (existingClass) {
-      return NextResponse.json({ error: "Ya existe una clase programada en este horario" }, { status: 400 })
+      return NextResponse.json({ error: "Ya existe una clase programada en este horario para esta sucursal" }, { status: 400 })
     }
 
     // Verificar que el instructor existe
@@ -158,6 +181,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Tipo de clase no encontrado" }, { status: 404 })
     }
 
+    const resolvedCapacity = getBranchBikeCapacity(branchIdInt)
+
     // Crear la clase programada
     const scheduledClass = await prisma.scheduledClass.create({
       data: {
@@ -165,9 +190,10 @@ export async function POST(request: NextRequest) {
         instructorId: Number.parseInt(instructorId),
         date: utcDate,
         time: classTime,
-        maxCapacity: Number.parseInt(maxCapacity) || 13,
-        availableSpots: Number.parseInt(maxCapacity) || 13,
+        maxCapacity: resolvedCapacity,
+        availableSpots: resolvedCapacity,
         status: "scheduled",
+        branch_id: branchIdInt,
       },
       include: {
         classType: true,

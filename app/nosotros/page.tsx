@@ -72,15 +72,15 @@ export default function AboutPage() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </div>
                 <CardContent className="p-8">
-                  <h3 className="text-2xl font-bold text-brand-gray mb-2">{instructor.name}</h3>
-                  <p className="text-brand-sage font-semibold mb-4">{instructor.role}</p>
+                  <h3 className="text-2xl font-bold text-brand-cream mb-2">{instructor.name}</h3>
+                  <p className="text-brand-gray font-semibold mb-4">{instructor.role}</p>
                   <p className="text-zinc-600 text-sm mb-6 leading-relaxed">{instructor.bio}</p>
                   <div className="flex flex-wrap gap-2">
                     {instructor.socials.map((social, index) => (
                       <Badge
                         key={index}
                         variant="outline"
-                        className="border-brand-sage text-brand-sage bg-brand-cream/20 hover:bg-brand-sage hover:text-white transition-colors duration-200 cursor-pointer"
+                        className="border-brand-gray text-brand-gray bg-white hover:bg-brand-sage/20 hover:text-brand-gray/90 transition-colors duration-200 cursor-pointer"
                       >
                         <Instagram className="w-3 h-3 mr-1" />
                         {social}
@@ -100,7 +100,7 @@ export default function AboutPage() {
       <section className="py-24 bg-gradient-to-b from-gray-50 to-white">
         <div className="container px-4 md:px-6">
           <h2 className="text-4xl md:text-5xl font-bold mb-8 text-center">
-            SÍGUENOS EN <span className="text-brand-sage">INSTAGRAM</span>
+            SÍGUENOS EN <span className="text-brand-cream">INSTAGRAM</span>
           </h2>
 
           <p className="text-xl text-zinc-600 text-center mb-16 max-w-2xl mx-auto">
@@ -145,7 +145,7 @@ export default function AboutPage() {
           <Button
             asChild
             size="lg"
-            className="bg-white hover:bg-gray-100 text-brand-sage font-bold px-10 py-6 text-lg rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
+            className="bg-white hover:bg-gray-100 text-brand-cream font-bold px-10 py-6 text-lg rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
           >
             <Link href="/reservar" className="flex items-center gap-2">
               RESERVA TU CLASE YA

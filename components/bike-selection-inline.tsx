@@ -1,9 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Bike } from "lucide-react"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
+import { getBranchBikeLayout } from "@/lib/config/branch-bike-layouts"
 
 interface BikeSelectionInlineProps {
   scheduledClassId: number | null
@@ -23,29 +22,11 @@ interface BikeResponseData {
   userHasReservation: boolean
   userHasUnlimitedPackage: boolean
   canMakeMultipleReservations: boolean
-}
-
-// Usar exactamente las mismas posiciones que en tu componente original
-const bikePositions: { [key: number]: { x: number; y: number } } = {
-  // Fila superior (2 bicis en las columnas 1 y 3)
-  // Fila superior (2 bicis en las columnas 1 y 3)
-  6: { x: 70, y: 58 },
-  1: { x: 20, y: 58 },
-
-  // Fila media (4 bicis en las columnas 1, 2, 3, 4)
-  5: { x: 60, y: 58 },
-  4: { x: 50, y: 58 },
-  3: { x: 40, y: 58 },
-  2: { x: 30, y: 58 },
-
-  // Fila inferior (4 bicis en las columnas 1, 2, 3, 4)  8: { x: 37, y: 80 },
-  7: { x: 80, y: 58 },
-  8: { x: 75, y: 77 },
-  9: { x: 65, y: 77 },
-  10: { x: 55, y: 77 },
-  11: { x: 45 , y: 77},
-  12:  { x: 35 , y: 77},
-  13:  { x: 25 , y: 77},
+  branchId?: number | null
+  layout?: {
+    bikeCount: number
+    positions: Record<number, { x: number; y: number }>
+  }
 }
 
 export function BikeSelectionInline({
@@ -135,7 +116,7 @@ export function BikeSelectionInline({
           )}
 
           {/* Mapa de bicicletas */}
-          <div className="relative w-full h-[160px] rounded-lg bg-gradient-to-b from-brand-cream to-brand-mint  text-white overflow-hidden">
+          <div className="relative w-full h-[160px] rounded-lg bg-gradient-to-b from-brand-sage/50 to-brand-sage/70  text-white overflow-hidden">
             {/* COACH en el centro */}
             <div
               className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10"
@@ -144,14 +125,15 @@ export function BikeSelectionInline({
                 top: "25%",
               }}
             >
-              <div className="w-8 h-8 bg-brand-sage rounded-full flex items-center justify-center text-black text-xs font-bold">
+              <div className="w-8 h-8 bg-brand-mint rounded-full flex items-center justify-center text-black text-xs font-bold">
                 C
               </div>
             </div>
 
             {/* Bicicletas */}
             {bikeData.bikes.map((bike) => {
-              const position = bikePositions[bike.id]
+              const fallbackLayout = getBranchBikeLayout(2)
+              const position = bikeData.layout?.positions?.[bike.id] ?? fallbackLayout.positions[bike.id]
               if (!position) return null
 
               const isSelected = selectedBikeId === bike.id

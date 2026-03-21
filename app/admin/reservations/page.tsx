@@ -27,10 +27,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X, AlertCircle, CheckCircle, XCircle, Clock, MoreVertical, Edit, Trash, CreditCard, AlertTriangle, Mail } from "lucide-react"
+import { PlusCircle, Search, Download, DollarSign, CalendarIcon, X, AlertCircle, CheckCircle, XCircle, Clock, MoreVertical, Edit, Trash, CreditCard, AlertTriangle, Mail, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatAdminDate } from "@/lib/utils/admin-date"
 import { useRouter } from "next/navigation"
+import { AdminBranchFilter } from "@/components/admin/AdminBranchFilter"
 // Removed: import { sendBookingConfirmationEmail } from "@/lib/email"
 import { Checkbox } from "@/components/ui/checkbox"
 import { formatTimeFromDB } from '@/lib/utils/date';
@@ -53,6 +54,7 @@ interface Reservation {
   checkedInAt: string | null
   bikeNumber: number | null
   cancelledAt?: string
+  branchName?: string
 }
 
 interface AvailableTime {
@@ -83,6 +85,8 @@ export default function ReservationsPage() {
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("all")
+  const [modalBranchId, setModalBranchId] = useState<string>("all")
   const [isNewReservationOpen, setIsNewReservationOpen] = useState(false)
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -106,7 +110,8 @@ export default function ReservationsPage() {
   const [selectedBike, setSelectedBike] = useState<number | null>(null)
   const [selectedUserPackageId, setSelectedUserPackageId] = useState<string>("")
   const [sendEmail, setSendEmail] = useState(true) // State for sending email
-  const [userSearchTerm, setUserSearchTerm] = useState("") // State for user search
+  const [userSearchTerm, setUserSearchTerm] = useState("")
+  const [isUserPopoverOpen, setIsUserPopoverOpen] = useState(false)
 
   // Estados para horarios disponibles dinámicos
   const [availableTimes, setAvailableTimes] = useState<AvailableTime[]>([])
@@ -133,9 +138,13 @@ export default function ReservationsPage() {
   const router = useRouter()
 
   // Función para verificar paquetes del usuario
-  const checkUserPackages = async (userId: number) => {
+  const checkUserPackages = async (userId: number, branchId?: string) => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}/check-packages`)
+      const params = new URLSearchParams()
+      if (branchId && branchId !== "all") {
+        params.append("branchId", branchId)
+      }
+      const response = await fetch(`/api/admin/users/${userId}/check-packages${params.toString() ? `?${params.toString()}` : ""}`)
       if (response.ok) {
         const data = await response.json()
         return data
@@ -157,8 +166,8 @@ export default function ReservationsPage() {
 
     setIsCheckingUserClasses(true)
     try {
-      const packageData = await checkUserPackages(Number(userId))
-      
+      const packageData = await checkUserPackages(Number(userId), modalBranchId)
+
       if (packageData) {
         setUserHasClasses(packageData.hasAvailableClasses)
         
@@ -186,7 +195,7 @@ export default function ReservationsPage() {
   // Función mejorada para crear reservación con verificación de paquetes
   const createReservationWithPackageCheck = async (reservationData: any) => {
     try {
-      const packageCheck = await checkUserPackages(Number(reservationData.userId))
+      const packageCheck = await checkUserPackages(Number(reservationData.userId), modalBranchId)
       if (!packageCheck) {
         alert("Error al verificar los paquetes del usuario")
         return
@@ -197,7 +206,8 @@ export default function ReservationsPage() {
           userInfo: packageCheck.user,
           redirectFrom: 'reservations'
         }))
-        router.push(`/admin/payments?userId=${reservationData.userId}&context=reservation`)
+        const branchQuery = modalBranchId !== "all" ? `&branchId=${modalBranchId}` : ""
+        router.push(`/admin/payments?userId=${reservationData.userId}&context=reservation${branchQuery}`)
         return
       }
       // Si hay más de un paquete y el admin seleccionó uno, incluirlo
@@ -238,15 +248,15 @@ export default function ReservationsPage() {
           // Ensure reservationData.date is a Date object before formatting
           const reservationDateObject = typeof reservationData.date === 'string' ? new Date(reservationData.date.replace(/-/g, '\/')) : reservationData.date;
           
+          const branchNameMap: Record<string, string> = { "1": "SAHAGÚN", "2": "APAN" }
           const emailDetails = {
             className: availableTime.className,
-            date: format(reservationDateObject, "PPP", { locale: es }), // Format date for email
-            time: availableTime.time, // Time is already formatted as HH:mm by the API
+            date: format(reservationDateObject, "PPP", { locale: es }),
+            time: availableTime.time,
             instructor: availableTime.instructorName,
             confirmationCode: createdReservation.id.toString(),
             bikeNumber: reservationData.bikeNumber || undefined,
-            // isUnlimitedWeek and graceTimeHours can be omitted if not applicable for admin manual bookings
-            // or set to default values if necessary by the email template.
+            branchName: modalBranchId !== "all" ? branchNameMap[modalBranchId] : undefined,
           };
 
           // Call the new API endpoint
@@ -303,6 +313,10 @@ export default function ReservationsPage() {
 
       if (statusFilter !== "all") {
         params.append("status", statusFilter)
+      }
+
+      if (selectedBranchId !== "all") {
+        params.append("branchId", selectedBranchId)
       }
 
       if (params.toString()) {
@@ -373,6 +387,10 @@ export default function ReservationsPage() {
           params.append("status", statusFilter)
         }
 
+        if (selectedBranchId !== "all") {
+          params.append("branchId", selectedBranchId)
+        }
+
         if (params.toString()) {
           url += `?${params.toString()}`
         }
@@ -402,7 +420,7 @@ export default function ReservationsPage() {
     }
 
     fetchReservations()
-  }, [date, statusFilter])
+  }, [date, statusFilter, selectedBranchId])
 
   // Filtrar reservaciones localmente para búsqueda
   const filteredReservations = reservations.filter((reservation) => {
@@ -802,11 +820,16 @@ export default function ReservationsPage() {
         return
       }
 
+        if (modalBranchId === "all") {
+          setAvailableTimes([])
+          return
+        }
+
       setIsLoadingTimes(true)
       try {
         const formattedDate = formatAdminDate(date)
         const response = await fetch(
-          `/api/admin/reservations/available-times?date=${formattedDate}`
+          `/api/admin/reservations/available-times?date=${formattedDate}&branchId=${modalBranchId}`
         )
         
         if (response.ok) {
@@ -827,7 +850,7 @@ export default function ReservationsPage() {
     if (isNewReservationOpen) {
       loadAvailableTimes()
     }
-  }, [date, isNewReservationOpen])
+  }, [date, isNewReservationOpen, modalBranchId])
 
   // Cargar bicicletas disponibles cuando cambia la hora seleccionada
   useEffect(() => {
@@ -854,15 +877,17 @@ export default function ReservationsPage() {
         
         if (response.ok) {
           const data = await response.json()
-          // Generar opciones de bicicleta (1-10)
-          const bikeOptions: BikeOption[] = Array.from({length: 10}, (_, i) => {
-            const bikeId = i + 1
-            const bikeInfo = data.bikes?.find((b: any) => b.id === bikeId)
-            return {
-              id: bikeId,
-              available: bikeInfo ? bikeInfo.available : true
-            }
-          })
+          // Consumir bicicletas dinámicamente según la configuración de la sucursal.
+          const bikeOptions: BikeOption[] = Array.isArray(data.bikes)
+            ? data.bikes
+                .map((b: any) => ({
+                  id: Number(b.id),
+                  available: Boolean(b.available),
+                }))
+                .filter((b: BikeOption) => Number.isInteger(b.id) && b.id > 0)
+                .sort((a: BikeOption, b: BikeOption) => a.id - b.id)
+            : []
+
           setAvailableBikes(bikeOptions)
         } else {
           console.error("Error al cargar bicicletas disponibles")
@@ -1021,7 +1046,18 @@ export default function ReservationsPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
-          <Dialog open={isNewReservationOpen} onOpenChange={setIsNewReservationOpen}>
+          <AdminBranchFilter 
+            selectedBranchId={selectedBranchId}
+            onBranchChange={setSelectedBranchId}
+          />
+          <Dialog open={isNewReservationOpen} onOpenChange={(open) => {
+              setIsNewReservationOpen(open)
+              if (open) {
+                setModalBranchId(selectedBranchId !== "all" ? selectedBranchId : "all")
+              } else {
+                setModalBranchId("all")
+              }
+            }}>
             <DialogTrigger asChild>
               <Button className="bg-[#4A102A] hover:bg-[#85193C] text-white">
                 <PlusCircle className="h-4 w-4 mr-2" /> Nueva Reserva
@@ -1035,45 +1071,103 @@ export default function ReservationsPage() {
                 </DialogDescription>
               </DialogHeader>
 
+              {/* Selector de sucursal dentro del modal */}
+              <div className="flex items-center gap-3 pb-1 border-b border-gray-100">
+                <Label className="text-sm font-medium whitespace-nowrap">Sucursal</Label>
+                <Select value={modalBranchId} onValueChange={(val) => {
+                  setModalBranchId(val)
+                  setSelectedTime("")
+                  setAvailableTimes([])
+                  setSelectedBike(null)
+                  setUserHasClasses(null)
+                  setUserClassesInfo(null)
+                  setSelectedUserPackageId("")
+                  setSelectedPackage("")
+                }}>
+                  <SelectTrigger className="bg-white border-gray-200 text-zinc-900 w-48">
+                    <SelectValue placeholder="Seleccionar sucursal" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 text-zinc-900">
+                    <SelectItem value="1">SAHAGÚN</SelectItem>
+                    <SelectItem value="2">APAN</SelectItem>
+                  </SelectContent>
+                </Select>
+                {modalBranchId === "all" && (
+                  <span className="text-xs text-amber-700">Selecciona una sucursal para continuar</span>
+                )}
+              </div>
+
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="user">Cliente</Label>
-                    <Select value={selectedUser} onValueChange={setSelectedUser}>
-                      <SelectTrigger className="bg-white border-gray-200 text-zinc-900">
-                        <SelectValue placeholder="Seleccionar cliente" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-gray-200 text-zinc-900 max-h-[500px]">
-                        {/* Input de búsqueda */}
-                        <div className="p-2 border-b border-gray-200">
-                          <Input
-                            placeholder="Buscar cliente..."
-                            value={userSearchTerm}
-                            onChange={(e) => setUserSearchTerm(e.target.value)}
-                            className="h-8 text-sm"
-                          />
+                    <Label>Cliente</Label>
+                    <Popover open={isUserPopoverOpen} onOpenChange={(open) => {
+                      setIsUserPopoverOpen(open)
+                      if (!open) setUserSearchTerm("")
+                    }}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex h-9 w-full items-center justify-between rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#4A102A]/20"
+                        >
+                          <span className={selectedUser ? "text-zinc-900" : "text-gray-400"}>
+                            {selectedUser
+                              ? users.find(u => u.id.toString() === selectedUser)?.name ?? "Cliente seleccionado"
+                              : "Buscar cliente..."}
+                          </span>
+                          <ChevronsUpDown className="h-4 w-4 text-gray-400 shrink-0" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-[--radix-popover-trigger-width] p-0 bg-white border border-gray-200 shadow-lg"
+                        align="start"
+                        sideOffset={4}
+                      >
+                        {/* Search input fijo */}
+                        <div className="p-2 border-b border-gray-100">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                            <Input
+                              autoFocus
+                              placeholder="Buscar por nombre o correo..."
+                              value={userSearchTerm}
+                              onChange={(e) => setUserSearchTerm(e.target.value)}
+                              className="h-8 pl-7 text-sm border-gray-200"
+                            />
+                          </div>
                         </div>
-                        
-                        {/* Lista de usuarios filtrados */}
-                        {users.length > 0 ? (
-                          filteredUsers.length > 0 ? (
-                            filteredUsers.map((user) => (
-                              <SelectItem key={user.id} value={user.id.toString()}>
-                                {user.name} - {user.email}
-                              </SelectItem>
-                            ))
+
+                        {/* Lista scrollable */}
+                        <div className="max-h-64 overflow-y-auto">
+                          {users.length === 0 ? (
+                            <p className="py-4 text-center text-sm text-gray-500">Cargando clientes...</p>
+                          ) : filteredUsers.length === 0 ? (
+                            <p className="py-4 text-center text-sm text-gray-500">
+                              Sin resultados para "{userSearchTerm}"
+                            </p>
                           ) : (
-                            <SelectItem value="no-results" disabled>
-                              No se encontraron clientes con "{userSearchTerm}"
-                            </SelectItem>
-                          )
-                        ) : (
-                          <SelectItem value="loading" disabled>
-                            Cargando clientes...
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
+                            filteredUsers.map((user) => (
+                              <button
+                                key={user.id}
+                                type="button"
+                                className={cn(
+                                  "w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex flex-col gap-0.5",
+                                  selectedUser === user.id.toString() && "bg-[#4A102A]/5"
+                                )}
+                                onClick={() => {
+                                  setSelectedUser(user.id.toString())
+                                  setIsUserPopoverOpen(false)
+                                  setUserSearchTerm("")
+                                }}
+                              >
+                                <span className="font-medium text-zinc-900">{user.name}</span>
+                                <span className="text-xs text-gray-500">{user.email}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div className="space-y-2">
@@ -1106,6 +1200,10 @@ export default function ReservationsPage() {
                         {isLoadingTimes ? (
                           <SelectItem value="loading" disabled>
                             Cargando horarios...
+                          </SelectItem>
+                        ) : modalBranchId === "all" ? (
+                          <SelectItem value="select-branch" disabled>
+                            Selecciona una sucursal para ver horarios
                           </SelectItem>
                         ) : availableTimes.length > 0 ? (
                           availableTimes.map((availableTime) => (
@@ -1287,7 +1385,8 @@ export default function ReservationsPage() {
                       // Redirigir a pagos con el usuario seleccionado
                       const userData = users.find(u => u.id.toString() === selectedUser)
                       if (userData) {
-                        window.location.href = `/admin/payments?userId=${selectedUser}&context=reservation`
+                        const branchQuery = modalBranchId !== "all" ? `&branchId=${modalBranchId}` : ""
+                        window.location.href = `/admin/payments?userId=${selectedUser}&context=reservation${branchQuery}`
                       }
                     }}
                   >
@@ -1298,7 +1397,8 @@ export default function ReservationsPage() {
                   <Button
                     className="bg-[#4A102A] hover:bg-[#85193C] text-white"
                     disabled={
-                      !selectedUser || 
+                      modalBranchId === "all" ||
+                      !selectedUser ||
                       !date || 
                       !selectedTime || 
                       !selectedPackage ||
@@ -1309,6 +1409,11 @@ export default function ReservationsPage() {
                     onClick={async () => {
                       setIsCreatingReservation(true); // Set loading true
                       try {
+                        if (modalBranchId === "all") {
+                          alert("Selecciona una sucursal para crear la reservación.")
+                          return
+                        }
+
                         if (!selectedUser || !date || !selectedTime || !selectedPackage) {
                           const camposFaltantes = []
                           if (!selectedUser) camposFaltantes.push("Cliente")
@@ -1350,13 +1455,14 @@ export default function ReservationsPage() {
 
                         const newReservationData = {
                           userId: Number.parseInt(selectedUser),
-                          classId: selectedAvailableTime.typeId, 
+                          classId: selectedAvailableTime.typeId,
                           date: date ? formatAdminDate(date) : formatAdminDate(new Date()),
                           time: selectedTime,
                           package: selectedPackage,
-                          paymentMethod: "paid", 
-                          bikeNumber: selectedBike, 
+                          paymentMethod: "paid",
+                          bikeNumber: selectedBike,
                           userPackageId: (userHasClasses && selectedUserPackageId && selectedUserPackageId !== "") ? Number(selectedUserPackageId) : undefined,
+                          branchId: modalBranchId !== "all" ? Number(modalBranchId) : undefined,
                         }
 
                         await createReservationWithPackageCheck(newReservationData)
@@ -1519,6 +1625,7 @@ export default function ReservationsPage() {
                   <tr className="border-b border-gray-200 bg-gray-50/95 backdrop-blur-sm">
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[180px]">Cliente</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[120px]">Clase</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[80px]">Sucursal</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[115px]">Fecha & Hora</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[110px]">Paquete</th>
                     <th className="text-left py-3 px-3 text-xs font-semibold text-gray-800 uppercase tracking-wider w-[70px]">Bici</th>
@@ -1555,6 +1662,11 @@ export default function ReservationsPage() {
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="font-medium text-gray-900 truncate max-w-[110px] text-sm">{reservation.class}</div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="text-xs font-medium text-gray-700">
+                          {reservation.branchName || 'N/A'}
+                        </div>
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="max-w-[120px]">

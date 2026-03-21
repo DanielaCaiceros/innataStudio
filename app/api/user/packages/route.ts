@@ -18,6 +18,17 @@ export async function GET(request: NextRequest) {
 
     const payload = await verifyToken(token)
     const userId = Number.parseInt(payload.userId)
+    const { searchParams } = new URL(request.url)
+    const branchId = searchParams.get("branchId")
+
+    let branchIdInt: number | null = null
+    if (branchId !== null) {
+      const parsed = Number.parseInt(branchId, 10)
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== branchId.trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
+      }
+      branchIdInt = parsed
+    }
 
     // Obtener paquetes activos del usuario
     const userPackages = await prisma.userPackage.findMany({
@@ -26,9 +37,11 @@ export async function GET(request: NextRequest) {
         isActive: true,
         classesRemaining: { gt: 0 },
         expiryDate: { gte: new Date() },
+        ...(branchIdInt !== null ? { branch_id: branchIdInt } : {}),
       },
       include: {
         package: true,
+        branches: true,
       },
       orderBy: { expiryDate: 'asc' },
     })
@@ -48,11 +61,15 @@ export async function GET(request: NextRequest) {
       expiryDate: pkg.expiryDate.toISOString(),
       purchaseDate: pkg.purchaseDate ? pkg.purchaseDate.toISOString() : null,
       isActive: pkg.isActive,
+      branchId: pkg.branch_id ?? null,
+      branchName: pkg.branches?.name ?? null,
     }))
 
     return NextResponse.json({
       packages: formattedPackages,
       totalAvailableClasses: normalClassesCount,
+      filteredByBranch: branchIdInt !== null,
+      branchId: branchIdInt,
     })
   } catch (error) {
     console.error('Error fetching user packages:', error)
@@ -76,7 +93,7 @@ export async function POST(request: NextRequest) {
     const userId = parseInt(payload.userId)
 
     const body = await request.json()
-    const { packageId, paymentId, selectedWeekStartDate } = body
+    const { packageId, paymentId, selectedWeekStartDate, branchId } = body
 
     if (!packageId || !paymentId) {
       return NextResponse.json({
@@ -85,6 +102,7 @@ export async function POST(request: NextRequest) {
     }
 
     const numericPackageId = Number(packageId)
+    const numericBranchId = branchId ? Number(branchId) : null
 
     // Obtener información del paquete
     const packageInfo = await prisma.package.findUnique({
@@ -95,6 +113,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: "Paquete no encontrado" 
       }, { status: 404 })
+    }
+
+    // Obtener precio específico de la sucursal si se proporcionó branchId
+    let packagePrice = Number(packageInfo.price)
+    if (numericBranchId) {
+      const branchPriceRecord = await prisma.package_prices.findFirst({
+        where: {
+          package_id: numericPackageId,
+          branch_id: numericBranchId,
+          is_active: true,
+        },
+        include: { branches: true },
+      })
+      if (branchPriceRecord) {
+        packagePrice = Number(branchPriceRecord.price)
+      }
     }
 
     // Verificar si es un paquete "primera vez" y si el usuario ya lo ha comprado antes
@@ -121,14 +155,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Debe seleccionar una semana para el paquete ilimitado." }, { status: 400 });
       }
 
+      if (!numericBranchId) {
+        return NextResponse.json({ error: "Debe seleccionar una sucursal para el paquete de semana ilimitada." }, { status: 400 });
+      }
+
       const newSelectedWeekStart = new Date(selectedWeekStartDate);
       const newSelectedWeekEnd = getUnlimitedWeekExpiryDate(newSelectedWeekStart); // Friday of the selected week
 
-      // Fetch user's existing/future unlimited weeks
+      // Fetch user's existing/future unlimited weeks FOR THE SAME BRANCH
+      // Packages are branch-specific: a week in Sahagún doesn't block a week in Apan
       const existingUnlimitedUserPackages = await prisma.userPackage.findMany({
         where: {
           userId: userId,
           packageId: 3, // Unlimited week package ID
+          branch_id: numericBranchId,
           OR: [
             { expiryDate: { gte: new Date() } }, // Active or future
             { purchaseDate: { gte: new Date() } } // Specifically future-dated (purchaseDate is Monday)
@@ -219,7 +259,8 @@ export async function POST(request: NextRequest) {
           classesUsed: 0,
           isActive: true,
           paymentMethod: "online",
-          paymentStatus: "paid"
+          paymentStatus: "paid",
+          branch_id: numericBranchId,
         },
         include: {
           package: true
@@ -231,7 +272,7 @@ export async function POST(request: NextRequest) {
         data: {
           userId: userId as number,
           userPackageId: createdUserPackage.id,
-          amount: Number(packageInfo.price),
+          amount: packagePrice,
           paymentMethod: "stripe",
           stripePaymentIntentId: paymentId,
           status: "completed"
@@ -281,14 +322,22 @@ export async function POST(request: NextRequest) {
         return;
       }
 
+      const branchName = numericBranchId
+        ? (await prisma.package_prices.findFirst({
+            where: { package_id: numericPackageId, branch_id: numericBranchId },
+            include: { branches: true },
+          }))?.branches?.name ?? null
+        : null
+
       const emailDetails = {
         packageName: packageInfo.name,
         classCount: packageInfo.classCount || 0,
-        price: Number(packageInfo.price),
+        price: packagePrice,
         purchaseDate: purchaseDate.toLocaleDateString('es-ES'),
         expiryDate: expiryDate.toLocaleDateString('es-ES'),
-        isUnlimitedWeek: numericPackageId === 3, // Use numericPackageId
-        validityType: numericPackageId === 3 ? '5 días hábiles' : `${packageInfo.validityDays} días` // Use numericPackageId
+        isUnlimitedWeek: numericPackageId === 3,
+        validityType: numericPackageId === 3 ? '5 días hábiles' : `${packageInfo.validityDays} días`,
+        branchName: branchName ?? undefined,
       }
 
       await sendPackagePurchaseConfirmationEmail(

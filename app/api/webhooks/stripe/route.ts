@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import { PrismaClient } from '@prisma/client'
+import { getUnlimitedWeekExpiryDate } from '@/lib/utils/unlimited-week'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-05-28.basil',
@@ -75,9 +76,104 @@ async function processEvent(event: Stripe.Event) {
     case 'charge.dispute.created':
       await handleChargeDispute(event.data.object as Stripe.Dispute)
       break
-    
+
+    case 'checkout.session.completed':
+      await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session & { payment_intent: string | null })
+      break
+
     default:
       console.log(`🤷‍♀️ Evento no manejado: ${event.type}`)
+  }
+}
+
+// Maneja checkout sessions completadas (semana ilimitada via Stripe Checkout)
+async function handleCheckoutSessionCompleted(
+  session: Stripe.Checkout.Session & { payment_intent: string | null }
+) {
+  console.log(`🛒 Checkout session completada: ${session.id}`)
+
+  if (session.payment_status !== 'paid') {
+    console.log(`⏭️ Session ${session.id} no pagada aún, ignorando`)
+    return
+  }
+
+  const paymentIntentId = session.payment_intent
+
+  try {
+    // Deduplicar por stripePaymentIntentId (campo que sí existe en el schema)
+    if (paymentIntentId) {
+      const existingPayment = await prisma.payment.findFirst({
+        where: { stripePaymentIntentId: paymentIntentId }
+      })
+      if (existingPayment) {
+        console.log(`ℹ️ Checkout session ya procesada (PI: ${paymentIntentId})`)
+        return
+      }
+    }
+
+    const metadata = session.metadata ?? {}
+    const userId = metadata.userId ? parseInt(metadata.userId) : null
+    const packageId = metadata.packageId ? parseInt(metadata.packageId) : null
+    const selectedWeek = metadata.selectedWeek
+    const branchId = metadata.branchId ? parseInt(metadata.branchId) : null
+
+    if (!userId || !packageId || !selectedWeek) {
+      console.error(`[Webhook] Checkout session ${session.id} sin metadata completa:`, metadata)
+      return
+    }
+
+    // Calcular expiryDate server-side desde selectedWeek — no confiar en metadata.expiryDate
+    const purchaseDate = new Date(selectedWeek)
+    const expiryDate = getUnlimitedWeekExpiryDate(purchaseDate)
+
+    await prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.create({
+        data: {
+          userId,
+          amount: (session.amount_total ?? 0) / 100,
+          currency: 'MXN',
+          paymentMethod: 'stripe',
+          status: 'completed',
+          stripePaymentIntentId: paymentIntentId,
+          paymentDate: new Date(),
+        }
+      })
+
+      const userPackage = await tx.userPackage.create({
+        data: {
+          userId,
+          packageId,
+          purchaseDate,
+          expiryDate,
+          classesRemaining: 25,
+          classesUsed: 0,
+          paymentMethod: 'online',
+          paymentStatus: 'paid',
+          isActive: true,
+          ...(branchId ? { branch_id: branchId } : {}),
+        }
+      })
+
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: { relatedUserPackageId: userPackage.id }
+      })
+
+      await tx.balanceTransaction.create({
+        data: {
+          userId,
+          type: 'purchase',
+          amount: 25,
+          description: `Compra de Semana Ilimitada - Stripe (webhook)`,
+          relatedPaymentId: payment.id,
+        }
+      })
+
+      console.log(`📦 Semana Ilimitada activada via webhook para usuario ${userId}, semana ${selectedWeek}`)
+    })
+  } catch (error) {
+    console.error(`❌ Error procesando checkout session ${session.id}:`, error)
+    throw error
   }
 }
 
@@ -115,6 +211,7 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
     const userId = metadata.userId ? parseInt(metadata.userId) : null
     const packageId = metadata.packageId ? parseInt(metadata.packageId) : null
     const reservationId = metadata.reservationId ? parseInt(metadata.reservationId) : null
+    const branchId = metadata.branchId ? parseInt(metadata.branchId) : null
 
     if (userId) {
       // Crear el registro de pago
@@ -149,42 +246,16 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
 
           // Check if this is the "Semana Ilimitada" package (ID 3) using metadata
           // and ensure necessary metadata fields are present.
-          if (packageId === 3 && metadata.packageType === 'unlimited-week' && metadata.selectedWeek && metadata.expiryDate) {
+          if (packageId === 3 && metadata.packageType === 'unlimited-week' && metadata.selectedWeek) {
             console.log('[Webhook] Processing Semana Ilimitada specific logic.');
-            
-            const expiryDateFromMeta = new Date(metadata.expiryDate as string);
+
+            // Calcular expiryDate server-side — no confiar en metadata.expiryDate
             const purchaseDateFromMeta = new Date(metadata.selectedWeek as string);
-
-            // Server-side validation of the received expiryDate
-            const dayOfWeek = expiryDateFromMeta.getUTCDay(); // Sunday = 0, Friday = 5
-            const isFriday = dayOfWeek === 5;
-            const isFutureOrToday = expiryDateFromMeta.getTime() >= new Date().setHours(0,0,0,0);
-
-            if (!isFriday || !isFutureOrToday) {
-              console.error(`[Webhook] Invalid expiryDate for unlimited week package. User: ${userId}, P-Intent: ${paymentIntent.id}`);
-              console.error(`[Webhook] Details: ExpiryDate=${metadata.expiryDate}, IsFriday=${isFriday}, IsFuture=${isFutureOrToday}`);
-              // Skip package creation but log for manual review
-              // You could also create a notification for an admin here
-              await prisma.notifications.create({
-                data: {
-                  user_id: 1, // System/Admin user
-                  type: 'system_alert',
-                  title: 'Error en Webhook de Stripe',
-                  message: `Paquete 'Semana Ilimitada' con fecha de expiración inválida. Usuario ID: ${userId}, Payment Intent: ${paymentIntent.id}. Expiración recibida: ${metadata.expiryDate}. Por favor, verificar y corregir manualmente.`
-                }
-              });
-              // Stop further processing for this package
-              return; 
-            }
-
-            console.log('[Webhook] Metadata received and validated:', { 
-              selectedWeek: metadata.selectedWeek, 
-              expiryDateString: metadata.expiryDate 
-            });
+            const computedExpiryDate = getUnlimitedWeekExpiryDate(purchaseDateFromMeta);
 
             calculatedPurchaseDate = purchaseDateFromMeta;
-            calculatedExpiryDate = expiryDateFromMeta;
-            calculatedClassesRemaining = 25; // Fixed for Semana Ilimitada
+            calculatedExpiryDate = computedExpiryDate;
+            calculatedClassesRemaining = 25;
 
             console.log('[Webhook] Calculated dates for Semana Ilimitada:', {
               purchase: calculatedPurchaseDate.toISOString(),
@@ -215,7 +286,8 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
               classesRemaining: calculatedClassesRemaining,
               isActive: true,
               paymentStatus: 'paid',
-              paymentMethod: 'stripe'
+              paymentMethod: 'stripe',
+              ...(branchId ? { branch_id: branchId } : {}),
             }
           })
 

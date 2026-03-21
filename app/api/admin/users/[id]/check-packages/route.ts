@@ -25,6 +25,20 @@ export async function GET(
 
     const resolvedParams = await params
     const userId = parseInt(resolvedParams.id)
+    const { searchParams } = new URL(request.url)
+    const branchId = searchParams.get("branchId")
+    let branchIdInt: number | null = null
+    if (branchId !== null) {
+      const parsed = parseInt(branchId, 10)
+      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== branchId.trim()) {
+        return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
+      }
+      branchIdInt = parsed
+      const branchExists = await prisma.branch.findUnique({ where: { id: branchIdInt } })
+      if (!branchExists) {
+        return NextResponse.json({ error: "Sucursal no encontrada" }, { status: 404 })
+      }
+    }
 
     if (isNaN(userId)) {
       return NextResponse.json({ error: "ID de usuario inválido" }, { status: 400 })
@@ -63,13 +77,20 @@ export async function GET(
     })
 
     // Obtener paquetes activos del usuario con clases disponibles
+    // Si se pasa branchId, incluir paquetes de esa sucursal Y paquetes globales (branch_id = null)
     const activePackages = await prisma.userPackage.findMany({
       where: {
         userId: userId,
         isActive: true,
         classesRemaining: { gt: 0 },
         expiryDate: { gte: new Date() },
-        paymentStatus: { in: ["paid", "completed"] } // Aceptar ambos estados de pago
+        paymentStatus: { in: ["paid", "completed"] },
+        ...(branchIdInt !== null ? {
+          OR: [
+            { branch_id: branchIdInt },
+            { branch_id: null },
+          ]
+        } : {}),
       },
       include: {
         package: {
@@ -78,7 +99,10 @@ export async function GET(
             name: true,
             classCount: true
           }
-        }
+        },
+        branches: {
+          select: { id: true, name: true }
+        },
       },
       orderBy: { expiryDate: 'asc' }
     })
@@ -99,8 +123,11 @@ const totalAvailableClasses = activePackages.reduce((total, pkg) => total + (pkg
         name: pkg.package.name,
         classesRemaining: pkg.classesRemaining,
         expiryDate: pkg.expiryDate.toISOString().split('T')[0],
-        paymentStatus: pkg.paymentStatus
+        paymentStatus: pkg.paymentStatus,
+        branchId: pkg.branch_id ?? null,
+        branchName: pkg.branches?.name ?? null,
       })),
+      filteredByBranch: branchIdInt !== null,
       needsPackage: totalAvailableClasses === 0
     }
 

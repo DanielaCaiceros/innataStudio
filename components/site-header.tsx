@@ -16,6 +16,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/hooks/useAuth"
+import { BranchSelector } from "@/components/branch-selector"
 
 // Menú para usuarios no autenticados
 const publicNav = [
@@ -37,8 +38,8 @@ export function SiteHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const { user, isAuthenticated, logout } = useAuth()
 
-  // No renderizar el header en las páginas de admin
-  if (pathname?.startsWith("/admin")) {
+  // No renderizar el header en las páginas de admin y selección de sucursal
+  if (pathname?.startsWith("/admin") || pathname === "/seleccionar-sucursal") {
     return null
   }
   
@@ -72,14 +73,19 @@ export function SiteHeader() {
             ))}
           </nav>
 
-          <div className="hidden md:flex items-center gap-3">
+          <div className="flex items-center gap-3">
+            {/* Branch Selector - Visible en todas las pantallas */}
+            <BranchSelector />
+            
+            {/* User menu/auth - Hidden en móvil, visible en desktop */}
+            <div className="hidden md:block">
             {isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                     <Avatar className="h-10 w-10">
                       <AvatarImage src={user?.profileImage || undefined} alt={user?.firstName || ""} />
-                      <AvatarFallback className="bg-brand-sage text-white">
+                      <AvatarFallback className="bg-brand-cream text-white">
                         {user?.firstName?.[0]}{user?.lastName?.[0]}
                       </AvatarFallback>
                     </Avatar>
@@ -119,13 +125,13 @@ export function SiteHeader() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white rounded-full">
+              <Button asChild className="bg-brand-gray hover:bg-brand-gray text-white rounded-full">
                 <Link href="/login" className="text-sm font-medium text-white hover:text-white transition-colors">
                   Iniciar Sesión <ChevronRight className="h-4 w-4" />
                 </Link>
               </Button>
             )}
-          </div>
+            </div>
 
           <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
             <SheetTrigger asChild>
@@ -180,6 +186,7 @@ export function SiteHeader() {
               </nav>
             </SheetContent>
           </Sheet>
+          </div>
         </div>
       </div>
     </header>

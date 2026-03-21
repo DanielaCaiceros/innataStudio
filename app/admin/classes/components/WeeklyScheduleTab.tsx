@@ -13,6 +13,7 @@ import { ClassType, Instructor, ScheduledClass, timeSlots, weekDays, convertUtcT
 
 interface WeeklyScheduleTabProps {
   selectedWeek: Date;
+  selectedBranchId: string;
   setSelectedWeek: (date: Date) => void;
   scheduledClasses: ScheduledClass[];
   loadScheduledClasses: () => Promise<void>; // Kept, as it might be triggered by an internal refresh button someday
@@ -25,6 +26,7 @@ interface WeeklyScheduleTabProps {
 
 export default function WeeklyScheduleTab({
   selectedWeek,
+  selectedBranchId,
   setSelectedWeek,
   scheduledClasses,
   loadScheduledClasses, // Kept
@@ -111,6 +113,21 @@ export default function WeeklyScheduleTab({
                         {dayClasses.map((cls) => (
                           <div key={cls.id} className="relative group">
                             <div className="text-center">
+                              {selectedBranchId === "all" && (
+                                <div className="mb-1">
+                                  <span
+                                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                      cls.branch_id === 1
+                                        ? "bg-blue-100 text-blue-800"
+                                        : cls.branch_id === 2
+                                          ? "bg-emerald-100 text-emerald-800"
+                                          : "bg-gray-100 text-gray-700"
+                                    }`}
+                                  >
+                                    {cls.branches?.name || `Sucursal ${cls.branch_id ?? "N/A"}`}
+                                  </span>
+                                </div>
+                              )}
                               <p className="font-bold text-sm text-[#4A102A]">{cls.classType.name}</p>
                               <p className="text-xs text-gray-600">{cls.instructor.user.firstName} {cls.instructor.user.lastName}</p>
                               <div className="flex items-center justify-center gap-1 text-xs text-gray-600 mt-1">
@@ -144,6 +161,12 @@ export default function WeeklyScheduleTab({
           </div>
         </CardContent>
       </Card>
+
+      {selectedBranchId === "all" && (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Vista global activa: puedes ver clases de ambas sucursales al mismo horario. Cada tarjeta indica su sucursal.
+        </div>
+      )}
 
       {/* Edit Schedule Dialog is removed and managed by ClassesPage */}
     </div>

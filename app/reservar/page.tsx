@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { StripeCheckout } from "@/components/stripe-checkout"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/hooks/useAuth"
+import { useBranch } from "@/lib/hooks/useBranch"
 import { useRouter } from "next/navigation"
 import { BikeSelectionInline } from "@/components/bike-selection-inline"
 import { 
@@ -31,6 +32,7 @@ import {
   UnlimitedWeekConfirmation 
 } from '@/components/ui/unlimited-week-alerts'
 import { WhatsAppConfirmationAlert } from '@/components/ui/whatsapp-confirmation-alert'
+import { BranchIndicatorBadge } from '@/components/branch-indicator-badge'
 
 interface ClassType {
   id: number
@@ -41,6 +43,7 @@ interface ClassType {
 
 interface ScheduledClass {
   id: number
+  className?: string
   classType: ClassType
   instructor: {
     id: number
@@ -58,6 +61,7 @@ export default function BookingPage() {
   const { toast } = useToast()
   const router = useRouter()
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
+  const { selectedBranch, isLoading: isBranchLoading } = useBranch()
   const [isLoading, setIsLoading] = useState(true)
   const reservationSummaryRef = useRef<HTMLDivElement>(null)
 
@@ -79,7 +83,7 @@ export default function BookingPage() {
     hasActiveUnlimitedWeek,
     getWeeklyUsageMessage,
     isLoading: isLoadingWeekly,
-  } = useUnlimitedWeek()
+  } = useUnlimitedWeek(selectedBranch?.id)
 
   // Auto-activar Semana Ilimitada si el usuario tiene paquete activo
   const isUsingUnlimitedWeek = hasActiveUnlimitedWeek && Boolean(weeklyUsage)
@@ -96,12 +100,17 @@ export default function BookingPage() {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [isRiskConfirmationOpen, setIsRiskConfirmationOpen] = useState(false)
   
   // Estado para datos de la API
   const [availableClasses, setAvailableClasses] = useState<ScheduledClass[]>([])
   const [userAvailableClasses, setUserAvailableClasses] = useState<number>(0)
   const [isLoadingUserClasses, setIsLoadingUserClasses] = useState(false)
   const [selectedScheduledClassForBooking, setSelectedScheduledClassForBooking] = useState<ScheduledClass | null>(null)
+  const [hasUserInteracted, setHasUserInteracted] = useState(false)
+  const [lastBranchChangeAt, setLastBranchChangeAt] = useState<number | null>(null)
+  const [cameFromBranchSelection, setCameFromBranchSelection] = useState(false)
+  const previousBranchIdRef = useRef<number | null>(null)
 
   // Nuevo estado para mostrar mensaje informativo en la sección de resumen
   const [
@@ -133,14 +142,17 @@ export default function BookingPage() {
   // Estado para alerta contextual
   const [bookingAlert, setBookingAlert] = useState<{ type: 'unlimited' | 'normal' | 'individual' | 'out-of-unlimited' | null, message: string } | null>(null);
 
+  // Lock branch selector only when user is at the final confirmation step.
+  const isAtFinalConfirmationStep = Boolean(selectedClass && selectedBikeId && !isProcessingBooking)
+
   // Obtener clases disponibles del usuario
   useEffect(() => {
     const loadUserAvailableClasses = async () => {
-      if (!isAuthenticated || !user) return
+      if (!isAuthenticated || !user || !selectedBranch?.id) return
 
       setIsLoadingUserClasses(true)
       try {
-        const response = await fetch('/api/user/packages', {
+        const response = await fetch(`/api/user/packages?branchId=${selectedBranch.id}`, {
           method: 'GET',
           credentials: 'include',
         })
@@ -158,15 +170,21 @@ export default function BookingPage() {
     }
 
     loadUserAvailableClasses()
-  }, [isAuthenticated, user])
+  }, [isAuthenticated, user, selectedBranch?.id])
   
   // Obtener clases disponibles al cargar o cambiar la fecha
   const loadAvailableClasses = async () => {
+    if (!selectedBranch?.id) return
+
     setIsLoading(true)
     try {
-      const dateParam = date ? `date=${format(date, 'yyyy-MM-dd')}` : '';
-      
-      const response = await fetch(`/api/scheduled-clases/available?${dateParam}`);
+      const params = new URLSearchParams()
+      if (date) {
+        params.set('date', format(date, 'yyyy-MM-dd'))
+      }
+      params.set('branchId', String(selectedBranch.id))
+
+      const response = await fetch(`/api/scheduled-clases/available?${params.toString()}`);
       if (response.ok) {
         const data: ScheduledClass[] = await response.json();
         setAvailableClasses(data);
@@ -191,8 +209,37 @@ export default function BookingPage() {
   }
 
   useEffect(() => {
-    loadAvailableClasses();
-  }, [date]);
+    if (!isBranchLoading && !selectedBranch) {
+      router.push('/seleccionar-sucursal?redirect=/reservar')
+    }
+  }, [isBranchLoading, selectedBranch, router])
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      setCameFromBranchSelection(document.referrer.includes('/seleccionar-sucursal'))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedBranch?.id) return
+
+    if (previousBranchIdRef.current === null) {
+      previousBranchIdRef.current = selectedBranch.id
+      return
+    }
+
+    if (previousBranchIdRef.current !== selectedBranch.id) {
+      setLastBranchChangeAt(Date.now())
+      setHasUserInteracted(false)
+      previousBranchIdRef.current = selectedBranch.id
+    }
+  }, [selectedBranch?.id])
+
+  useEffect(() => {
+    if (selectedBranch?.id) {
+      loadAvailableClasses();
+    }
+  }, [date, selectedBranch?.id]);
 
   // When the date changes, auto-select the first available class and trigger validation
   useEffect(() => {
@@ -326,6 +373,31 @@ export default function BookingPage() {
     }, 100)
   }
 
+  const continueBookingFlow = async () => {
+    // Flujo para Semana Ilimitada
+    if (canUseUnlimitedForSelectedClass) {
+      if (unlimitedWeekValidation?.canUseUnlimitedWeek) {
+        setShowUnlimitedWeekConfirmation(true)
+      } else {
+        toast({
+          title: 'Error de validación',
+          description:
+            'Parece que ya no puedes usar Semana Ilimitada para esta clase.',
+          variant: 'destructive',
+        })
+      }
+      return
+    }
+
+    // Flujo para clases normales
+    if (userAvailableClasses > 0) {
+      await proceedWithBooking()
+    } else {
+      // Si no tiene créditos, redirigir a la página de compra del paquete individual (ID 2)
+      router.push('/paquetes/checkout?packageId=2');
+    }
+  }
+
   const handleConfirmBooking = async () => {
     if (!isAuthenticated) {
       setIsAuthModalOpen(true)
@@ -359,35 +431,16 @@ export default function BookingPage() {
       return;
     }
 
-    // Flujo para Semana Ilimitada
-    if (canUseUnlimitedForSelectedClass) {
-      if (unlimitedWeekValidation?.canUseUnlimitedWeek) {
-        setShowUnlimitedWeekConfirmation(true)
-      } else {
-        toast({
-          title: 'Error de validación',
-          description:
-            'Parece que ya no puedes usar Semana Ilimitada para esta clase.',
-          variant: 'destructive',
-        })
-      }
+    const branchChangedRecently = lastBranchChangeAt !== null && Date.now() - lastBranchChangeAt <= 10000
+    const redirectedWithoutInteraction = cameFromBranchSelection && !hasUserInteracted
+    const requiresRiskCheckpoint = branchChangedRecently || redirectedWithoutInteraction
+
+    if (requiresRiskCheckpoint) {
+      setIsRiskConfirmationOpen(true)
       return
     }
 
-    // Flujo para clases normales
-    if (userAvailableClasses > 0) {
-      await proceedWithBooking()
-    } else {
-      // Si no tiene créditos, redirigir a la página de compra del paquete individual (ID 2)
-      router.push('/paquetes/checkout?packageId=2');
-      // const classToBook = availableClasses.find(c => c.id === selectedClass)
-      // if (classToBook) {
-      //   setSelectedScheduledClassForBooking(classToBook)
-      //   // setIsPaymentOpen(true) // Original logic: opens modal
-      // } else {
-      //   toast({ title: 'Error', description: 'No se encontró la clase seleccionada.'})
-      // }
-    }
+    await continueBookingFlow()
   }
 
   const proceedWithBooking = async () => {
@@ -607,18 +660,53 @@ export default function BookingPage() {
     }
   }, [canUseUnlimitedForSelectedClass, selectedClass, userAvailableClasses]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const lockValue = isAtFinalConfirmationStep ? '1' : '0'
+    localStorage.setItem('innata_branch_selector_lock', lockValue)
+    window.dispatchEvent(
+      new CustomEvent('innata:branch-selector-lock', {
+        detail: { locked: isAtFinalConfirmationStep },
+      })
+    )
+  }, [isAtFinalConfirmationStep])
+
+  useEffect(() => {
+    return () => {
+      if (typeof window === 'undefined') return
+      localStorage.setItem('innata_branch_selector_lock', '0')
+      window.dispatchEvent(
+        new CustomEvent('innata:branch-selector-lock', {
+          detail: { locked: false },
+        })
+      )
+    }
+  }, [])
+
+  if (isBranchLoading || !selectedBranch) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <p className="text-gray-600">Cargando sucursal...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-white text-zinc-900">
       {/* Hero Section */}
       <section className="py-12 pt-14 bg-white">
         <div className="container px-4 md:px-6 text-center">
           <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-4 anim-slide-in-up">
-            RESERVA TU <span className="text-brand-sage">CLASE</span>
+            RESERVA TU <span className="text-brand-cream">CLASE</span>
           </h1>
-          <p className="text-xl max-w-3xl mx-auto text-zinc-700">
+          <p className="text-xl max-w-3xl mx-auto text-zinc-700 mb-4">
             Selecciona fecha, clase y horario para asegurar tu lugar
           </p>
-          
+          {/* Indicador de sucursal */}
+          <div className="flex justify-center">
+            <BranchIndicatorBadge />
+          </div>
 
         </div>
       </section>
@@ -697,7 +785,7 @@ export default function BookingPage() {
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
-                    <CalendarIcon className="mr-2 h-5 w-5 text-brand-sage" />
+                    <CalendarIcon className="mr-2 h-5 w-5 text-brand-gray" />
                     <h3 className="text-xl font-bold text-black">Selecciona Fecha</h3>
                   </div>
                   <div className="flex justify-center items-center py-6">
@@ -711,6 +799,7 @@ export default function BookingPage() {
                             return // No permitir selección
                           }
                           setDate(selectedDate)
+                          setHasUserInteracted(true)
                         }}
                         locale={es}
                         className="bg-white text-zinc-900 w-full rounded-lg"
@@ -762,7 +851,7 @@ export default function BookingPage() {
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
-                    <Clock className="mr-2 h-5 w-5 text-brand-sage" />
+                    <Clock className="mr-2 h-5 w-5 text-brand-gray" />
                     <h3 className="text-xl font-bold text-brand-sage-dark">Selecciona Horario</h3>
                   </div>
                   
@@ -783,15 +872,16 @@ export default function BookingPage() {
                             disabled={!hasAvailability}
                             className={`rounded-full relative ${
                               isSelected
-                                ? "bg-brand-sage hover:bg-brand-sage/90 text-white"
+                                ? "bg-brand-gray hover:bg-brand-gray/90 text-white"
                                 : hasAvailability
-                                ? "border-brand-sage text-brand-sage hover:bg-gray-50"
+                                ? "border-brand-gray text-brand-gray hover:bg-gray-50"
                                 : "border-gray-300 text-gray-400 bg-gray-50 cursor-not-allowed"
                             } ${!hasAvailability ? "opacity-60" : ""}`}
                             onClick={() => {
                               if (hasAvailability) {
                                 setSelectedTime(timeSlot.time);
                                 setSelectedClass(null);
+                                setHasUserInteracted(true)
                               }
                             }}
                           >
@@ -835,8 +925,8 @@ export default function BookingPage() {
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
-                    <Clock className="mr-2 h-5 w-5 text-brand-sage" />
-                    <h3 className="text-xl font-bold text-brand-burgundy-dark">Selecciona Clase</h3>
+                    <Clock className="mr-2 h-5 w-5 text-brand-gray" />
+                    <h3 className="text-xl font-bold text-black">Selecciona Clase</h3>
                   </div>
                   <div className="p-4 space-y-2">
                     {isLoading ? (
@@ -860,7 +950,11 @@ export default function BookingPage() {
                                   ? 'cursor-not-allowed bg-green-900 border-green-700' // Color verde oscuro para sin cupo
                                   : 'opacity-60 cursor-not-allowed bg-gray-100'
                               }`}
-                              onClick={() => canReserve && handleClassSelection(cls)}
+                              onClick={() => {
+                                if (!canReserve) return
+                                setHasUserInteracted(true)
+                                handleClassSelection(cls)
+                              }}
                             >
                               <CardContent className="p-4">
                                 <div className="flex justify-between items-center">
@@ -933,7 +1027,7 @@ export default function BookingPage() {
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
-                    <Bike className="mr-2 h-5 w-5 text-brand-sage" />
+                    <Bike className="mr-2 h-5 w-5 text-brand-gray" />
                     <h3 className="text-xl font-bold text-black">Selecciona Bicicleta</h3>
                   </div>
                   <div className="p-4">
@@ -941,7 +1035,10 @@ export default function BookingPage() {
                       <BikeSelectionInline
                         scheduledClassId={selectedClass}
                         selectedBikeId={selectedBikeId}
-                        onBikeSelected={setSelectedBikeId}
+                        onBikeSelected={(bikeId) => {
+                          setHasUserInteracted(true)
+                          setSelectedBikeId(bikeId)
+                        }}
                       />
                     ) : (
                       <div className="text-center py-8 text-gray-500">
@@ -1039,7 +1136,7 @@ export default function BookingPage() {
                   )}
                 </div>
 
-                {/* {isUsingUnlimitedWeek && unlimitedWeekValidation?.isValid && (
+                {showWhatsappAlert && (
                   <div className="mb-4">
                     <WhatsAppConfirmationAlert
                       date={selectedClassDetails?.date || ''}
@@ -1047,7 +1144,7 @@ export default function BookingPage() {
                       userName={user?.firstName || ''}
                     />
                   </div>
-                )} */}
+                )}
 
                 {showWeekendInfoMessage && (
                   <div className="mt-4 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-md p-3">
@@ -1078,6 +1175,15 @@ export default function BookingPage() {
 
                 <div ref={reservationSummaryRef} className="mt-6 md:mt-0">
 
+                  <div className="mt-2 rounded-xl border border-brand-sage/30 bg-brand-sage/10 p-3">
+                    <p className="text-sm text-zinc-700">
+                      Vas a reservar en <span className="font-semibold text-brand-burgundy">{selectedBranch.name}</span>
+                    </p>
+                    <div className="mt-2 inline-flex">
+                      <BranchIndicatorBadge className="px-3 py-1 text-sm" />
+                    </div>
+                  </div>
+
                   <Button
                     onClick={handleConfirmBooking}
                     disabled={
@@ -1085,7 +1191,7 @@ export default function BookingPage() {
                       isProcessingBooking ||
                       isCheckingUnlimitedWeek
                     }
-                    className="w-full mt-6 bg-brand-sage/90 hover:bg-brand-sage/100 font-bold text-lg py-6 rounded-full text-white"
+                    className="w-full mt-6 bg-brand-cream/90 hover:bg-brand-cream/100 font-bold text-lg py-6 rounded-full text-white"
                   >
                     <span className="flex items-center justify-center gap-1">
                       {isProcessingBooking ? (
@@ -1096,11 +1202,11 @@ export default function BookingPage() {
                       ) : isCheckingUnlimitedWeek ? (
                         <span>VALIDANDO OPCIONES...</span>
                       ) : canUseUnlimitedForSelectedClass ? (
-                        'RESERVAR CON SEMANA ILIMITADA'
+                        `RESERVAR CON SEMANA ILIMITADA EN ${selectedBranch.name.toUpperCase()}`
                       ) : userAvailableClasses > 0 ? (
-                        `RESERVAR (CLASES: ${userAvailableClasses})`
+                        `CONFIRMAR RESERVA EN ${selectedBranch.name.toUpperCase()}`
                       ) : (
-                        'COMPRAR CLASE PARA RESERVAR'
+                        `COMPRAR CLASE EN ${selectedBranch.name.toUpperCase()}`
                       )}
                       {!isProcessingBooking && !isCheckingUnlimitedWeek && (
                         <ChevronRight className="h-4 w-4" />
@@ -1157,6 +1263,37 @@ export default function BookingPage() {
       </section>
 
       {/* Payment Dialog */}
+      <Dialog open={isRiskConfirmationOpen} onOpenChange={setIsRiskConfirmationOpen}>
+        <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#4A102A]">Confirma tu sucursal</DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Vas a reservar en <span className="font-semibold text-brand-burgundy">{selectedBranch.name}</span>. Confirma para continuar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <BranchIndicatorBadge className="w-full justify-center" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsRiskConfirmationOpen(false)}>
+              Revisar
+            </Button>
+            <Button
+              className="bg-brand-sage hover:bg-brand-sage/90 text-white"
+              onClick={async () => {
+                setIsRiskConfirmationOpen(false)
+                setHasUserInteracted(true)
+                setLastBranchChangeAt(null)
+                setCameFromBranchSelection(false)
+                await continueBookingFlow()
+              }}
+            >
+              Confirmar en {selectedBranch.name}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
         <DialogContent className="bg-white border-gray-200 text-zinc-900">
           <DialogHeader>
@@ -1309,7 +1446,7 @@ export default function BookingPage() {
               <Button 
                 className="w-full bg-brand-mint hover:bg-brand-mint/90 text-white font-semibold py-3" 
                 onClick={() => {
-                  router.push("/login?redirect=/reservar");
+                  router.push(`/login?redirect=${encodeURIComponent('/reservar')}`);
                   setIsAuthModalOpen(false);
                 }}
               >
@@ -1319,7 +1456,7 @@ export default function BookingPage() {
                 variant="outline" 
                 className="w-full border-brand-mint text-brand-mint hover:bg-brand-mint/10 font-semibold py-3"
                 onClick={() => {
-                  router.push("/registro?redirect=/reservar");
+                  router.push(`/registro?redirect=${encodeURIComponent('/reservar')}`);
                   setIsAuthModalOpen(false);
                 }}
               >

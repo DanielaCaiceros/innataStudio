@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Calendar, Clock, LogOut, Target, ChevronRight, User, Package, Bike } from "lucide-react"
+import { Calendar, Clock, LogOut, Target, ChevronRight, User, Package, Bike, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,6 +30,8 @@ interface UserPackage {
   expiryDate: string
   isActive: boolean
   purchaseDate?: string
+  branchId?: number | null
+  branchName?: string | null
 }
 
 interface UserReservation {
@@ -128,6 +130,10 @@ const ClassReservationCard = ({
             <p className="text-sm text-gray-600">Instructor: {classInfo.instructor}</p>
             <p className="text-sm text-gray-600">
               {classInfo.dateFormatted} • {classInfo.time} • {classInfo.duration}
+            </p>
+            <p className="text-sm text-gray-600 flex items-center gap-1 mt-1">
+              <MapPin className="h-3.5 w-3.5" />
+              Sucursal: {classInfo.location}
             </p>
           </div>
           <Badge variant={allCancelled ? "secondary" : "default"}className="self-start sm:self-auto bg-white border-gray-200 text-gray-800 hover:bg-gray-50"> 
@@ -411,7 +417,7 @@ export default function ProfilePage() {
               <CardHeader className="bg-gradient-to-r from-brand-sage/5 to-brand-mint/5">
                 <div className="flex items-center gap-3">
                   <div className="bg-brand-sage/10 p-2 rounded-full">
-                    <User className="h-5 w-5 text-brand-sage" />
+                    <User className="h-5 w-5 text-brand-gray" />
                   </div>
                   <CardTitle className="text-lg">Mi Perfil</CardTitle>
                 </div>
@@ -453,19 +459,19 @@ export default function ProfilePage() {
                 <TabsList className="bg-white border border-gray-200 shadow-sm p-1 rounded-2xl">
                   <TabsTrigger
                     value="upcoming"
-                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl text-xs sm:text-sm flex-1 sm:flex-auto"
+                    className="data-[state=active]:bg-brand-cream data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl text-xs sm:text-sm flex-1 sm:flex-auto"
                   >
                     Próximas Clases
                   </TabsTrigger>
                   <TabsTrigger
                     value="packages"
-                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl text-xs sm:text-sm flex-1 sm:flex-auto"
+                    className="data-[state=active]:bg-brand-cream data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl text-xs sm:text-sm flex-1 sm:flex-auto"
                   >
                     Mis Paquetes
                   </TabsTrigger>
                   <TabsTrigger
                     value="history"
-                    className="data-[state=active]:bg-brand-sage data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl text-xs sm:text-sm flex-1 sm:flex-auto"
+                    className="data-[state=active]:bg-brand-cream data-[state=active]:text-white data-[state=active]:shadow-sm rounded-xl text-xs sm:text-sm flex-1 sm:flex-auto"
                   >
                     Historial
                   </TabsTrigger>
@@ -473,7 +479,7 @@ export default function ProfilePage() {
 
                 <Button
                   asChild
-                  className="bg-brand-sage hover:bg-brand-gray text-white shadow-sm hover:shadow-md transition-all duration-200 rounded-2xl"
+                  className="bg-brand-gray/90 hover:bg-brand-gray text-white shadow-sm hover:shadow-md transition-all duration-200 rounded-2xl"
                 >
                   <Link href="/reservar">
                     <Calendar className="mr-2 h-4 w-4" />
@@ -493,7 +499,7 @@ export default function ProfilePage() {
                         </div>
                         <h3 className="text-xl font-semibold mb-2 text-zinc-800">No tienes clases reservadas</h3>
                         <p className="text-zinc-600 mb-6">¡Es hora de reservar tu próxima sesión!</p>
-                        <Button asChild className="bg-brand-sage hover:bg-brand-gray text-white shadow-sm">
+                        <Button asChild className="bg-brand-mint hover:bg-brand-gray text-white shadow-sm">
                           <Link href="/reservar">
                             Reservar una clase
                             <ChevronRight className="ml-2 h-4 w-4" />
@@ -542,13 +548,19 @@ export default function ProfilePage() {
                         >
                           <div className="bg-gradient-to-r from-brand-sage/10 to-brand-mint/10 p-6 border-b border-gray-100">
                             <div className="flex items-center justify-between mb-4">
-                              <h3 className="text-xl font-bold text-brand-sage">{pkg.name}</h3>
+                              <h3 className="text-xl font-bold text-brand-cream">{pkg.name}</h3>
                               <div className="bg-brand-sage/20 p-2 rounded-full">
-                                <Package className="h-5 w-5 text-brand-sage" />
+                                <Package className="h-5 w-5 text-brand-cream" />
                               </div>
                             </div>
+                            {pkg.branchName && (
+                              <div className="flex items-center gap-1 text-xs text-zinc-500 mb-3">
+                                <MapPin className="h-3 w-3" />
+                                <span>{pkg.branchName}</span>
+                              </div>
+                            )}
                             <div className="text-center">
-                              <div className="text-3xl font-bold text-brand-sage mb-1">{pkg.classesRemaining}</div>
+                              <div className="text-3xl font-bold text-brand-cream mb-1">{pkg.classesRemaining}</div>
                               <p className="text-sm text-zinc-600">clases restantes</p>
                             </div>
                           </div>
@@ -648,7 +660,7 @@ export default function ProfilePage() {
                             </div>
                             <Button
                               asChild
-                              className="w-full bg-brand-mint hover:bg-brand-sage text-white shadow-sm hover:shadow-md transition-all duration-200"
+                              className="w-full bg-brand-mint hover:bg-brand-mint/90 text-white shadow-sm hover:shadow-md transition-all duration-200"
                             >
                               <Link href="/reservar">
                                 <Calendar className="mr-2 h-4 w-4" />
@@ -749,7 +761,7 @@ export default function ProfilePage() {
                             <div className="flex-1 p-6">
                               <div className="flex items-start justify-between mb-3">
                                 <div>
-                                  <h3 className="text-lg font-bold text-brand-sage mb-1">{classItem.className}</h3>
+                                  <h3 className="text-lg font-bold text-brand-cream mb-1">{classItem.className}</h3>
                                   <p className="text-zinc-600 text-sm">Con {classItem.instructor}</p>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -774,11 +786,11 @@ export default function ProfilePage() {
                               </div>
                               <div className="space-y-2">
                                 <div className="flex items-center text-zinc-700 text-sm">
-                                  <Calendar className="h-4 w-4 mr-3 text-brand-sage" />
+                                  <Calendar className="h-4 w-4 mr-3 text-brand-cream" />
                                   <span>{classItem.dateFormatted || classItem.date}</span>
                                 </div>
                                 <div className="flex items-center text-zinc-700 text-sm">
-                                  <Clock className="h-4 w-4 mr-3 text-brand-sage" />
+                                  <Clock className="h-4 w-4 mr-3 text-brand-cream" />
                                   <span>
                                     {classItem.time} • {classItem.duration}
                                   </span>

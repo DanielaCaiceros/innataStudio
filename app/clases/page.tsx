@@ -77,7 +77,7 @@ export default function ClassesPage() {
       <section className="py-4 pt-14 bg-white">
         <div className="container px-4 md:px-6 text-center">
           <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-4 anim-slide-in-up">
-            NUESTRAS <span className="text-brand-sage">CLASES</span>
+            NUESTRAS <span className="text-brand-mint">CLASES</span>
           </h1>
           <p className="text-xl max-w-3xl mx-auto text-gray-600 mb-2 leading-relaxed">
             Descubre nuestra variedad de clases diseñadas para desafiarte y motivarte, sin importar tu nivel de
@@ -105,7 +105,7 @@ export default function ClassesPage() {
                     onClick={() => setFilter(category)}
                     className={`rounded-full ${
                       filter === category
-                        ? "bg-brand-sage hover:bg-brand-mint text-white"
+                        ? "bg-brand-mint hover:bg-brand-mint/90 text-white"
                         : "border-gray-200 text-gray-600 hover:bg-gray-50"
                     }`}
                   >
@@ -120,7 +120,7 @@ export default function ClassesPage() {
           {!isLoading && (
             <div className="mb-4">
               <p className="text-gray-600">
-                Mostrando <span className="font-semibold text-brand-sage">{filteredClasses.length}</span>
+                Mostrando <span className="font-semibold text-brand-gray">{filteredClasses.length}</span>
                 {filteredClasses.length === 1 ? " clase" : " clases"}
                 {filter !== "all" && (
                   <span>
@@ -144,7 +144,7 @@ export default function ClassesPage() {
                   className="relative overflow-hidden rounded-3xl shadow-md transition-all duration-300 group border-0"
                 >
                   {/* Fondo con gradiente y blur */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-brand-cream/90 via-white/60 to-brand-mint/70 backdrop-blur-xl"></div>
+                  <div className="absolute inset-0 bg-gradient-to-br from-brand-mint/10 via-brand-mint/10 to-brand-mint/30 backdrop-blur-md"></div>
 
                   {/* Overlay para mejorar legibilidad */}
                   <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
@@ -152,7 +152,7 @@ export default function ClassesPage() {
                   {/* Header visual con ícono */}
                   <div className="relative h-4 flex items-center justify-center">
                     <div className="absolute top-3 right-3">
-                      <Badge className="bg-brand-sage/60 text-white border border-brand-cream/30 backdrop-blur-sm shadow-sm">
+                      <Badge className="bg-brand-mint/10 text-brand-mint border border-brand-mint/30 backdrop-blur-sm shadow-sm">
                         {classType.duration} min
                       </Badge>
                     </div>
@@ -160,7 +160,7 @@ export default function ClassesPage() {
 
                   <CardContent className="relative p-6">
                     <div className="mb-4">
-                      <h3 className="text-xl font-bold text-brand-gray mb-2 drop-shadow-md ">{classType.name}</h3>
+                      <h3 className="text-xl font-bold text-brand-gray mb-2 drop-shadow-sm ">{classType.name}</h3>
                       <p className="text-brand-gray/90 text-sm leading-relaxed line-clamp-3 drop-shadow-sm">
                         {classType.description}
                       </p>
@@ -168,24 +168,24 @@ export default function ClassesPage() {
 
                     {/* Información de la clase */}
                     <div className="space-y-3 mb-6">
-                      <div className="flex items-center justify-between bg-brand-cream/10 backdrop-blur-sm rounded-xl p-3 border border-brand-cream/70">
-                        <div className="flex items-center gap-2 text-sm text-brand-gray/90">
+                      <div className="flex items-center justify-between bg-brand-mint/1 backdrop-blur-sm rounded-xl p-3 border border-brand-mint/40">
+                        <div className="flex items-center gap-2 text-sm text-brand-gray">
                           <span>Intensidad:</span>
                         </div>
-                        <div className="bg-brand-cream/20 backdrop-blur-sm px-2 py-1 rounded-full border border-brand-cream/70">
+                        <div className="bg-brand-mint/1 backdrop-blur-sm px-2 py-1 ">
                           <span className="text-xs font-medium text-brand-gray">{classType.intensity}</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between bg-brand-cream/10 backdrop-blur-sm rounded-xl p-3 border border-brand-cream/70">
-                        <div className="flex items-center gap-2 text-sm text-brand-gray/90">
+                      <div className="flex items-center justify-between bg-brand-mint/1 backdrop-blur-sm rounded-xl p-3 border border-brand-mint/40">
+                        <div className="flex items-center gap-2 text-sm text-brand-gray">
                           <span>Capacidad:</span>
                         </div>
                         <span className="text-sm font-medium text-brand-gray">{classType.capacity} personas</span>
                       </div>
 
-                      <div className="flex items-center justify-between bg-brand-cream/10 backdrop-blur-sm rounded-xl p-3 border border-brand-cream/70">
-                        <div className="flex items-center gap-2 text-sm text-brand-gray/90">
+                      <div className="flex items-center justify-between bg-brand-mint/1 backdrop-blur-sm rounded-xl p-3 border border-brand-mint/40">
+                        <div className="flex items-center gap-2 text-sm text-brand-gray">
                           <span>Categoría:</span>
                         </div>
                         <span className="text-sm font-medium text-brand-gray capitalize">{classType.category}</span>
@@ -195,7 +195,7 @@ export default function ClassesPage() {
                     {/* Botón de reserva directo */}
                     <Button
                       asChild
-                      className="w-full bg-brand-sage/20 hover:bg-brand-sage/30 text-brand-gray border border-brand-cream/30 backdrop-blur-sm rounded-2xl transition-all duration-300"
+                      className="w-full bg-brand-cream/40 hover:bg-brand-cream/60 text-white border-0 backdrop-blur-sm rounded-3xl transition-all duration-300"
                     >
                       <Link
                         href={`/reservar?classTypeId=${classType.id}`}
@@ -235,7 +235,7 @@ export default function ClassesPage() {
       <section className="py-20 bg-gradient-to-br from-brand-sage/5 via-white to-brand-sage/5">
         <div className="container px-4 md:px-6 text-center">
           <div className="max-w-3xl mx-auto">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6 text-brand-sage">¿LISTO PARA EMPEZAR?</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-6 text-brand-gray">¿LISTO PARA EMPEZAR?</h2>
             <p className="text-xl text-gray-600 mb-8 leading-relaxed">
               Reserva tu primera clase hoy y experimenta la diferencia de nuestro estudio.
             </p>
@@ -243,7 +243,7 @@ export default function ClassesPage() {
               <Button
                 asChild
                 size="lg"
-                className="bg-brand-sage hover:bg-brand-mint text-white font-bold px-8 py-6 text-lg rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
+                className="bg-brand-mint hover:bg-brand-mint/90 text-white font-bold px-8 py-6 text-lg rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 <Link href="/reservar" className="flex items-center gap-2">
                   RESERVA AHORA
@@ -254,7 +254,7 @@ export default function ClassesPage() {
                 asChild
                 variant="outline"
                 size="lg"
-                className="border-brand-sage text-brand-sage hover:bg-brand-sage/5 font-bold px-8 py-6 text-lg rounded-full"
+                className="border-brand-mint text-brand-mint hover:bg-brand-mint/5 font-bold px-8 py-6 text-lg rounded-full"
               >
                 <Link href="/paquetes">VER PAQUETES</Link>
               </Button>
