@@ -6,7 +6,7 @@ export const MOCK_BRANCHES: Branch[] = [
     id: 1,
     name: "SAHAGÚN",
     address: "Sahagún, Hidalgo, México",
-    phone: "55-8765-4321",
+    phone: "52-775-357-1894",
     schedule: "Lun-Sab missing",
     imageUrl: "/innataAsset1.png",
     isActive: true,
