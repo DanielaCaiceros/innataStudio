@@ -130,10 +130,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { classTypeId, instructorId, date, time, branchId, isSpecial, specialCreditCost } = body
+    const { classTypeId, instructorId, date, time, branchId, isSpecial, specialPrice, specialMessage } = body
 
     if (!branchId) {
       return NextResponse.json({ error: "branchId es requerido" }, { status: 400 })
+    }
+
+    if (isSpecial === true) {
+      const parsedPrice = parseFloat(specialPrice)
+      if (!specialPrice || isNaN(parsedPrice) || parsedPrice <= 0) {
+        return NextResponse.json({ error: "Las clases especiales requieren un precio mayor a 0" }, { status: 400 })
+      }
+      if (specialMessage && specialMessage.length > 255) {
+        return NextResponse.json({ error: "El mensaje no puede exceder 255 caracteres" }, { status: 400 })
+      }
     }
 
     const branchIdInt = parseInt(branchId, 10)
@@ -195,7 +205,8 @@ export async function POST(request: NextRequest) {
         status: "scheduled",
         branch_id: branchIdInt,
         isSpecial: isSpecial === true,
-        specialCreditCost: isSpecial && specialCreditCost ? parseFloat(specialCreditCost) : null,
+        specialPrice: isSpecial && specialPrice ? parseFloat(specialPrice) : null,
+        specialMessage: isSpecial && specialMessage ? specialMessage : null,
       },
       include: {
         classType: true,

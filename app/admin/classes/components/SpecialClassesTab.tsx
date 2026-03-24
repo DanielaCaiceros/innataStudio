@@ -47,7 +47,8 @@ export default function SpecialClassesTab({
     date: "",
     time: "",
     branchId: selectedBranchId !== "all" ? selectedBranchId : "",
-    specialCreditCost: "",
+    specialPrice: "",
+    specialMessage: "",
   }
 
   const [createForm, setCreateForm] = useState(emptyForm)
@@ -80,20 +81,21 @@ export default function SpecialClassesTab({
       })(),
       time: formatTime(cls.time),
       branchId: cls.branch_id?.toString() || "",
-      specialCreditCost: cls.specialCreditCost?.toString() || "",
+      specialPrice: cls.specialPrice?.toString() || "",
+      specialMessage: cls.specialMessage || "",
     })
     setIsEditOpen(true)
   }
 
   const handleCreate = async () => {
-    const { classTypeId, instructorId, date, time, branchId, specialCreditCost } = createForm
-    if (!classTypeId || !instructorId || !date || !time || !branchId || !specialCreditCost) {
-      toast({ title: "Error", description: "Todos los campos son obligatorios, incluyendo el costo en créditos", variant: "destructive" })
+    const { classTypeId, instructorId, date, time, branchId, specialPrice } = createForm
+    if (!classTypeId || !instructorId || !date || !time || !branchId || !specialPrice) {
+      toast({ title: "Error", description: "Todos los campos son obligatorios, incluyendo el precio de la clase", variant: "destructive" })
       return
     }
-    const cost = parseFloat(specialCreditCost)
+    const cost = parseFloat(specialPrice)
     if (isNaN(cost) || cost <= 0) {
-      toast({ title: "Error", description: "El costo en créditos debe ser un número mayor a 0", variant: "destructive" })
+      toast({ title: "Error", description: "El precio de la clase debe ser un número mayor a 0", variant: "destructive" })
       return
     }
     setIsLoading(true)
@@ -108,7 +110,8 @@ export default function SpecialClassesTab({
           time,
           branchId: parseInt(branchId),
           isSpecial: true,
-          specialCreditCost: cost,
+          specialPrice: cost,
+          specialMessage: createForm.specialMessage || null,
         }),
       })
       if (!response.ok) {
@@ -128,14 +131,14 @@ export default function SpecialClassesTab({
 
   const handleEdit = async () => {
     if (!selectedClass) return
-    const { classTypeId, instructorId, date, time, branchId, specialCreditCost } = editForm
-    if (!classTypeId || !instructorId || !date || !time || !branchId || !specialCreditCost) {
+    const { classTypeId, instructorId, date, time, branchId, specialPrice } = editForm
+    if (!classTypeId || !instructorId || !date || !time || !branchId || !specialPrice) {
       toast({ title: "Error", description: "Todos los campos son obligatorios", variant: "destructive" })
       return
     }
-    const cost = parseFloat(specialCreditCost)
+    const cost = parseFloat(specialPrice)
     if (isNaN(cost) || cost <= 0) {
-      toast({ title: "Error", description: "El costo en créditos debe ser un número mayor a 0", variant: "destructive" })
+      toast({ title: "Error", description: "El precio de la clase debe ser un número mayor a 0", variant: "destructive" })
       return
     }
     setIsLoading(true)
@@ -150,7 +153,8 @@ export default function SpecialClassesTab({
           time,
           branchId: parseInt(branchId),
           isSpecial: true,
-          specialCreditCost: cost,
+          specialPrice: cost,
+          specialMessage: editForm.specialMessage || null,
         }),
       })
       if (!response.ok) {
@@ -233,14 +237,25 @@ export default function SpecialClassesTab({
         </Select>
       </div>
       <div className="space-y-2">
-        <Label>Costo en Créditos Especiales</Label>
+        <Label>Precio de la Clase (MXN)</Label>
         <Input
           type="number"
           min="1"
           step="1"
           placeholder="Ej: 150"
-          value={form.specialCreditCost}
-          onChange={(e) => setForm((p) => ({ ...p, specialCreditCost: e.target.value }))}
+          value={form.specialPrice}
+          onChange={(e) => setForm((p) => ({ ...p, specialPrice: e.target.value }))}
+          className="bg-white border-gray-200 text-zinc-900"
+        />
+      </div>
+      <div className="space-y-2 md:col-span-2">
+        <Label>Mensaje para clientes <span className="text-gray-400 font-normal">(opcional)</span></Label>
+        <Input
+          type="text"
+          maxLength={255}
+          placeholder="Ej: Clase de ciclismo con DJ en vivo, cupo limitado"
+          value={form.specialMessage}
+          onChange={(e) => setForm((p) => ({ ...p, specialMessage: e.target.value }))}
           className="bg-white border-gray-200 text-zinc-900"
         />
       </div>
@@ -285,7 +300,7 @@ export default function SpecialClassesTab({
                           Especial
                         </Badge>
                         <Badge variant="outline" className="border-[#4A102A] text-[#4A102A]">
-                          {cls.specialCreditCost} créditos
+                          ${cls.specialPrice} MXN
                         </Badge>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-600">
@@ -307,6 +322,11 @@ export default function SpecialClassesTab({
                       <div className="text-sm text-gray-500">
                         Instructor: {cls.instructor.user.firstName} {cls.instructor.user.lastName}
                       </div>
+                      {cls.specialMessage && (
+                        <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                          "{cls.specialMessage}"
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2 items-start">
                       <Button variant="outline" size="sm" className="border-gray-200" onClick={() => openEdit(cls)}>

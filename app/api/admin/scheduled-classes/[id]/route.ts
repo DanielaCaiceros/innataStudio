@@ -54,6 +54,16 @@ export async function PUT(
       )
     }
 
+    if (body.isSpecial === true) {
+      const parsedPrice = parseFloat(body.specialPrice)
+      if (!body.specialPrice || isNaN(parsedPrice) || parsedPrice <= 0) {
+        return NextResponse.json({ error: "Las clases especiales requieren un precio mayor a 0" }, { status: 400 })
+      }
+      if (body.specialMessage && body.specialMessage.length > 255) {
+        return NextResponse.json({ error: "El mensaje no puede exceder 255 caracteres" }, { status: 400 })
+      }
+    }
+
     const branchIdInt = parseInt(String(body.branchId), 10)
     if (!Number.isInteger(branchIdInt) || branchIdInt <= 0 || String(branchIdInt) !== String(body.branchId).trim()) {
       return NextResponse.json({ error: "branchId debe ser un entero positivo" }, { status: 400 })
@@ -117,7 +127,8 @@ export async function PUT(
         maxCapacity: newMax,
         availableSpots: newMax - confirmedReservations,
         isSpecial: body.isSpecial === true,
-        specialCreditCost: body.isSpecial && body.specialCreditCost ? parseFloat(body.specialCreditCost) : null,
+        specialPrice: body.isSpecial && body.specialPrice ? parseFloat(body.specialPrice) : null,
+        specialMessage: body.isSpecial && body.specialMessage ? body.specialMessage : null,
       },
       include: {
         classType: true,
@@ -196,7 +207,21 @@ export async function DELETE(
       )
     }
 
-    // Eliminar la clase
+    // Obtener todos los IDs de reservaciones (incluyendo canceladas) para limpiar balance transactions
+    const allReservations = await prisma.reservation.findMany({
+      where: { scheduledClassId: parseInt(id) },
+      select: { id: true },
+    })
+    const reservationIds = allReservations.map((r) => r.id)
+
+    // Eliminar balance transactions ligadas a esas reservaciones (onDelete: NoAction)
+    if (reservationIds.length > 0) {
+      await prisma.balanceTransaction.deleteMany({
+        where: { relatedReservationId: { in: reservationIds } },
+      })
+    }
+
+    // Eliminar la clase (cascade elimina reservaciones y waitlist)
     await prisma.scheduledClass.delete({
       where: { id: parseInt(id) },
     })

@@ -85,12 +85,13 @@ export async function POST(request: NextRequest) {
     const userId = Number(payload.userId)
 
     const body = await request.json()
-    const { 
-      scheduledClassId, 
-      userPackageId, 
-      paymentId, 
+    const {
+      scheduledClassId,
+      userPackageId,
+      paymentId,
       bikeNumber,
-      useUnlimitedWeek = false // Nuevo parámetro
+      useUnlimitedWeek = false, // Nuevo parámetro
+      specialPrice,
     } = body
 
     if (!scheduledClassId) {
@@ -724,13 +725,17 @@ export async function POST(request: NextRequest) {
           data: {
             userId,
             userPackageId: null, // No se usa paquete para esta transacción específica
-            amount: new Prisma.Decimal(69.00), // Precio de clase individual
+            amount: new Prisma.Decimal(
+              (scheduledClass as any).isSpecial && (scheduledClass as any).specialPrice
+                ? Number((scheduledClass as any).specialPrice)
+                : 69.00
+            ),
             currency: "mxn",
             paymentMethod: "stripe",
             stripePaymentIntentId: paymentId,
             status: "completed",
             paymentDate: new Date(),
-            metadata: { "reservationId": reservation.id, "notes": "Single class purchase" },
+            metadata: { "reservationId": reservation.id, "notes": (scheduledClass as any).isSpecial ? "Special class purchase" : "Single class purchase" },
           }
         });
 

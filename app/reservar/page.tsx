@@ -55,6 +55,9 @@ interface ScheduledClass {
   availableSpots: number
   enrolledCount: number
   bikeNumber?: number
+  isSpecial?: boolean
+  specialPrice?: number | null
+  specialMessage?: string | null
 }
 
 export default function BookingPage() {
@@ -269,6 +272,7 @@ export default function BookingPage() {
           scheduledClassId,
           paymentId,
           bikeNumber: selectedBikeId,
+          specialPrice: selectedScheduledClassForBooking?.isSpecial ? selectedScheduledClassForBooking.specialPrice : undefined,
         }),
         credentials: 'include',
       })
@@ -331,7 +335,7 @@ export default function BookingPage() {
       } : null
     });
 
-    if (hasAnyUnlimitedPackages) { // Check if user has ANY unlimited packages
+    if (hasAnyUnlimitedPackages && !scheduledClass.isSpecial) { // Check if user has ANY unlimited packages (skip for special classes)
       console.log('🔍 [Frontend] handleClassSelect: Usuario tiene paquetes ilimitados, validando...')
       setIsCheckingUnlimitedWeek(true)
       try {
@@ -374,6 +378,12 @@ export default function BookingPage() {
   }
 
   const continueBookingFlow = async () => {
+    // Flujo para clases especiales: siempre pagar directamente
+    if (selectedScheduledClassForBooking?.isSpecial && selectedScheduledClassForBooking?.specialPrice) {
+      setIsPaymentOpen(true)
+      return
+    }
+
     // Flujo para Semana Ilimitada
     if (canUseUnlimitedForSelectedClass) {
       if (unlimitedWeekValidation?.canUseUnlimitedWeek) {
@@ -393,7 +403,6 @@ export default function BookingPage() {
     if (userAvailableClasses > 0) {
       await proceedWithBooking()
     } else {
-      // Si no tiene créditos, redirigir a la página de compra del paquete individual (ID 2)
       router.push('/paquetes/checkout?packageId=2');
     }
   }
@@ -640,7 +649,12 @@ export default function BookingPage() {
 
   // Actualizar alerta contextual según selección
   useEffect(() => {
-    if (canUseUnlimitedForSelectedClass) {
+    if (selectedScheduledClassForBooking?.isSpecial && selectedScheduledClassForBooking?.specialPrice) {
+      setBookingAlert({
+        type: 'individual',
+        message: `Esta es una clase especial. El costo es $${selectedScheduledClassForBooking.specialPrice} MXN y se cobra aparte, independientemente de tus créditos o paquetes activos.`
+      });
+    } else if (canUseUnlimitedForSelectedClass) {
       setBookingAlert({
         type: 'unlimited',
         message: 'Estás reservando con tu paquete de Semana Ilimitada. Recuerda: debes confirmar tu asistencia por WhatsApp con al menos 12 horas y media de anticipación. Solo puedes reservar clases de lunes a viernes de la semana seleccionada.'
@@ -969,6 +983,11 @@ export default function BookingPage() {
                                       }`}>
                                         {cls.classType.name}
                                       </h4>
+                                      {cls.isSpecial && cls.specialPrice && (
+                                        <span className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-semibold border border-amber-300">
+                                          Especial • ${cls.specialPrice} MXN
+                                        </span>
+                                      )}
                                       {!hasAvailability && (
                                         <span className="bg-white text-green-900 text-xs px-2 py-1 rounded-full font-semibold">
                                           SIN CUPO
@@ -1129,9 +1148,21 @@ export default function BookingPage() {
                     </div>
                   )}
 
-                  {canUseUnlimitedForSelectedClass && (
+                  {canUseUnlimitedForSelectedClass && !selectedScheduledClassForBooking?.isSpecial && (
                     <div className="text-green-600 font-semibold border-t pt-2 mt-2">
                       ✓ Estas reservando con tu paquete de Semana Ilimitada.
+                    </div>
+                  )}
+                  {selectedScheduledClassForBooking?.isSpecial && selectedScheduledClassForBooking?.specialPrice && (
+                    <div className="border-t pt-2 mt-2 space-y-1">
+                      <div className="text-amber-700 font-semibold">
+                        ★ Clase especial — Pago de ${selectedScheduledClassForBooking.specialPrice} MXN requerido
+                      </div>
+                      {selectedScheduledClassForBooking.specialMessage && (
+                        <div className="text-sm text-amber-600 italic">
+                          {selectedScheduledClassForBooking.specialMessage}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1201,6 +1232,8 @@ export default function BookingPage() {
                         </>
                       ) : isCheckingUnlimitedWeek ? (
                         <span>VALIDANDO OPCIONES...</span>
+                      ) : selectedScheduledClassForBooking?.isSpecial && selectedScheduledClassForBooking?.specialPrice ? (
+                        `PAGAR CLASE ESPECIAL $${selectedScheduledClassForBooking.specialPrice} MXN`
                       ) : canUseUnlimitedForSelectedClass ? (
                         `RESERVAR CON SEMANA ILIMITADA EN ${selectedBranch.name.toUpperCase()}`
                       ) : userAvailableClasses > 0 ? (
@@ -1304,7 +1337,13 @@ export default function BookingPage() {
           </DialogHeader>
           <div className="py-4">
             <StripeCheckout
-              amount={selectedClass && availableClasses.find(c => c.id === selectedClass)?.classType ? 69 : 0}
+              amount={
+                selectedScheduledClassForBooking?.isSpecial && selectedScheduledClassForBooking?.specialPrice
+                  ? selectedScheduledClassForBooking.specialPrice
+                  : selectedClass && availableClasses.find(c => c.id === selectedClass)?.classType
+                  ? 69
+                  : 0
+              }
               description={`Reserva: ${selectedClass ? availableClasses.find((c) => c.id === selectedClass)?.classType.name : ""} - ${
                 date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : ""
               } ${selectedTime || ""}`}
