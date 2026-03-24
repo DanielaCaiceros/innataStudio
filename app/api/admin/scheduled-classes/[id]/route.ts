@@ -116,6 +116,8 @@ export async function PUT(
         branch_id: branchIdInt,
         maxCapacity: newMax,
         availableSpots: newMax - confirmedReservations,
+        isSpecial: body.isSpecial === true,
+        specialCreditCost: body.isSpecial && body.specialCreditCost ? parseFloat(body.specialCreditCost) : null,
       },
       include: {
         classType: true,

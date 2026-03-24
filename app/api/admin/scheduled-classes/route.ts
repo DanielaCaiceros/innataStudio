@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { classTypeId, instructorId, date, time, branchId } = body
+    const { classTypeId, instructorId, date, time, branchId, isSpecial, specialCreditCost } = body
 
     if (!branchId) {
       return NextResponse.json({ error: "branchId es requerido" }, { status: 400 })
@@ -194,6 +194,8 @@ export async function POST(request: NextRequest) {
         availableSpots: resolvedCapacity,
         status: "scheduled",
         branch_id: branchIdInt,
+        isSpecial: isSpecial === true,
+        specialCreditCost: isSpecial && specialCreditCost ? parseFloat(specialCreditCost) : null,
       },
       include: {
         classType: true,
