@@ -177,12 +177,12 @@ export default function ClassesPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between bg-brand-mint/1 backdrop-blur-sm rounded-xl p-3 border border-brand-mint/40">
+                      {/* <div className="flex items-center justify-between bg-brand-mint/1 backdrop-blur-sm rounded-xl p-3 border border-brand-mint/40">
                         <div className="flex items-center gap-2 text-sm text-brand-gray">
                           <span>Capacidad:</span>
                         </div>
                         <span className="text-sm font-medium text-brand-gray">{classType.capacity} personas</span>
-                      </div>
+                      </div> */}
 
                       <div className="flex items-center justify-between bg-brand-mint/1 backdrop-blur-sm rounded-xl p-3 border border-brand-mint/40">
                         <div className="flex items-center gap-2 text-sm text-brand-gray">

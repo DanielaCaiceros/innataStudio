@@ -2,12 +2,11 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { CalendarIcon, Clock, ChevronRight, Bike } from "lucide-react"
+import { ChevronRight, Bike } from "lucide-react"
+import Image from "next/image"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { StripeCheckout } from "@/components/stripe-checkout"
 import { useToast } from "@/hooks/use-toast"
@@ -15,15 +14,15 @@ import { useAuth } from "@/lib/hooks/useAuth"
 import { useBranch } from "@/lib/hooks/useBranch"
 import { useRouter } from "next/navigation"
 import { BikeSelectionInline } from "@/components/bike-selection-inline"
-import { 
-  formatTimeFromDB, 
-  isClassOnSelectedDate, 
-  getUniqueTimeSlotsFromClasses, 
+import { WeeklyClassSelector, type WeeklyScheduledClass } from "@/components/weekly-class-selector"
+import {
+  formatTimeFromDB,
+  isClassOnSelectedDate,
+  getUniqueTimeSlotsFromClasses,
   filterClassesByDateAndTime,
   createClassDateTime
 } from "@/lib/utils/date"
 import { isBusinessDay } from "@/lib/utils/business-days"
-import { isWithinInterval } from 'date-fns'
 
 import { useUnlimitedWeek } from '@/lib/hooks/useUnlimitedWeek'
 import { 
@@ -48,6 +47,7 @@ interface ScheduledClass {
   instructor: {
     id: number
     name: string
+    profileImage?: string | null
   }
   date: string
   time: string
@@ -88,6 +88,9 @@ export default function BookingPage() {
   // Auto-activar Semana Ilimitada si el usuario tiene paquete activo
   const isUsingUnlimitedWeek = hasActiveUnlimitedWeek && Boolean(weeklyUsage)
   
+  // Refresh key para forzar recarga del selector semanal tras una reserva
+  const [weekRefreshKey, setWeekRefreshKey] = useState(0)
+
   // Estados para la reserva
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [selectedClass, setSelectedClass] = useState<number | null>(null)
@@ -495,10 +498,11 @@ export default function BookingPage() {
       setSelectedClass(null)
       setSelectedTime(null)
       setSelectedBikeId(null)
+      setSelectedScheduledClassForBooking(null)
       setCanUseUnlimitedForSelectedClass(false)
 
-      // Reload data
-      loadAvailableClasses()
+      // Refrescar selector semanal
+      setWeekRefreshKey((k) => k + 1)
 
       toast({
         title: 'Reserva confirmada',
@@ -635,7 +639,7 @@ export default function BookingPage() {
     return allClassesFull
   }
 
-  const selectedClassDetails = availableClasses.find(c => c.id === selectedClass);
+  const selectedClassDetails = selectedScheduledClassForBooking ?? undefined
   const showWhatsappAlert = isUsingUnlimitedWeek && unlimitedWeekValidation?.isValid;
 
   // Actualizar alerta contextual según selección
@@ -697,10 +701,10 @@ export default function BookingPage() {
       {/* Hero Section */}
       <section className="py-12 pt-14 bg-white">
         <div className="container px-4 md:px-6 text-center">
-          <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-4 anim-slide-in-up">
+          <h1 className="text-5xl md:text-5xl font-bold tracking-tight mb-3 anim-slide-in-up">
             RESERVA TU <span className="text-brand-cream">CLASE</span>
           </h1>
-          <p className="text-xl max-w-3xl mx-auto text-zinc-700 mb-4">
+          <p className="text-xl max-w-3xl mx-auto text-zinc-700 mb-3">
             Selecciona fecha, clase y horario para asegurar tu lugar
           </p>
           {/* Indicador de sucursal */}
@@ -711,9 +715,41 @@ export default function BookingPage() {
         </div>
       </section>
 
+      {/* Coach Legend */}
+      <section className="pb-6 bg-white">
+        <div className="container px-4 md:px-6">
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 text-center mb-4">Coaches</p>
+          <div className="flex items-center justify-center gap-4 md:gap-6 flex-wrap">
+            {[
+              { name: "Inés",   image: "/coach3.jpeg" },
+              { name: "Dani",   image: "/dani_m.jpeg" },
+              { name: "Alo",    image: "/alondra_m.jpeg" },
+              { name: "Kevin",  image: "/kevin.jpeg" },
+              { name: "Óscar",  image: "/oscar_f.jpeg" },
+              { name: "Ximena", image: "/ximena_c.jpeg" },
+              { name: "Danny",  image: "/danny_f.jpeg" },
+              { name: "Tanis",  image: "/tanis_g.jpeg" },
+            ].map((coach) => (
+              <div key={coach.name} className="flex flex-col items-center gap-1.5">
+                <div className="relative w-14 h-14 rounded-full overflow-hidden ring-2 ring-brand-cream/30 shadow-sm">
+                  <Image
+                    src={coach.image}
+                    alt={coach.name}
+                    fill
+                    className="object-cover"
+                    sizes="56px"
+                  />
+                </div>
+                <span className="text-xs font-medium text-gray-600">{coach.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Sección de Información de Semana Ilimitada */}
       {isUsingUnlimitedWeek && weeklyUsage && (
-        <section className="py-2">
+        <section className="py-1">
           <div className="container px-4 md:px-6">
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-xl p-6 shadow-sm border border-blue-200">
@@ -778,252 +814,27 @@ export default function BookingPage() {
       )}
 
       {/* Booking Section */}
-      <section className="py-16 bg-white">
+      <section className="py-1 bg-white">
         <div className="container px-4 md:px-6">
-          <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
-                <CardContent className="p-0">
-                  <div className="p-6 border-b border-gray-100 flex items-center">
-                    <CalendarIcon className="mr-2 h-5 w-5 text-brand-gray" />
-                    <h3 className="text-xl font-bold text-black">Selecciona Fecha</h3>
-                  </div>
-                  <div className="flex justify-center items-center py-6">
-                    <div className="w-full max-w-[280px]">
-                      <Calendar
-                        mode="single"
-                        selected={date}
-                        onSelect={(selectedDate) => {
-                          // Bloquear fechas pasadas o la semana especificada
-                          if (selectedDate && (isPastDate(selectedDate) || isBlockedDate(selectedDate))) {
-                            return // No permitir selección
-                          }
-                          setDate(selectedDate)
-                          setHasUserInteracted(true)
-                        }}
-                        locale={es}
-                        className="bg-white text-zinc-900 w-full rounded-lg"
-                        classNames={{
-                          day_selected: "bg-brand-mint text-white rounded-lg",
-                          day_today: "bg-gray-100 text-zinc-900 rounded-lg",
-                          day: "text-zinc-900 hover:bg-gray-100 rounded-lg relative",
-                        }}
-                        modifiers={{
-                          past: isPastDate,
-                          full: hasClassesButAllFull,
-                          unlimited: unlimitedWeekDays,
-                          blocked: isBlockedDate, // Added modifier for blocked dates
-                        }}
-                        modifiersClassNames={{
-                          past: 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50',
-                          full: 'bg-red-200 text-red-800 font-bold cursor-pointer border border-red-300 hover:bg-red-300',
-                          unlimited: 'bg-blue-100 border-2 border-blue-300 rounded-lg',
-                          blocked: 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50', // Added style for blocked dates
-                        }}
-                        disabled={(date) => isPastDate(date) || isBlockedDate(date)} // Updated disabled prop
-                      />
-                      
-                      {/* Leyenda del calendario */}
-                      <div className="mt-2 text-xs text-gray-500 px-2">
-                        <ul className="flex flex-wrap gap-x-4 gap-y-1">
-                          <li className="flex items-center">
-                            <span className="w-2.5 h-2.5 rounded-full bg-red-200 mr-1.5"></span>
-                            Lleno
-                          </li>
-                          <li className="flex items-center">
-                            <span className="w-2.5 h-2.5 rounded-full bg-gray-300 opacity-50 mr-1.5"></span>
-                            Pasado
-                          </li>
-                          <li className="flex items-center">
-                            <span className="w-2.5 h-2.5 rounded-full bg-blue-100 border border-blue-300 mr-1.5"></span>
-                            Tu Semana Ilimitada
-                          </li>
-                        </ul>
-                        <p className="mt-2 text-brand-sage-dark">
-                          Semana ilimitada: Válida solo de lunes a viernes.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+          <div className="space-y-6">
+            {/* ── Weekly class selector ── */}
+            <Card className="bg-white border-gray-100 rounded-3xl shadow-sm overflow-hidden">
+              <CardContent className="p-4 md:p-6">
+                <WeeklyClassSelector
+                  branchId={selectedBranch.id}
+                  selectedClassId={selectedClass}
+                  onSelectClass={(cls: WeeklyScheduledClass) => {
+                    setHasUserInteracted(true)
+                    handleClassSelection(cls as unknown as ScheduledClass)
+                  }}
+                  refreshKey={weekRefreshKey}
+                />
+              </CardContent>
+            </Card>
 
-              <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
-                <CardContent className="p-0">
-                  <div className="p-6 border-b border-gray-100 flex items-center">
-                    <Clock className="mr-2 h-5 w-5 text-brand-gray" />
-                    <h3 className="text-xl font-bold text-brand-sage-dark">Selecciona Horario</h3>
-                  </div>
-                  
-                  {/* Leyenda de disponibilidad */}
-                  
-                  <div className="p-4 grid grid-cols-3 gap-2">
-                    {isLoading ? (
-                      <div className="col-span-3 text-center py-8 text-gray-500">Cargando horarios...</div>
-                    ) : getTimeSlotsForSelectedDate().length > 0 ? (
-                      getTimeSlotsForSelectedDate().map((timeSlot) => {
-                        const isSelected = selectedTime === timeSlot.time
-                        const hasAvailability = timeSlot.hasAvailability
-                        
-                        return (
-                          <Button
-                            key={timeSlot.time}
-                            variant={isSelected ? "default" : "outline"}
-                            disabled={!hasAvailability}
-                            className={`rounded-full relative ${
-                              isSelected
-                                ? "bg-brand-gray hover:bg-brand-gray/90 text-white"
-                                : hasAvailability
-                                ? "border-brand-gray text-brand-gray hover:bg-gray-50"
-                                : "border-gray-300 text-gray-400 bg-gray-50 cursor-not-allowed"
-                            } ${!hasAvailability ? "opacity-60" : ""}`}
-                            onClick={() => {
-                              if (hasAvailability) {
-                                setSelectedTime(timeSlot.time);
-                                setSelectedClass(null);
-                                setHasUserInteracted(true)
-                              }
-                            }}
-                          >
-                            <span className={!hasAvailability ? "line-through" : ""}>
-                              {timeSlot.time}
-                            </span>
-                            {!hasAvailability && (
-                              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                                ✕
-                              </span>
-                            )}
-                          </Button>
-                        )
-                      })
-                    ) : (
-                      <div className="col-span-3 text-center py-8">
-                        <div className="text-gray-500 mb-2">
-                          {date && isPastDate(date) 
-                            ? "Esta fecha ya pasó - Selecciona una fecha desde hoy en adelante"
-                            : date && hasClassesButAllFull(date)
-                            ? "¡Ups! Todas las clases están llenas para esta fecha"
-                            : "No hay clases disponibles para la fecha seleccionada"
-                          }
-                        </div>
-                        {date && !isPastDate(date) && (
-                          <div className="text-sm text-gray-400">
-                            {availableClasses.filter(cls => isClassOnSelectedDate(cls.date, date)).length > 0 
-                              ? hasClassesButAllFull(date)
-                                ? "Todas las clases de este día están llenas - Sin cupos disponibles"
-                                : "Algunas clases están llenas o ya pasó el tiempo de reserva"
-                              : "No hay clases programadas para este día"
-                            }
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
-                <CardContent className="p-0">
-                  <div className="p-6 border-b border-gray-100 flex items-center">
-                    <Clock className="mr-2 h-5 w-5 text-brand-gray" />
-                    <h3 className="text-xl font-bold text-black">Selecciona Clase</h3>
-                  </div>
-                  <div className="p-4 space-y-2">
-                    {isLoading ? (
-                      <div className="text-center py-8 text-gray-500">Cargando clases...</div>
-                    ) : selectedTime ? (
-                      <div className="space-y-4">
-                        {getClassesForSelectedTime(selectedTime).map((cls) => {
-                          const hasAvailability = cls.availableSpots > 0
-                          const isReservable = isClassReservable(cls)
-                          const canReserve = hasAvailability && isReservable
-                          
-                          return (
-                            <Card 
-                              key={cls.id} 
-                              className={`transition-all ${
-                                selectedClass === cls.id 
-                                  ? 'ring-2 ring-[#4A102A] bg-gray-50' 
-                                  : canReserve 
-                                  ? 'hover:shadow-md cursor-pointer' 
-                                  : !hasAvailability 
-                                  ? 'cursor-not-allowed bg-green-900 border-green-700' // Color verde oscuro para sin cupo
-                                  : 'opacity-60 cursor-not-allowed bg-gray-100'
-                              }`}
-                              onClick={() => {
-                                if (!canReserve) return
-                                setHasUserInteracted(true)
-                                handleClassSelection(cls)
-                              }}
-                            >
-                              <CardContent className="p-4">
-                                <div className="flex justify-between items-center">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <h4 className={`font-medium ${
-                                        !hasAvailability 
-                                          ? 'text-white' // Texto blanco para contraste con verde oscuro
-                                          : !canReserve 
-                                          ? 'text-gray-500 line-through' 
-                                          : ''
-                                      }`}>
-                                        {cls.classType.name}
-                                      </h4>
-                                      {!hasAvailability && (
-                                        <span className="bg-white text-green-900 text-xs px-2 py-1 rounded-full font-semibold">
-                                          SIN CUPO
-                                        </span>
-                                      )}
-                                      {hasAvailability && !isReservable && (
-                                        <span className="bg-gray-500 text-white text-xs px-2 py-1 rounded-full">
-                                          TIEMPO AGOTADO
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className={`text-sm ${
-                                      !hasAvailability 
-                                        ? 'text-green-100' // Texto claro para el instructor en clases sin cupo
-                                        : !canReserve 
-                                        ? 'text-gray-400' 
-                                        : 'text-gray-500'
-                                    }`}>
-                                      {cls.instructor.name}
-                                    </p>
-                                    <p className={`text-xs mt-1 ${
-                                      !hasAvailability 
-                                        ? 'text-green-200 font-medium' // Texto claro para la descripción en clases sin cupo
-                                        : !isReservable
-                                        ? 'text-gray-500'
-                                        : 'text-green-600'
-                                    }`}>
-                                      {!hasAvailability 
-                                        ? 'Clase llena - Sin cupos disponibles'
-                                        : !isReservable
-                                        ? 'Reservas cerradas (Ya terminó o faltan menos de 1 minuto para su inicio)'
-                                        : `Aún hay espacios disponibles`
-                                      }
-                                    </p>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className={`text-sm ${!canReserve ? 'text-gray-400' : 'text-gray-500'}`}>
-                                      {cls.classType.duration} min
-                                    </span>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        Selecciona un horario para ver las clases disponibles
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
+            {/* ── Bike + Summary row ── */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Bike selection */}
               <Card className="bg-white border-gray-100 rounded-3xl shadow-sm">
                 <CardContent className="p-0">
                   <div className="p-6 border-b border-gray-100 flex items-center">
@@ -1037,17 +848,18 @@ export default function BookingPage() {
                         selectedBikeId={selectedBikeId}
                         onBikeSelected={(bikeId) => {
                           setHasUserInteracted(true)
-                          setSelectedBikeId(bikeId)
+                          handleBikeSelection(bikeId)
                         }}
                       />
                     ) : (
-                      <div className="text-center py-8 text-gray-500">
+                      <div className="text-center py-10 text-gray-400 text-sm">
                         Selecciona una clase para ver las bicicletas disponibles
                       </div>
                     )}
                   </div>
                 </CardContent>
               </Card>
+
             </div>
 
             <Card className="bg-brand-yellow/10 border-none rounded-3xl shadow-sm">
@@ -1058,41 +870,39 @@ export default function BookingPage() {
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Fecha:</span>
                     <span className="font-medium text-black">
-                      {date ? format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : "No seleccionada"}
+                      {selectedClassDetails
+                        ? format(new Date(selectedClassDetails.date.slice(0, 10) + "T12:00:00"), "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })
+                        : "No seleccionada"}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Horario:</span>
                     <span className="font-medium text-black">
-                      {selectedTime ? `${selectedTime} hrs` : "No seleccionado"}
+                      {selectedClassDetails
+                        ? `${formatTimeFromDB(selectedClassDetails.time)} hrs`
+                        : "No seleccionado"}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Clase:</span>
                     <span className="font-medium text-black">
-                      {selectedClass 
-                        ? availableClasses.find(c => c.id === selectedClass)?.classType.name 
-                        : "No seleccionada"
-                      }
+                      {selectedClassDetails?.classType.name ?? "No seleccionada"}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Instructor:</span>
                     <span className="font-medium text-brand-burgundy">
-                      {selectedClass 
-                        ? availableClasses.find(c => c.id === selectedClass)?.instructor.name
-                        : "No seleccionado"
-                      }
+                      {selectedClassDetails?.instructor.name ?? "No seleccionado"}
                     </span>
                   </div>
-                  
+
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Duración:</span>
                     <span className="font-medium text-brand-burgundy">
-                      {selectedClass ? `${availableClasses.find((c) => c.id === selectedClass)?.classType.duration} minutos` : ""}
+                      {selectedClassDetails ? `${selectedClassDetails.classType.duration} minutos` : ""}
                     </span>
                   </div>
                   
@@ -1108,10 +918,7 @@ export default function BookingPage() {
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
                     <span className="text-zinc-700">Cupo disponible:</span>
                     <span className="font-medium text-brand-burgundy">
-                      {selectedClass 
-                        ? `${availableClasses.find(c => c.id === selectedClass)?.availableSpots} lugares`
-                        : "N/A"
-                      }
+                      {selectedClassDetails ? `${selectedClassDetails.availableSpots} lugares` : "N/A"}
                     </span>
                   </div>
                   

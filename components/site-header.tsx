@@ -177,7 +177,7 @@ export function SiteHeader() {
                     </Button>
                   </>
                 ) : (
-                  <Button asChild className="mt-4 bg-brand-sage hover:bg-brand-gray text-white rounded-full">
+                  <Button asChild className="mt-4 bg-brand-gray hover:bg-brand-gray/90 text-white rounded-full">
                     <Link href="/login" className="flex items-center gap-1" onClick={() => setIsMenuOpen(false)}>
                       Iniciar Sesión <ChevronRight className="h-4 w-4" />
                     </Link>
