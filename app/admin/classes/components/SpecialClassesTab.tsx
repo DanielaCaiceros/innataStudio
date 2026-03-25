@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import type { Dispatch, SetStateAction } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -192,7 +193,7 @@ export default function SpecialClassesTab({
 
   const classFormFields = (
     form: typeof createForm,
-    setForm: React.Dispatch<React.SetStateAction<typeof createForm>>
+    setForm: Dispatch<SetStateAction<typeof createForm>>
   ) => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className="space-y-2">
