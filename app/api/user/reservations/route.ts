@@ -113,7 +113,9 @@ export async function GET(request: NextRequest) {
         intensity: res.scheduledClass.classType.intensity || "",
         capacity: res.scheduledClass.maxCapacity || 0,
         description: res.scheduledClass.classType.description || "",
-        bikeNumber: res.bikeNumber ?? null
+        bikeNumber: res.bikeNumber ?? null,
+        isSpecial: res.scheduledClass.isSpecial ?? false,
+        specialPrice: res.scheduledClass.specialPrice ?? null
       }
     })
 

@@ -123,9 +123,11 @@ export async function POST(
 
     console.log(`[CANCEL_RESERVATION] Reservation ID: ${reservationId}, Package ID: ${reservation.userPackage?.package?.id}, Package Name: "${reservation.userPackage?.package?.name}", isPackageIdUnlimited: ${isPackageIdUnlimited}, isPackageNameUnlimited: ${isPackageNameUnlimited}, Determined isUnlimitedWeek: ${isUnlimitedWeek}`);
     
-    // For Semana Ilimitada: no refund regardless of cancellation time
-    // For normal packages: refund only if cancelled with more than 12 hours notice
-    const canRefund = !isUnlimitedWeek && hoursUntilClass >= 12;
+    // Special classes: no refund ever (policy: cancellable but no monetary/credit refund)
+    // Semana Ilimitada: no refund regardless of cancellation time
+    // Normal packages: refund only if cancelled with more than 12 hours notice
+    const isSpecialClass = reservation.scheduledClass.isSpecial === true
+    const canRefund = !isSpecialClass && !isUnlimitedWeek && hoursUntilClass >= 12;
     console.log(`[CANCEL_RESERVATION] Reservation ID: ${reservationId}, Determined canRefund: ${canRefund} (isUnlimitedWeek: ${isUnlimitedWeek}, hoursUntilClass: ${hoursUntilClass})`);
 
     // Obtener datos de la solicitud
@@ -251,10 +253,15 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: isUnlimitedWeek 
-        ? "Reservación cancelada. Para Semana Ilimitada no hay reposición de clase." 
-        : "Reservación cancelada correctamente",
+      message: isSpecialClass
+        ? "Reservación cancelada. Las clases especiales no generan reembolso."
+        : isUnlimitedWeek
+        ? "Reservación cancelada. Para Semana Ilimitada no hay reposición de clase."
+        : canRefund
+        ? "Reservación cancelada. Tu clase ha sido devuelta a tu paquete."
+        : "Reservación cancelada. Por política de cancelación tardía no hay reembolso.",
       refunded: canRefund,
+      isSpecialClass,
       isUnlimitedWeek: isUnlimitedWeek,
       // Optionally, return details from updatedReservationDetails if needed by client
       reservationId: updatedReservationDetails.id, 

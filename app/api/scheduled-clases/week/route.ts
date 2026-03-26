@@ -89,6 +89,9 @@ export async function GET(request: NextRequest) {
       maxCapacity: cls.maxCapacity,
       availableSpots: cls.availableSpots,
       enrolledCount: cls.reservations.length,
+      isSpecial: cls.isSpecial,
+      specialPrice: cls.specialPrice ? Number(cls.specialPrice) : null,
+      specialMessage: cls.specialMessage ?? null,
     }))
 
     return NextResponse.json(formatted)

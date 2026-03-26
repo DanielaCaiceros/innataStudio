@@ -22,6 +22,9 @@ export interface Instructor {
 export interface ScheduledClass {
   id: number;
   branch_id?: number | null;
+  isSpecial?: boolean | null;
+  specialPrice?: number | null;
+  specialMessage?: string | null;
   branches?: {
     id: number;
     name: string;

@@ -29,6 +29,7 @@ import { ClassType, Instructor, ScheduledClass, timeSlots, convertUtcToLocalDate
 import ClassTypesTab from "./components/ClassTypesTab";
 import WeeklyScheduleTab from "./components/WeeklyScheduleTab";
 import CalendarViewTab from "./components/CalendarViewTab";
+import SpecialClassesTab from "./components/SpecialClassesTab";
 import { AdminBranchFilter } from "@/components/admin/AdminBranchFilter";
 import { getBranchBikeCapacity } from "@/lib/config/branch-bike-layouts";
 
@@ -59,9 +60,9 @@ export default function ClassesPage() {
 
   // Estados para horarios
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date()) // Keep for week navigation passed to WeeklyScheduleTab and potentially CalendarViewTab
-  const [date, setDate] = useState<Date | undefined>(new Date()) 
-  const [scheduledClasses, setScheduledClasses] = useState<ScheduledClass[]>([]) 
-  const [instructors, setInstructors] = useState<Instructor[]>([]) 
+  const [date, setDate] = useState<Date | undefined>(new Date())
+  const [scheduledClasses, setScheduledClasses] = useState<ScheduledClass[]>([])
+  const [instructors, setInstructors] = useState<Instructor[]>([])
   const [isLoading, setIsLoading] = useState(false) 
 
   // States lifted back from WeeklyScheduleTab
@@ -300,7 +301,7 @@ export default function ClassesPage() {
       </div>
 
       <Tabs defaultValue="class-types" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8 bg-gray-100">
+        <TabsList className="grid w-full grid-cols-4 mb-8 bg-gray-100">
           <TabsTrigger
             value="class-types"
             className="text-lg data-[state=active]:bg-[#4A102A] data-[state=active]:text-white"
@@ -318,6 +319,12 @@ export default function ClassesPage() {
             className="text-lg data-[state=active]:bg-[#4A102A] data-[state=active]:text-white"
           >
             Gestión de Clases
+          </TabsTrigger>
+          <TabsTrigger
+            value="special-classes"
+            className="text-lg data-[state=active]:bg-[#4A102A] data-[state=active]:text-white"
+          >
+            Clases Especiales
           </TabsTrigger>
         </TabsList>
 
@@ -359,6 +366,16 @@ export default function ClassesPage() {
             onDeleteSchedule={handleDeleteSchedule}
             classTypes={classTypes}
             instructors={instructors}
+          />
+        </TabsContent>
+
+        {/* TAB 4: CLASES ESPECIALES */}
+        <TabsContent value="special-classes">
+          <SpecialClassesTab
+            classTypes={classTypes}
+            instructors={instructors}
+            selectedBranchId={selectedBranchId}
+            selectedWeek={selectedWeek}
           />
         </TabsContent>
       </Tabs>

@@ -24,6 +24,9 @@ export interface WeeklyScheduledClass {
   maxCapacity: number
   availableSpots: number
   enrolledCount: number
+  isSpecial?: boolean
+  specialPrice?: number | null
+  specialMessage?: string | null
 }
 
 interface WeeklyClassSelectorProps {
@@ -337,14 +340,19 @@ interface ClassCardProps {
 
 function ClassCard({ cls, isSelected, isDisabled, onClick, compact = false }: ClassCardProps) {
   const isFull = cls.availableSpots === 0
+  const isSpecial = cls.isSpecial === true
 
   const containerClass = [
     "w-full text-left rounded-xl transition-all duration-150 group",
     compact ? "p-2" : "p-3.5",
     isSelected
-      ? "bg-brand-cream shadow-md ring-2 ring-brand-cream/30"
+      ? isSpecial
+        ? "bg-amber-500 shadow-md ring-2 ring-amber-400/30"
+        : "bg-brand-cream shadow-md ring-2 ring-brand-cream/30"
       : isDisabled
       ? "bg-gray-100/80 cursor-not-allowed opacity-70"
+      : isSpecial
+      ? "bg-amber-50 border border-amber-300 hover:border-amber-400 hover:shadow-sm cursor-pointer active:scale-[0.98]"
       : "bg-white border border-gray-200 hover:border-brand-cream/40 hover:shadow-sm cursor-pointer active:scale-[0.98]",
   ].join(" ")
 
@@ -354,13 +362,20 @@ function ClassCard({ cls, isSelected, isDisabled, onClick, compact = false }: Cl
       disabled={isDisabled}
       className={containerClass}
     >
+      {/* Special badge */}
+      {isSpecial && cls.specialPrice && (
+        <div className={`mb-1.5 inline-flex items-center rounded-full px-2 py-0.5 ${compact ? "text-[9px]" : "text-xs"} font-bold ${isSelected ? "bg-white/20 text-white" : "bg-amber-200 text-amber-800"}`}>
+          ⭐ ${cls.specialPrice} MXN
+        </div>
+      )}
+
       {/* Coach row */}
       <div className="flex items-center gap-2 mb-1.5">
         <div className="min-w-0 flex-1">
           <p
             className={`font-bold leading-tight truncate ${
               compact ? "text-xs" : "text-sm"
-            } ${isSelected ? "text-white" : isDisabled ? "text-gray-400" : "text-brand-cream"}`}
+            } ${isSelected ? "text-white" : isDisabled ? "text-gray-400" : isSpecial ? "text-amber-800" : "text-brand-cream"}`}
           >
             {cls.classType.name}
           </p>
