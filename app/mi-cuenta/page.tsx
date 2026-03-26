@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Calendar, Clock, LogOut, Target, ChevronRight, User, Package, Bike, MapPin } from "lucide-react"
+import { Calendar, Clock, LogOut, Target, ChevronRight, User, Package, Bike, MapPin, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -52,6 +52,8 @@ interface UserReservation {
   description?: string
   bikeNumber?: number | null
   cancelledAt?: string
+  isSpecial?: boolean
+  specialPrice?: number | null
 }
 
 interface UserProfile {
@@ -833,8 +835,23 @@ export default function ProfilePage() {
                     {selectedClass.time} • {selectedClass.duration}
                   </span>
                 </div>
-                {/* Mensaje especial para Semana Ilimitada */}
-                {selectedClass.package === 'SEMANA ILIMITADA' ? (() => {
+                {/* Mensaje especial para Clases Especiales */}
+                {selectedClass.isSpecial ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-4">
+                    <div className="flex items-start gap-2">
+                      <Star className="h-4 w-4 text-amber-600 mt-0.5 shrink-0 fill-amber-600" />
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-amber-800">
+                          Clase Especial{selectedClass.specialPrice ? ` · $${selectedClass.specialPrice} MXN` : ""}
+                        </p>
+                        <p className="text-sm text-amber-700">
+                          Puedes cancelar esta clase, pero el pago <strong>no es reembolsable</strong>. Esta política aplica sin importar cuándo canceles.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : /* Mensaje especial para Semana Ilimitada */
+                selectedClass.package === 'SEMANA ILIMITADA' ? (() => {
                   const classDateTime = new Date(`${selectedClass.date}T${selectedClass.time}:00`)
                   const now = new Date()
                   const diffMs = classDateTime.getTime() - now.getTime()

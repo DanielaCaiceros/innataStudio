@@ -60,9 +60,9 @@ export default function ClassesPage() {
 
   // Estados para horarios
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date()) // Keep for week navigation passed to WeeklyScheduleTab and potentially CalendarViewTab
-  const [date, setDate] = useState<Date | undefined>(new Date()) 
-  const [scheduledClasses, setScheduledClasses] = useState<ScheduledClass[]>([]) 
-  const [instructors, setInstructors] = useState<Instructor[]>([]) 
+  const [date, setDate] = useState<Date | undefined>(new Date())
+  const [scheduledClasses, setScheduledClasses] = useState<ScheduledClass[]>([])
+  const [instructors, setInstructors] = useState<Instructor[]>([])
   const [isLoading, setIsLoading] = useState(false) 
 
   // States lifted back from WeeklyScheduleTab
@@ -374,9 +374,8 @@ export default function ClassesPage() {
           <SpecialClassesTab
             classTypes={classTypes}
             instructors={instructors}
-            specialClasses={scheduledClasses.filter((c) => c.isSpecial === true)}
             selectedBranchId={selectedBranchId}
-            onReload={loadScheduledClasses}
+            selectedWeek={selectedWeek}
           />
         </TabsContent>
       </Tabs>

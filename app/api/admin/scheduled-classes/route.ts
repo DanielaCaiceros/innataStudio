@@ -27,19 +27,23 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
     const branchId = searchParams.get("branchId")
+    const isSpecialParam = searchParams.get("isSpecial")
 
     const whereClause: any = {};
-    if (startDate && endDate) {
-      whereClause.date = {
-        gte: new Date(startDate + "T00:00:00.000Z"),
-        lte: new Date(endDate + "T23:59:59.999Z"),
-      };
+    if (startDate || endDate) {
+      const dateFilter: any = {}
+      if (startDate) dateFilter.gte = new Date(startDate + "T00:00:00.000Z")
+      if (endDate) dateFilter.lte = new Date(endDate + "T23:59:59.999Z")
+      whereClause.date = dateFilter
     }
     if (branchId) {
       const branchIdInt = parseInt(branchId, 10);
       if (!isNaN(branchIdInt)) {
         whereClause.branch_id = branchIdInt;
       }
+    }
+    if (isSpecialParam === "true") {
+      whereClause.isSpecial = true;
     }
 
     const scheduledClassesRaw = await prisma.scheduledClass.findMany({
@@ -136,10 +140,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "branchId es requerido" }, { status: 400 })
     }
 
+    const STRIPE_MIN_MXN = 10
     if (isSpecial === true) {
       const parsedPrice = parseFloat(specialPrice)
-      if (!specialPrice || isNaN(parsedPrice) || parsedPrice <= 0) {
-        return NextResponse.json({ error: "Las clases especiales requieren un precio mayor a 0" }, { status: 400 })
+      if (!specialPrice || isNaN(parsedPrice) || parsedPrice < STRIPE_MIN_MXN) {
+        return NextResponse.json({ error: `El precio mínimo para clases especiales es $${STRIPE_MIN_MXN} MXN (mínimo aceptado por Stripe)` }, { status: 400 })
       }
       if (specialMessage && specialMessage.length > 255) {
         return NextResponse.json({ error: "El mensaje no puede exceder 255 caracteres" }, { status: 400 })

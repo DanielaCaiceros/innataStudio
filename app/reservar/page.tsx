@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { ChevronRight, Bike } from "lucide-react"
+import { ChevronRight, Bike, Star, Lock } from "lucide-react"
 import Image from "next/image"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { StripeCheckout } from "@/components/stripe-checkout"
@@ -904,14 +904,56 @@ export default function BookingPage() {
 
       {/* Payment Dialog */}
       <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
-        <DialogContent className="bg-white border-gray-200 text-zinc-900">
+        <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-[#4A102A]">Procesar Pago</DialogTitle>
+            <DialogTitle className="text-[#4A102A]">Confirmar pago</DialogTitle>
             <DialogDescription className="text-gray-600">
-              Completa el pago para confirmar tu reserva
+              Revisa el resumen y completa tu pago de forma segura
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-2 space-y-4">
+            {/* Resumen de la clase */}
+            {selectedScheduledClassForBooking && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Star className="h-4 w-4 text-amber-600 fill-amber-600" />
+                  <span className="font-semibold text-[#4A102A]">
+                    Clase Especial: {selectedScheduledClassForBooking.classType.name}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-y-1 text-sm">
+                  <span className="text-gray-500">Fecha</span>
+                  <span className="font-medium text-right capitalize">
+                    {format(new Date(selectedScheduledClassForBooking.date.slice(0, 10) + "T12:00:00"), "EEEE d 'de' MMMM", { locale: es })}
+                  </span>
+                  <span className="text-gray-500">Hora</span>
+                  <span className="font-medium text-right">{formatTimeFromDB(selectedScheduledClassForBooking.time)} hrs</span>
+                  {selectedBikeId && (
+                    <>
+                      <span className="text-gray-500">Bicicleta</span>
+                      <span className="font-medium text-right">#{selectedBikeId}</span>
+                    </>
+                  )}
+                  <span className="text-gray-500 pt-2 border-t border-amber-200 mt-1">Total a pagar</span>
+                  <span className="font-bold text-[#4A102A] text-right pt-2 border-t border-amber-200 mt-1">
+                    ${selectedScheduledClassForBooking.specialPrice} MXN
+                  </span>
+                </div>
+                {selectedScheduledClassForBooking.specialMessage && (
+                  <p className="text-xs text-amber-700 italic border-t border-amber-200 pt-2">
+                    "{selectedScheduledClassForBooking.specialMessage}"
+                  </p>
+                )}
+                {/* Política de cancelación */}
+                <div className="flex items-start gap-2 border-t border-amber-200 pt-3 mt-1">
+                  <Lock className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
+                  <p className="text-xs text-amber-700">
+                    <span className="font-semibold">Política de cancelación:</span> Las clases especiales se pueden cancelar, pero el pago <span className="font-semibold">no es reembolsable</span>.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <StripeCheckout
               amount={selectedScheduledClassForBooking?.isSpecial && selectedScheduledClassForBooking?.specialPrice
                 ? selectedScheduledClassForBooking.specialPrice
@@ -923,6 +965,9 @@ export default function BookingPage() {
               }
               onSuccess={handlePaymentSuccess}
               onCancel={handlePaymentCancel}
+              email={user?.email}
+              firstName={user?.firstName}
+              lastName={user?.lastName}
             />
           </div>
         </DialogContent>

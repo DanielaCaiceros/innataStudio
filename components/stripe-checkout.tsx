@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CardElement, Elements, useStripe, useElements } from "@stripe/react-stripe-js"
 import { stripePromise } from "@/lib/stripe"
-import { Loader2, CheckCircle } from "lucide-react"
+import { Loader2, CheckCircle, Lock } from "lucide-react"
 
 interface CheckoutFormProps {
   amount: number
@@ -110,13 +110,11 @@ function CheckoutForm({
   }
 
   return (
-    <div className="max-w-md mx-auto">
-      <h2 className="text-2xl font-semibold text-gray-900 mb-8">Pago con Tarjeta</h2>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <div>
+      <form onSubmit={handleSubmit} className="space-y-4">
         {/* Email */}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
             Email
           </label>
           <Input
@@ -124,50 +122,46 @@ function CheckoutForm({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full border-gray-300 rounded-md"
             required
           />
         </div>
 
         {/* Card Information */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Número de tarjeta</label>
-          <div className="border border-gray-300 rounded-md">
-            <div className="px-3 py-3 border-b border-gray-300">
-              <CardElement
-                options={{
-                  style: {
-                    base: {
-                      fontSize: "16px",
-                      color: "#1f2937",
-                      fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                      "::placeholder": {
-                        color: "#9ca3af",
-                      },
-                      iconColor: "#6b7280",
-                    },
-                    invalid: {
-                      color: "#ef4444",
-                      iconColor: "#ef4444",
-                    },
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Datos de tarjeta</label>
+          <div className="border border-gray-300 rounded-md px-3 py-3">
+            <CardElement
+              options={{
+                style: {
+                  base: {
+                    fontSize: "16px",
+                    color: "#1f2937",
+                    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    "::placeholder": { color: "#9ca3af" },
+                    iconColor: "#6b7280",
                   },
-                  hidePostalCode: false,
-                }}
-              />
-            </div>
+                  invalid: {
+                    color: "#ef4444",
+                    iconColor: "#ef4444",
+                  },
+                },
+                hidePostalCode: true,
+              }}
+            />
           </div>
         </div>
 
         {/* Name on card */}
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-            Nombre
+          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1.5">
+            Nombre en la tarjeta
           </label>
           <Input
             id="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full border-gray-300 rounded-md"
             required
           />
         </div>
@@ -175,31 +169,47 @@ function CheckoutForm({
         {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-md p-3">
-            <div className="text-sm text-red-800">{error}</div>
+            <p className="text-sm text-red-800">{error}</p>
           </div>
         )}
 
+        {/* Security badge */}
+        <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400 py-1">
+          <Lock className="h-3 w-3" />
+          Pago seguro con Stripe. Tus datos están cifrados.
+        </div>
 
-        {/* Pay Button */}
-        <Button
-          type="submit"
-          disabled={!stripe || processing || submitted}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-4 px-4 rounded-md text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {submitted ? (
-            <div className="flex items-center justify-center">
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Pago procesado
-            </div>
-          ) : processing ? (
-            <div className="flex items-center justify-center">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Procesando pago...
-            </div>
-          ) : (
-            "Pagar"
-          )}
-        </Button>
+        {/* Actions */}
+        <div className="flex gap-3 pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={processing || submitted}
+            className="flex-1 border-gray-200 text-gray-600"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            disabled={!stripe || processing || submitted}
+            className="flex-[2] bg-[#4A102A] hover:bg-[#85193C] text-white font-medium"
+          >
+            {submitted ? (
+              <span className="flex items-center justify-center gap-2">
+                <CheckCircle className="h-4 w-4" />
+                Pago procesado
+              </span>
+            ) : processing ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Procesando...
+              </span>
+            ) : (
+              `Pagar $${totalAmount} MXN`
+            )}
+          </Button>
+        </div>
       </form>
     </div>
   )
