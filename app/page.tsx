@@ -230,10 +230,6 @@ export default function Home() {
               <Shield className="h-5 w-5 text-brand-gray mr-2 mt-0.5 flex-shrink-0" />
               <span>Si cancelas a tiempo: <strong>sin penalización, pero sin reposición</strong></span>
             </li>
-            <li className="flex items-start">
-              <Shield className="h-5 w-5 text-brand-gray mr-2 mt-0.5 flex-shrink-0" />
-              <span>Confirma por WhatsApp con <strong>mínimo 12h de anticipación</strong></span>
-            </li>
           </ul>
         </CardContent>
       </Card>

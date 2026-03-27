@@ -142,6 +142,9 @@ export async function GET(request: NextRequest) {
               address: scheduledClass.branches.address,
             }
           : null,
+        isSpecial: scheduledClass.isSpecial ?? false,
+        specialPrice: scheduledClass.specialPrice ? Number(scheduledClass.specialPrice) : null,
+        specialMessage: scheduledClass.specialMessage ?? null,
       }
       
       console.log(`🔄 Clase formateada:`, {

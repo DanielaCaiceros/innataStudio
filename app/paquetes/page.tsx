@@ -303,8 +303,7 @@ export default function PackagesPage() {
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-black">¿Cuánto tiempo duran las clases?</h3>
               <p className="text-zinc-600">
-                Nuestras clases tienen duraciones de 45.
-              </p>
+Nuestras clases tienen duraciones de 45 y 60 minutos              </p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
@@ -331,8 +330,7 @@ export default function PackagesPage() {
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
               <h3 className="text-xl font-bold text-black">¿Los paquetes tienen fecha de expiración?</h3>
               <p className="text-zinc-600">
-                Sí, todos nuestros paquetes tienen una validez de 30 días desde la compra.
-              </p>
+Sí, algunos paquetes tienen validez de 30 días y otros 60 días desde la compra              </p>
             </div>
 
             <div className="space-y-2 bg-white p-6 rounded-3xl shadow-sm">
