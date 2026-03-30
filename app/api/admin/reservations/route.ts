@@ -344,7 +344,7 @@ export async function POST(request: NextRequest) {
         where: {
           scheduledClassId: scheduledClass.id,
           bikeNumber: parsedBikeNumber,
-          status: { notIn: ["cancelled"] },
+          status: { in: ["confirmed", "attended"] },
         }
       });
       if (bikeConflict) {

@@ -40,11 +40,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Obtener todas las reservas activas para esta clase (confirmed + attended)
+    // Obtener reservas que ocupan bici: confirmed y attended
     const reservations = await prisma.reservation.findMany({
       where: {
         scheduledClassId: Number(scheduledClassId),
-        status: { notIn: ["cancelled"] }
+        status: { in: ["confirmed", "attended"] }
       },
       select: {
         bikeNumber: true,
