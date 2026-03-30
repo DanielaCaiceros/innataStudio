@@ -66,9 +66,9 @@ export async function GET(request: NextRequest) {
             }
           }
         },
-        reservations: { // Include confirmed reservations to calculate spots
+        reservations: { // Include active reservations to calculate spots
           where: {
-            status: "confirmed"
+            status: { notIn: ["cancelled"] }
           }
         }
       },

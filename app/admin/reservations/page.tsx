@@ -109,6 +109,7 @@ export default function ReservationsPage() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("pending")
   const [selectedBike, setSelectedBike] = useState<number | null>(null)
   const [selectedUserPackageId, setSelectedUserPackageId] = useState<string>("")
+  const [reservationLabel, setReservationLabel] = useState("")
   const [sendEmail, setSendEmail] = useState(true) // State for sending email
   const [userSearchTerm, setUserSearchTerm] = useState("")
   const [isUserPopoverOpen, setIsUserPopoverOpen] = useState(false)
@@ -1339,6 +1340,21 @@ export default function ReservationsPage() {
                     )}
                   </div>
 
+                  <div className="space-y-2">
+                    <Label htmlFor="reservation-label">Etiqueta (Opcional)</Label>
+                    <Input
+                      id="reservation-label"
+                      placeholder="Ej: CUMPLEAÑERA, INVITADO, VIP..."
+                      maxLength={50}
+                      className="bg-white border-gray-200 text-zinc-900"
+                      value={reservationLabel}
+                      onChange={(e) => setReservationLabel(e.target.value)}
+                    />
+                    <p className="text-xs text-gray-500">
+                      Si se agrega etiqueta, se mostrará en el mapa de bicis en lugar del nombre
+                    </p>
+                  </div>
+
                   <div className="md:col-span-2 flex items-center space-x-2 mt-4">
                     <Checkbox
                       id="send-email-checkbox"
@@ -1369,6 +1385,7 @@ export default function ReservationsPage() {
                     setSelectedPackage("")
                     setSelectedBike(null)
                                           setSelectedUserPackageId("")
+                      setReservationLabel("")
                       setActiveUnlimitedWeekInfo(null)
                       setUserSearchTerm("") // Limpiar búsqueda de usuario
                     }}
@@ -1463,6 +1480,7 @@ export default function ReservationsPage() {
                           bikeNumber: selectedBike,
                           userPackageId: (userHasClasses && selectedUserPackageId && selectedUserPackageId !== "") ? Number(selectedUserPackageId) : undefined,
                           branchId: modalBranchId !== "all" ? Number(modalBranchId) : undefined,
+                          label: reservationLabel.trim() || undefined,
                         }
 
                         await createReservationWithPackageCheck(newReservationData)
@@ -1472,6 +1490,7 @@ export default function ReservationsPage() {
                         setSelectedPackage("")
                         setSelectedBike(null)
                         setSelectedUserPackageId("")
+                        setReservationLabel("")
                         setUserHasClasses(null)
                         setUserClassesInfo(null)
                         setIsNewReservationOpen(false)
