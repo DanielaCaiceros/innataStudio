@@ -50,7 +50,8 @@ function getUTCDateStr(isoString: string) {
 function isPastClass(cls: WeeklyScheduledClass) {
   const [h, m] = formatTimeFromISO(cls.time).split(":").map(Number)
   const classDate = new Date(cls.date.slice(0, 10) + "T00:00:00Z")
-  classDate.setUTCHours(h, m, 0, 0)
+  // DB stores times as Mexico City local time (UTC-6) tagged as UTC, so add 6h to get real UTC
+  classDate.setUTCHours(h + 6, m, 0, 0)
   return classDate < new Date()
 }
 
