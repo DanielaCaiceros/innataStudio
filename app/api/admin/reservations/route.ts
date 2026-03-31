@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { userId, classId, date, time, package: packageType, paymentMethod, bikeNumber, userPackageId, branchId } = body;
+    const { userId, classId, date, time, package: packageType, paymentMethod, bikeNumber, userPackageId, branchId, label } = body;
 
     if (!userId || !classId || !date || !time || !packageType) {
       return NextResponse.json({ error: "Faltan datos requeridos" }, { status: 400 });
@@ -243,35 +243,12 @@ export async function POST(request: NextRequest) {
     const scheduledDateUTC = parseAdminDateInput(date);
     const scheduledTimeUTC = parseAdminTimeInput(time);
 
-    // Validar número de bicicleta si se especifica
+    // Validar número de bicicleta si se especifica (solo rango; el conflicto real se verifica después de resolver scheduledClass)
     let parsedBikeNumber = null;
     if (bikeNumber !== undefined && bikeNumber !== null) {
       parsedBikeNumber = Number(bikeNumber);
       if (isNaN(parsedBikeNumber) || parsedBikeNumber < 1 || parsedBikeNumber > 13) {
         return NextResponse.json({ error: "El número de bicicleta debe estar entre 1 y 13" }, { status: 400 });
-      }
-
-      // Verificar si la bicicleta ya está reservada para esta clase específica
-      const scheduledDateUTC = parseAdminDateInput(date);
-      const scheduledTimeUTC = parseAdminTimeInput(time);
-      
-      const bikeConflict = await prisma.reservation.findFirst({
-        where: {
-          bikeNumber: parsedBikeNumber,
-          status: "confirmed",
-          scheduledClass: {
-            classTypeId: classId,
-            date: scheduledDateUTC,
-            time: scheduledTimeUTC,
-            branch_id: branchIdInt ?? null,
-          }
-        }
-      });
-
-      if (bikeConflict) {
-        return NextResponse.json({ 
-          error: `La bicicleta #${parsedBikeNumber} ya está reservada para esta clase` 
-        }, { status: 400 });
       }
     }
 
@@ -361,12 +338,28 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Verificar conflicto de bicicleta usando el scheduledClassId real
+    if (parsedBikeNumber !== null) {
+      const bikeConflict = await prisma.reservation.findFirst({
+        where: {
+          scheduledClassId: scheduledClass.id,
+          bikeNumber: parsedBikeNumber,
+          status: { in: ["confirmed", "attended"] },
+        }
+      });
+      if (bikeConflict) {
+        return NextResponse.json({
+          error: `La bicicleta #${parsedBikeNumber} ya está reservada para esta clase`
+        }, { status: 400 });
+      }
+    }
+
     // Buscar o crear el paquete de usuario
     let userPackage: any = null; // Explicitly type as any to cover all possible states
     let processedUserPackage = false; // Flag to indicate if a UserPackage was used or created
 
     // Wrap the entire reservation creation process in a transaction
-    let result;
+    let result: any;
     try {
       result = await prisma.$transaction(async (tx) => {
         // Si se proporcionó un userPackageId, significa que el admin seleccionó un paquete existente (incluido un "pase individual" si existe como UserPackage)
@@ -476,6 +469,7 @@ export async function POST(request: NextRequest) {
             // Sino, es el método de pago directo (e.g. 'cash', 'stripe' para un pase individual sin UserPackage).
             paymentMethod: processedUserPackage ? "package" : paymentMethod,
             bikeNumber: parsedBikeNumber,
+            label: label ?? null,
           },
           include: {
             user: { select: { firstName: true, lastName: true, email: true, phone: true } },

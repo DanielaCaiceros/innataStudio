@@ -54,6 +54,7 @@ function useIsMobile() {
 interface Reservation {
   id: number
   user: string
+  label: string | null
   email: string
   phone: string
   bikeNumber: number | null
@@ -486,8 +487,8 @@ export default function ClassReservationsModal({
                           }
                         `}
                         title={
-                          hasReservation 
-                            ? `Bici ${bikeNumber} - ${reservation.user}${isCheckedIn ? ' (Check-in)' : ''}` 
+                          hasReservation
+                            ? `Bici ${bikeNumber} - ${reservation.label ? `${reservation.label} (${reservation.user})` : reservation.user}${isCheckedIn ? ' (Check-in)' : ''}`
                             : `Bici ${bikeNumber} - Disponible`
                         }
                       >
@@ -508,9 +509,9 @@ export default function ClassReservationsModal({
                                   : "bg-white text-black"
                             }
                           `}
-                          title={reservation.user}
+                          title={reservation.label ? `${reservation.label} (${reservation.user})` : reservation.user}
                         >
-                          {getShortName(reservation.user)}
+                          {reservation.label ? reservation.label.substring(0, 15) : getShortName(reservation.user)}
                         </div>
                       )}
 
