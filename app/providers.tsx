@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import { AuthProvider } from '@/lib/hooks/useAuth'
 import { ThemeProvider } from '@/components/theme-provider'
 import { BranchProvider } from '@/lib/context/BranchContext'
+import { CartProvider } from '@/lib/context/CartContext'
 import { Toaster } from '@/components/ui/toaster'
 
 interface ProvidersProps {
@@ -16,8 +17,10 @@ export function Providers({ children }: ProvidersProps) {
       <AuthProvider>
         <Suspense fallback={null}>
           <BranchProvider>
-            {children}
-            <Toaster />
+            <CartProvider>
+              {children}
+              <Toaster />
+            </CartProvider>
           </BranchProvider>
         </Suspense>
       </AuthProvider>
