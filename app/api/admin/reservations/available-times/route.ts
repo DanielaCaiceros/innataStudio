@@ -66,9 +66,9 @@ export async function GET(request: NextRequest) {
             }
           }
         },
-        reservations: { // Include confirmed reservations to calculate spots
+        reservations: { // confirmed + attended ocupan cupo
           where: {
-            status: "confirmed"
+            status: { in: ["confirmed", "attended"] }
           }
         }
       },

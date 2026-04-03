@@ -131,6 +131,7 @@ export async function GET(
     const formattedReservations = reservations.map(reservation => ({
       id: reservation.id,
       user: `${reservation.user.firstName} ${reservation.user.lastName}`,
+      label: reservation.label ?? null,
       email: reservation.user.email,
       phone: reservation.user.phone || "",
       bikeNumber: reservation.bikeNumber,
