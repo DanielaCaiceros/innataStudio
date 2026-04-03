@@ -930,8 +930,10 @@ export default function ReservationsPage() {
         return "semana-ilimitada";
       case "PAQUETE 10 CLASES":
         return "10classes";
+      case "MES ILIMITADO":
+        return "mes-ilimitado";
       default:
-        return ""; // Or handle as an error/unknown package
+        return "mes-ilimitado"; // Paquetes desconocidos con userPackageId existente
     }
   };
 

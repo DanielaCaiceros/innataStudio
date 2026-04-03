@@ -122,6 +122,12 @@ export default function BookingPage() {
   // Estado para alerta contextual
   const [bookingAlert, setBookingAlert] = useState<{ type: 'unlimited' | 'normal' | 'individual' | 'out-of-unlimited' | null, message: string } | null>(null);
 
+  // Estados para modal de compra inline
+  const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false)
+  const [purchasePackages, setPurchasePackages] = useState<any[]>([])
+  const [selectedPurchasePackageId, setSelectedPurchasePackageId] = useState<number>(2)
+  const [isLoadingPurchasePackages, setIsLoadingPurchasePackages] = useState(false)
+
   // Lock branch selector only when user is at the final confirmation step.
   const isAtFinalConfirmationStep = Boolean(selectedClass && selectedBikeId && !isProcessingBooking)
 
@@ -231,6 +237,77 @@ export default function BookingPage() {
     })
   }
 
+  const openPurchaseModal = async () => {
+    if (!selectedBranch?.id) return
+    setIsLoadingPurchasePackages(true)
+    setIsPurchaseModalOpen(true)
+    try {
+      const res = await fetch(`/api/packages/by-branch/${selectedBranch.id}`)
+      if (res.ok) {
+        const packages = await res.json()
+        // Excluir Semana Ilimitada (id=3) y Primera Vez (id=1) de este flujo
+        const buyable = packages.filter((p: any) => p.id !== 3 && p.id !== 1)
+        setPurchasePackages(buyable)
+        if (buyable.some((p: any) => p.id === 2)) {
+          setSelectedPurchasePackageId(2)
+        } else if (buyable.length > 0) {
+          setSelectedPurchasePackageId(buyable[0].id)
+        }
+      }
+    } catch (e) {
+      console.error('Error cargando paquetes:', e)
+    } finally {
+      setIsLoadingPurchasePackages(false)
+    }
+  }
+
+  const handlePurchaseAndBookSuccess = async (paymentId: string) => {
+    try {
+      if (!selectedBranch?.id) throw new Error('Sin sucursal seleccionada')
+
+      // 1. Registrar el paquete comprado
+      const registerRes = await fetch('/api/user/packages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          packageId: selectedPurchasePackageId,
+          paymentId,
+          branchId: selectedBranch.id,
+        }),
+      })
+
+      if (!registerRes.ok) {
+        const data = await registerRes.json()
+        throw new Error(data.error || 'Error al registrar el paquete')
+      }
+
+      // 2. Refrescar créditos disponibles
+      const packagesRes = await fetch(`/api/user/packages?branchId=${selectedBranch.id}`, {
+        credentials: 'include',
+      })
+      if (packagesRes.ok) {
+        const data = await packagesRes.json()
+        setUserAvailableClasses(data.totalAvailableClasses || 0)
+      }
+
+      setIsPurchaseModalOpen(false)
+
+      toast({
+        title: '¡Paquete comprado!',
+        description: 'Procesando tu reserva automáticamente...',
+      })
+
+      // 3. Proceder con la reserva usando los créditos recién comprados
+      await proceedWithBooking()
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Error al procesar la compra',
+        variant: 'destructive',
+      })
+    }
+  }
+
   const handleClassSelection = async (scheduledClass: ScheduledClass) => {
     setSelectedClass(scheduledClass.id)
     setScheduledClassId(scheduledClass.id)
@@ -302,7 +379,7 @@ export default function BookingPage() {
     if (userAvailableClasses > 0) {
       await proceedWithBooking()
     } else {
-      router.push('/paquetes/checkout?packageId=2');
+      await openPurchaseModal()
     }
   }
 
@@ -898,6 +975,91 @@ export default function BookingPage() {
             >
               Confirmar en {selectedBranch.name}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Purchase Modal - Compra de créditos inline */}
+      <Dialog open={isPurchaseModalOpen} onOpenChange={setIsPurchaseModalOpen}>
+        <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-[#4A102A]">Compra un paquete para continuar</DialogTitle>
+            <DialogDescription className="text-gray-600">
+              No tienes créditos disponibles. Compra un paquete para completar tu reserva en{' '}
+              <span className="font-semibold">{selectedBranch?.name}</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 space-y-4">
+            {/* Resumen de la reserva pendiente */}
+            {selectedScheduledClassForBooking && (
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2 text-sm">
+                <p className="font-semibold text-[#4A102A] mb-1">Tu reserva pendiente:</p>
+                <div className="grid grid-cols-2 gap-y-1">
+                  <span className="text-gray-500">Clase</span>
+                  <span className="font-medium text-right">{selectedScheduledClassForBooking.classType.name}</span>
+                  <span className="text-gray-500">Fecha</span>
+                  <span className="font-medium text-right capitalize">
+                    {format(new Date(selectedScheduledClassForBooking.date.slice(0, 10) + "T12:00:00"), "EEEE d 'de' MMMM", { locale: es })}
+                  </span>
+                  <span className="text-gray-500">Hora</span>
+                  <span className="font-medium text-right">{formatTimeFromDB(selectedScheduledClassForBooking.time)} hrs</span>
+                  {selectedBikeId && (
+                    <>
+                      <span className="text-gray-500">Bicicleta</span>
+                      <span className="font-medium text-right">#{selectedBikeId}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Selector de paquete */}
+            {isLoadingPurchasePackages ? (
+              <div className="text-center py-4 text-gray-500 text-sm">Cargando paquetes disponibles...</div>
+            ) : purchasePackages.length === 0 ? (
+              <div className="text-center py-4 text-gray-500 text-sm">No hay paquetes disponibles para esta sucursal.</div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">Selecciona un paquete:</p>
+                <div className="grid gap-2">
+                  {purchasePackages.map((pkg) => (
+                    <button
+                      key={pkg.id}
+                      onClick={() => setSelectedPurchasePackageId(pkg.id)}
+                      className={`w-full text-left p-3 rounded-xl border-2 transition-colors ${
+                        selectedPurchasePackageId === pkg.id
+                          ? 'border-[#4A102A] bg-[#4A102A]/5'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-semibold text-sm">{pkg.name}</p>
+                          {pkg.description && (
+                            <p className="text-xs text-gray-500 mt-0.5">{pkg.description}</p>
+                          )}
+                        </div>
+                        <span className="font-bold text-[#4A102A] ml-4 shrink-0">${pkg.price} MXN</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Formulario de pago Stripe */}
+            {!isLoadingPurchasePackages && purchasePackages.length > 0 && (
+              <StripeCheckout
+                amount={purchasePackages.find((p) => p.id === selectedPurchasePackageId)?.price ?? 0}
+                description={`Paquete: ${purchasePackages.find((p) => p.id === selectedPurchasePackageId)?.name ?? ''} - ${selectedBranch?.name}`}
+                onSuccess={handlePurchaseAndBookSuccess}
+                onCancel={() => setIsPurchaseModalOpen(false)}
+                email={user?.email}
+                firstName={user?.firstName}
+                lastName={user?.lastName}
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>

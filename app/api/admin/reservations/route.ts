@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { userId, classId, date, time, package: packageType, paymentMethod, bikeNumber, userPackageId, branchId, label } = body;
 
-    if (!userId || !classId || !date || !time || !packageType) {
+    if (!userId || !classId || !date || !time || (!packageType && !userPackageId)) {
       return NextResponse.json({ error: "Faltan datos requeridos" }, { status: 400 });
     }
 
