@@ -256,6 +256,12 @@ export default function BookingPage() {
       }
     } catch (e) {
       console.error('Error cargando paquetes:', e)
+      toast({
+        title: 'Error al cargar paquetes',
+        description: 'No se pudieron cargar los paquetes disponibles. Por favor intenta de nuevo.',
+        variant: 'destructive',
+      })
+      setIsPurchaseModalOpen(false)
     } finally {
       setIsLoadingPurchasePackages(false)
     }
@@ -981,7 +987,7 @@ export default function BookingPage() {
 
       {/* Purchase Modal - Compra de créditos inline */}
       <Dialog open={isPurchaseModalOpen} onOpenChange={setIsPurchaseModalOpen}>
-        <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-lg">
+        <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-[#4A102A]">Compra un paquete para continuar</DialogTitle>
             <DialogDescription className="text-gray-600">
@@ -1051,6 +1057,7 @@ export default function BookingPage() {
             {/* Formulario de pago Stripe */}
             {!isLoadingPurchasePackages && purchasePackages.length > 0 && (
               <StripeCheckout
+                key={selectedPurchasePackageId}
                 amount={purchasePackages.find((p) => p.id === selectedPurchasePackageId)?.price ?? 0}
                 description={`Paquete: ${purchasePackages.find((p) => p.id === selectedPurchasePackageId)?.name ?? ''} - ${selectedBranch?.name}`}
                 onSuccess={handlePurchaseAndBookSuccess}
@@ -1058,6 +1065,9 @@ export default function BookingPage() {
                 email={user?.email}
                 firstName={user?.firstName}
                 lastName={user?.lastName}
+                userId={user?.id ? Number(user.id) : undefined}
+                packageId={selectedPurchasePackageId}
+                branchId={selectedBranch?.id}
               />
             )}
           </div>

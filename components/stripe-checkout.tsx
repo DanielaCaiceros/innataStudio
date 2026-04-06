@@ -15,6 +15,9 @@ interface CheckoutFormProps {
   onCancel: () => void
   name?: string
   email?: string
+  userId?: number
+  packageId?: number
+  branchId?: number
 }
 
 function CheckoutForm({
@@ -26,6 +29,9 @@ function CheckoutForm({
   email: initialEmail = "",
   firstName = "",
   lastName = "",
+  userId,
+  packageId,
+  branchId,
 }: CheckoutFormProps & { firstName?: string; lastName?: string }) {
   const stripe = useStripe()
   const elements = useElements()
@@ -75,6 +81,9 @@ function CheckoutForm({
           email,
           name,
           idempotencyKey: idempotencyKeyRef.current,
+          userId,
+          packageId,
+          branchId,
         }),
       })
 
@@ -224,6 +233,9 @@ export function StripeCheckout({
   email,
   firstName,
   lastName,
+  userId,
+  packageId,
+  branchId,
   ...rest
 }: CheckoutFormProps & { firstName?: string; lastName?: string }) {
   return (
@@ -237,6 +249,9 @@ export function StripeCheckout({
         email={email}
         firstName={firstName}
         lastName={lastName}
+        userId={userId}
+        packageId={packageId}
+        branchId={branchId}
         {...rest}
       />
     </Elements>
