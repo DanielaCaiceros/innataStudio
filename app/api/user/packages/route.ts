@@ -317,9 +317,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (!user) {
-        console.error('User not found for email confirmation:', userId);
-        // Continue without sending email, or handle as appropriate
-        return;
+        throw new Error(`User ${userId} not found for email confirmation`);
       }
 
       const branchName = numericBranchId

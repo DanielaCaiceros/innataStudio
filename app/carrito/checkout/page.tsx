@@ -38,10 +38,28 @@ export default function CartCheckoutPage() {
   }, [isAuthLoading, items.length, router])
 
   useEffect(() => {
-    if (hasUnlimitedWeek) {
-      setAvailableWeekOptions(getAvailableWeekOptions())
+    if (!hasUnlimitedWeek || !isAuthenticated) return
+    const fetchAndBuildWeekOptions = async () => {
+      try {
+        const res = await fetch("/api/user/packages")
+        if (!res.ok) {
+          setAvailableWeekOptions(getAvailableWeekOptions())
+          return
+        }
+        const data = await res.json()
+        const existingUnlimited = (data.packages ?? [])
+          .filter((p: { packageId: number; purchaseDate: string | null }) => p.packageId === 3 && p.purchaseDate)
+          .map((p: { packageId: number; purchaseDate: string }) => ({
+            packageId: p.packageId,
+            purchaseDate: p.purchaseDate.slice(0, 10), // "YYYY-MM-DD"
+          }))
+        setAvailableWeekOptions(getAvailableWeekOptions(existingUnlimited))
+      } catch {
+        setAvailableWeekOptions(getAvailableWeekOptions())
+      }
     }
-  }, [hasUnlimitedWeek])
+    fetchAndBuildWeekOptions()
+  }, [hasUnlimitedWeek, isAuthenticated])
 
   const handlePaymentSuccess = async (paymentId: string) => {
     if (hasUnlimitedWeek && !selectedUnlimitedWeek) {

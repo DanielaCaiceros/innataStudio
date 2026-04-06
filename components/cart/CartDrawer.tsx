@@ -110,7 +110,7 @@ function CartDrawerContent({ onClose }: { onClose: () => void }) {
                   </div>
 
                   {/* Quantity controls */}
-                  <div className="flex items-center justify-between pl-13">
+                  <div className="flex items-center justify-between pl-12">
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
