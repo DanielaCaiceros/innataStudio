@@ -981,7 +981,7 @@ export default function BookingPage() {
 
       {/* Purchase Modal - Compra de créditos inline */}
       <Dialog open={isPurchaseModalOpen} onOpenChange={setIsPurchaseModalOpen}>
-        <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-lg">
+        <DialogContent className="bg-white border-gray-200 text-zinc-900 max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-[#4A102A]">Compra un paquete para continuar</DialogTitle>
             <DialogDescription className="text-gray-600">
