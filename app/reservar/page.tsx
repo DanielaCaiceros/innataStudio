@@ -1058,6 +1058,9 @@ export default function BookingPage() {
                 email={user?.email}
                 firstName={user?.firstName}
                 lastName={user?.lastName}
+                userId={user?.id ? Number(user.id) : undefined}
+                packageId={selectedPurchasePackageId}
+                branchId={selectedBranch?.id}
               />
             )}
           </div>

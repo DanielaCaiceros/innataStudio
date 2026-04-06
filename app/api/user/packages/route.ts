@@ -101,6 +101,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    // Idempotencia: evitar registros duplicados si el webhook ya procesó este pago
+    const existingPayment = await prisma.payment.findFirst({
+      where: { stripePaymentIntentId: paymentId }
+    })
+    if (existingPayment) {
+      console.log(`Pago ${paymentId} ya registrado (posiblemente por webhook), omitiendo duplicado`)
+      return NextResponse.json({ message: "Paquete ya registrado" })
+    }
+
     const numericPackageId = Number(packageId)
     const numericBranchId = branchId ? Number(branchId) : null
 
@@ -310,7 +319,6 @@ export async function POST(request: NextRequest) {
 
     // Enviar email de confirmación con información específica para Semana Ilimitada
     try {
-      // Fetch user details to get firstName and lastName
       const user = await prisma.user.findUnique({
         where: { user_id: userId as number },
         select: { firstName: true, lastName: true, email: true }
@@ -318,33 +326,31 @@ export async function POST(request: NextRequest) {
 
       if (!user) {
         console.error('User not found for email confirmation:', userId);
-        // Continue without sending email, or handle as appropriate
-        return;
+      } else {
+        const branchName = numericBranchId
+          ? (await prisma.package_prices.findFirst({
+              where: { package_id: numericPackageId, branch_id: numericBranchId },
+              include: { branches: true },
+            }))?.branches?.name ?? null
+          : null
+
+        const emailDetails = {
+          packageName: packageInfo.name,
+          classCount: packageInfo.classCount || 0,
+          price: packagePrice,
+          purchaseDate: purchaseDate.toLocaleDateString('es-ES'),
+          expiryDate: expiryDate.toLocaleDateString('es-ES'),
+          isUnlimitedWeek: numericPackageId === 3,
+          validityType: numericPackageId === 3 ? '5 días hábiles' : `${packageInfo.validityDays} días`,
+          branchName: branchName ?? undefined,
+        }
+
+        await sendPackagePurchaseConfirmationEmail(
+          user.email,
+          user.firstName || 'Cliente',
+          emailDetails
+        )
       }
-
-      const branchName = numericBranchId
-        ? (await prisma.package_prices.findFirst({
-            where: { package_id: numericPackageId, branch_id: numericBranchId },
-            include: { branches: true },
-          }))?.branches?.name ?? null
-        : null
-
-      const emailDetails = {
-        packageName: packageInfo.name,
-        classCount: packageInfo.classCount || 0,
-        price: packagePrice,
-        purchaseDate: purchaseDate.toLocaleDateString('es-ES'),
-        expiryDate: expiryDate.toLocaleDateString('es-ES'),
-        isUnlimitedWeek: numericPackageId === 3,
-        validityType: numericPackageId === 3 ? '5 días hábiles' : `${packageInfo.validityDays} días`,
-        branchName: branchName ?? undefined,
-      }
-
-      await sendPackagePurchaseConfirmationEmail(
-        user.email,
-        user.firstName || 'Cliente',
-        emailDetails
-      )
     } catch (emailError) {
       console.error('Error enviando email de confirmación de compra:', emailError)
       // No fallar la compra si hay error en el email
