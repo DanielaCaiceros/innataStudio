@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu, X, ChevronRight, User, LogOut } from "lucide-react"
+import { CartButton } from "@/components/cart/CartDrawer"
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -76,6 +77,9 @@ export function SiteHeader() {
           <div className="flex items-center gap-3">
             {/* Branch Selector - Visible en todas las pantallas */}
             <BranchSelector />
+
+            {/* Cart Button - Visible en todas las pantallas */}
+            <CartButton />
             
             {/* User menu/auth - Hidden en móvil, visible en desktop */}
             <div className="hidden md:block">

@@ -3,13 +3,14 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import Link from "next/link"
-import { Check, ChevronRight, LogIn, UserPlus } from "lucide-react" // Añadir LogIn y UserPlus
+import { Check, ChevronRight, LogIn, UserPlus, ShoppingCart, AlertTriangle, Plus, Minus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card"
 import { useAuth } from "@/lib/hooks/useAuth"
 import { useState } from "react"
 import { BranchIndicatorBadge } from "@/components/branch-indicator-badge"
 import { useBranch } from "@/lib/hooks/useBranch"
+import { useCart, getMaxQuantity } from "@/lib/context/CartContext"
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 // Datos de UI únicamente — precios y nombres vienen de la API por sucursal
 const PACKAGES_UI_CONFIG = [
   {
@@ -89,11 +100,15 @@ export default function PackagesPage() {
    const router = useRouter();
    const { isAuthenticated } = useAuth()
   const { selectedBranch, isLoading: isBranchLoading } = useBranch()
+  const { addItem, isInCart, removeItem, incrementItem, decrementItem, getQuantity, replaceCartWithItem, totalItems } = useCart()
    const [showAuthModal, setShowAuthModal] = useState(false)
    const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null)
    const [hasFirstTimePackage, setHasFirstTimePackage] = useState(false)
    const [isLoading, setIsLoading] = useState(true)
    const [filteredPackages, setFilteredPackages] = useState<any[]>([])
+   const [conflictDialog, setConflictDialog] = useState<{ open: boolean; conflictBranch: string; pendingPkg: any | null }>({
+     open: false, conflictBranch: "", pendingPkg: null,
+   })
 
    useEffect(() => {
      if (!isBranchLoading && !selectedBranch) {
@@ -152,41 +167,42 @@ export default function PackagesPage() {
      checkFirstTimePackage()
    }, [isAuthenticated]);
   
-   const handlePurchaseClick = (packageId: number) => {
-    // Verificar si el usuario no está autenticado
+   const handleAddToCart = (pkg: any) => {
     if (!isAuthenticated) {
-      setSelectedPackageId(packageId)
+      setSelectedPackageId(pkg.id)
       setShowAuthModal(true)
       return
     }
-    
-    // Verificar si está intentando comprar el paquete "PRIMERA VEZ" y ya lo ha adquirido
-    if (packageId === 1 && hasFirstTimePackage) {
-      // Mostrar un mensaje informativo
-      const toast = document.createElement('div');
-      toast.className = 'fixed top-4 right-4 bg-amber-100 border border-amber-300 text-amber-800 px-4 py-3 rounded shadow-md';
-      toast.innerHTML = `
-        <div class="flex items-center">
-          <div class="py-1"><svg class="h-6 w-6 mr-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-          </svg></div>
-          <div>
-            <p class="font-bold">Paquete no disponible</p>
-            <p class="text-sm">El paquete PRIMERA VEZ solo puede ser adquirido una vez.</p>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(toast);
-      
-      // Eliminar el toast después de 3 segundos
-      setTimeout(() => {
-        document.body.removeChild(toast);
-      }, 3000);
-      
-      return;
+
+    if (pkg.id === 1 && hasFirstTimePackage) {
+      return
     }
 
-    router.push(`/paquetes/checkout?packageId=${packageId}&branchId=${selectedBranch?.id}`);
+    const cartItem = {
+      packageId: pkg.id,
+      name: pkg.name,
+      price: Number(pkg.price.replace("$", "")),
+      branchId: selectedBranch!.id,
+      branchName: selectedBranch!.name,
+      gradient: pkg.gradient,
+      isFirstTimeOnly: pkg.isFirstTimeOnly ?? false,
+      classCount: pkg.classCount ?? null,
+      validityDays: pkg.validityDays,
+      type: pkg.type,
+    }
+
+    const result = addItem(cartItem)
+
+    if (!result.success && result.conflictBranch) {
+      setConflictDialog({ open: true, conflictBranch: result.conflictBranch, pendingPkg: cartItem })
+    }
+  }
+
+  const handleConflictReplace = () => {
+    if (conflictDialog.pendingPkg) {
+      replaceCartWithItem(conflictDialog.pendingPkg)
+    }
+    setConflictDialog({ open: false, conflictBranch: "", pendingPkg: null })
   }
   
   if (isBranchLoading || !selectedBranch) {
@@ -260,29 +276,55 @@ export default function PackagesPage() {
                   </div>
                 </CardContent>
 
-<CardFooter className="mt-auto pt-4">
+<CardFooter className="mt-auto pt-4 flex flex-col gap-2">
                   {pkg.id === 1 && hasFirstTimePackage ? (
-                    <div className="space-y-2">
+                    <>
                       <Button
                         disabled
                         className="w-full bg-gray-300 text-gray-600 font-bold rounded-full cursor-not-allowed"
                       >
-                        <span className="flex items-center justify-center gap-1">
-                          Ya adquirido
-                        </span>
+                        Ya adquirido
                       </Button>
                       <p className="text-xs text-amber-600 text-center">
                         Este paquete solo puede adquirirse una vez por usuario
                       </p>
+                    </>
+                  ) : isInCart(pkg.id) ? (
+                    <div className="w-full space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 rounded-full border-gray-300 flex-shrink-0"
+                          onClick={() => decrementItem(pkg.id)}
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </Button>
+                        <span className="flex-1 text-center font-semibold text-lg">{getQuantity(pkg.id)}</span>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 rounded-full border-gray-300 flex-shrink-0"
+                          onClick={() => incrementItem(pkg.id)}
+                          disabled={getQuantity(pkg.id) >= getMaxQuantity(pkg.id)}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <button
+                        className="w-full text-xs text-gray-400 hover:text-red-500 transition-colors"
+                        onClick={() => removeItem(pkg.id)}
+                      >
+                        Quitar del carrito
+                      </button>
                     </div>
                   ) : (
                     <Button
-                      onClick={() => handlePurchaseClick(pkg.id)}
+                      onClick={() => handleAddToCart(pkg)}
                       className={`w-full bg-gradient-to-r ${pkg.gradient} hover:opacity-90 text-white font-bold rounded-full transition-all duration-300`}
                     >
-                      <span className="flex items-center justify-center gap-1">
-                        {pkg.buttonText} <ChevronRight className="h-4 w-4" />
-                      </span>
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      Agregar al carrito
                     </Button>
                   )}
                 </CardFooter>
@@ -342,6 +384,48 @@ Sí, algunos paquetes tienen validez de 30 días y otros 60 días desde la compr
           </div>
         </div>
       </section>
+      {/* Floating cart bar */}
+      {totalItems > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 bg-[#4A102A] text-white px-6 py-3 rounded-full shadow-xl">
+          <span className="text-sm font-medium">
+            {totalItems} {totalItems === 1 ? "paquete" : "paquetes"} en tu carrito
+          </span>
+          <Button
+            size="sm"
+            className="bg-white text-[#4A102A] hover:bg-gray-100 rounded-full font-semibold h-8 px-4 text-xs"
+            onClick={() => router.push("/carrito/checkout")}
+          >
+            Pagar ahora <ChevronRight className="h-3.5 w-3.5 ml-1" />
+          </Button>
+        </div>
+      )}
+
+      {/* Branch conflict dialog */}
+      <AlertDialog open={conflictDialog.open} onOpenChange={(open) => !open && setConflictDialog(prev => ({ ...prev, open: false }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Paquetes de diferente sucursal
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tu carrito tiene paquetes de la sucursal <strong>{conflictDialog.conflictBranch}</strong>. No puedes mezclar paquetes de diferentes sucursales.
+              <br /><br />
+              ¿Deseas vaciar el carrito y agregar este paquete de <strong>{selectedBranch?.name}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[#4A102A] hover:bg-[#85193C] text-white"
+              onClick={handleConflictReplace}
+            >
+              Vaciar y agregar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
         <Dialog open={showAuthModal} onOpenChange={setShowAuthModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -367,17 +451,17 @@ Sí, algunos paquetes tienen validez de 30 días y otros 60 días desde la compr
                 asChild
                 className="bg-brand-mint hover:bg-brand-mint/90 text-white flex gap-2"
               >
-                <Link href={`/login?redirect=${encodeURIComponent(`/paquetes/checkout?packageId=${selectedPackageId}&branchId=${selectedBranch?.id}`)}`}>
+                <Link href={`/login?redirect=${encodeURIComponent("/paquetes")}`}>
                   <LogIn className="h-4 w-4" /> Iniciar Sesión
                 </Link>
               </Button>
-              
-              <Button 
+
+              <Button
                 asChild
-                variant="outline" 
+                variant="outline"
                 className="border-[#4A102A] text-[#4A102A] hover:bg-[#4A102A]/10 flex gap-2"
               >
-                <Link href={`/registro?redirect=${encodeURIComponent(`/paquetes/checkout?packageId=${selectedPackageId}&branchId=${selectedBranch?.id}`)}`}>
+                <Link href={`/registro?redirect=${encodeURIComponent("/paquetes")}`}>
                   <UserPlus className="h-4 w-4" /> Registrarse
                 </Link>
               </Button>
