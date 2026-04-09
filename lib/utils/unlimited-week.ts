@@ -1,6 +1,6 @@
 // lib/utils/unlimited-week.ts
 
-import { startOfWeek, endOfWeek, addWeeks, isBefore, isAfter, isWithinInterval, addDays,format, endOfDay } from 'date-fns';
+import { startOfWeek, addWeeks, isAfter, isWithinInterval, addDays, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export interface UnlimitedWeekValidation {
