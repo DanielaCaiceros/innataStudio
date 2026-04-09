@@ -317,32 +317,32 @@ export async function POST(request: NextRequest) {
       });
 
       if (!user) {
-        throw new Error(`User ${userId} not found for email confirmation`);
+        console.error('User not found for email confirmation:', userId);
+      } else {
+        const branchName = numericBranchId
+          ? (await prisma.package_prices.findFirst({
+              where: { package_id: numericPackageId, branch_id: numericBranchId },
+              include: { branches: true },
+            }))?.branches?.name ?? null
+          : null
+
+        const emailDetails = {
+          packageName: packageInfo.name,
+          classCount: packageInfo.classCount || 0,
+          price: packagePrice,
+          purchaseDate: purchaseDate.toLocaleDateString('es-ES'),
+          expiryDate: expiryDate.toLocaleDateString('es-ES'),
+          isUnlimitedWeek: numericPackageId === 3,
+          validityType: numericPackageId === 3 ? '5 días hábiles' : `${packageInfo.validityDays} días`,
+          branchName: branchName ?? undefined,
+        }
+
+        await sendPackagePurchaseConfirmationEmail(
+          user.email,
+          user.firstName || 'Cliente',
+          emailDetails
+        )
       }
-
-      const branchName = numericBranchId
-        ? (await prisma.package_prices.findFirst({
-            where: { package_id: numericPackageId, branch_id: numericBranchId },
-            include: { branches: true },
-          }))?.branches?.name ?? null
-        : null
-
-      const emailDetails = {
-        packageName: packageInfo.name,
-        classCount: packageInfo.classCount || 0,
-        price: packagePrice,
-        purchaseDate: purchaseDate.toLocaleDateString('es-ES'),
-        expiryDate: expiryDate.toLocaleDateString('es-ES'),
-        isUnlimitedWeek: numericPackageId === 3,
-        validityType: numericPackageId === 3 ? '5 días hábiles' : `${packageInfo.validityDays} días`,
-        branchName: branchName ?? undefined,
-      }
-
-      await sendPackagePurchaseConfirmationEmail(
-        user.email,
-        user.firstName || 'Cliente',
-        emailDetails
-      )
     } catch (emailError) {
       console.error('Error enviando email de confirmación de compra:', emailError)
       // No fallar la compra si hay error en el email
