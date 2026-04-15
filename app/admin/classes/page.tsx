@@ -111,7 +111,7 @@ export default function ClassesPage() {
         instructorId: selectedSchedule.instructor.id.toString(),
         date: format(convertUtcToLocalDateForDisplay(selectedSchedule.date), "yyyy-MM-dd"),
         time: formatTime(selectedSchedule.time),
-        branchId: selectedSchedule.branch_id?.toString() || "",
+        branchId: selectedSchedule.branch_id?.toString() || (selectedBranchId !== "all" ? selectedBranchId : ""),
       });
     }
   }, [selectedSchedule]);

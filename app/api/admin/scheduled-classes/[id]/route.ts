@@ -91,6 +91,7 @@ export async function PUT(
         date: utcDate,
         time: classTime,
         instructorId: parseInt(body.instructorId),
+        branch_id: branchIdInt,
         status: "scheduled",
       },
     })
