@@ -20,19 +20,24 @@ export async function GET(request: NextRequest) {
     // Obtener el parámetro de búsqueda
     const { searchParams } = new URL(request.url)
     const email = searchParams.get('email')
+    const name = searchParams.get('name')
 
-    if (!email) {
-      return NextResponse.json({ error: "Parámetro email requerido" }, { status: 400 })
+    if (!email && !name) {
+      return NextResponse.json({ error: "Parámetro email o name requerido" }, { status: 400 })
     }
 
-    // Buscar usuarios por email (búsqueda parcial)
-    const users = await db.user.findMany({
-      where: {
-        email: {
-          contains: email,
-          mode: 'insensitive'
+    const where = name
+      ? {
+          OR: [
+            { firstName: { contains: name, mode: 'insensitive' as const } },
+            { lastName: { contains: name, mode: 'insensitive' as const } },
+          ],
         }
-      },
+      : { email: { contains: email!, mode: 'insensitive' as const } }
+
+    // Buscar usuarios por nombre o email (búsqueda parcial)
+    const users = await db.user.findMany({
+      where,
       select: {
         user_id: true,
         firstName: true,
