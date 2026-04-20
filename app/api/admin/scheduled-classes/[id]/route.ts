@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
-import { getBranchBikeCapacity } from "@/lib/config/branch-bike-layouts"
+import { getBranchBikeCapacity, SPECIAL_CLASS_BIKE_LAYOUT } from "@/lib/config/branch-bike-layouts"
 
 const prisma = new PrismaClient()
 
@@ -110,10 +110,17 @@ export async function PUT(
       },
     })
 
-    const newMax = getBranchBikeCapacity(branchIdInt)
+    const defaultCapacity = body.isSpecial === true
+      ? SPECIAL_CLASS_BIKE_LAYOUT.bikeCount
+      : getBranchBikeCapacity(branchIdInt)
+    const parsedMaxCapacity = body.maxCapacity ? parseInt(body.maxCapacity, 10) : NaN
+    const newMax = (!isNaN(parsedMaxCapacity) && parsedMaxCapacity > 0)
+      ? parsedMaxCapacity
+      : defaultCapacity
+
     if (confirmedReservations > newMax) {
       return NextResponse.json({
-        error: "Hay más reservas confirmadas que la nueva capacidad",
+        error: `Hay ${confirmedReservations} reservas confirmadas, la capacidad no puede ser menor`,
       }, { status: 400 })
     }
 

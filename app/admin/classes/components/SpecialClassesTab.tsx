@@ -20,7 +20,7 @@ import { PlusCircle, Star, Trash2, Edit, Users, Clock, CalendarDays, ChevronRigh
 import { useToast } from "@/components/ui/use-toast"
 import { format, startOfWeek, endOfWeek } from "date-fns"
 import { ClassType, Instructor, ScheduledClass, timeSlots, convertUtcToLocalDateForDisplay, formatTime } from "../typesAndConstants"
-import { getBranchBikeCapacity } from "@/lib/config/branch-bike-layouts"
+import { SPECIAL_CLASS_BIKE_LAYOUT } from "@/lib/config/branch-bike-layouts"
 
 type ViewMode = "week" | "upcoming"
 
@@ -58,6 +58,7 @@ export default function SpecialClassesTab({
     branchId: selectedBranchId !== "all" ? selectedBranchId : "",
     specialPrice: "",
     specialMessage: "",
+    maxCapacity: "",
   }
 
   const [createForm, setCreateForm] = useState(emptyForm)
@@ -100,12 +101,7 @@ export default function SpecialClassesTab({
     return `ID ${branchId}`
   }
 
-  const getBranchCapacity = (branchId: string) => {
-    const parsed = Number.parseInt(branchId, 10)
-    return getBranchBikeCapacity(Number.isInteger(parsed) ? parsed : null)
-  }
-
-  const openCreate = () => {
+const openCreate = () => {
     setCreateForm({ ...emptyForm, branchId: selectedBranchId !== "all" ? selectedBranchId : "" })
     setIsCreateOpen(true)
   }
@@ -123,6 +119,7 @@ export default function SpecialClassesTab({
       branchId: cls.branch_id?.toString() || "",
       specialPrice: cls.specialPrice?.toString() || "",
       specialMessage: cls.specialMessage || "",
+      maxCapacity: cls.maxCapacity?.toString() || "",
     })
     setIsEditOpen(true)
   }
@@ -152,6 +149,7 @@ export default function SpecialClassesTab({
           isSpecial: true,
           specialPrice: cost,
           specialMessage: createForm.specialMessage || null,
+          maxCapacity: createForm.maxCapacity ? parseInt(createForm.maxCapacity) : undefined,
         }),
       })
       if (!response.ok) {
@@ -203,6 +201,7 @@ export default function SpecialClassesTab({
           isSpecial: true,
           specialPrice: cost,
           specialMessage: editForm.specialMessage || null,
+          maxCapacity: editForm.maxCapacity ? parseInt(editForm.maxCapacity) : undefined,
         }),
       })
       if (!response.ok) {
@@ -309,6 +308,18 @@ export default function SpecialClassesTab({
         {form.specialPrice && parseFloat(form.specialPrice) < STRIPE_MIN_MXN && (
           <p className="text-xs text-red-500">El mínimo aceptado por Stripe es ${STRIPE_MIN_MXN} MXN</p>
         )}
+      </div>
+      <div className="space-y-2">
+        <Label>Número de Bicis</Label>
+        <Input
+          type="number"
+          min={1}
+          step="1"
+          placeholder={`Default: ${SPECIAL_CLASS_BIKE_LAYOUT.bikeCount}`}
+          value={form.maxCapacity}
+          onChange={(e) => setForm((p) => ({ ...p, maxCapacity: e.target.value }))}
+          className="bg-white border-gray-200 text-zinc-900"
+        />
       </div>
       <div className="space-y-2 md:col-span-2">
         <Label>Mensaje para clientes <span className="text-gray-400 font-normal">(opcional)</span></Label>
@@ -463,13 +474,6 @@ export default function SpecialClassesTab({
           </DialogHeader>
           <div className="py-4">
             {classFormFields(createForm, setCreateForm)}
-            {createForm.branchId && (
-              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-sm text-amber-800">
-                  <strong>Capacidad automática:</strong> {getBranchCapacity(createForm.branchId)} bicis en {getBranchName(createForm.branchId)}
-                </p>
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="border-gray-200 text-zinc-900">Cancelar</Button>
@@ -489,13 +493,6 @@ export default function SpecialClassesTab({
           </DialogHeader>
           <div className="py-4">
             {classFormFields(editForm, setEditForm)}
-            {editForm.branchId && (
-              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-sm text-amber-800">
-                  <strong>Capacidad automática:</strong> {getBranchCapacity(editForm.branchId)} bicis en {getBranchName(editForm.branchId)}
-                </p>
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setIsEditOpen(false); setSelectedClass(null) }} className="border-gray-200 text-zinc-900">Cancelar</Button>

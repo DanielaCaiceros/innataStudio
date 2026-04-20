@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { verifyToken } from "@/lib/jwt"
-import { getBranchBikeLayout } from "@/lib/config/branch-bike-layouts"
+import { getBranchBikeLayout, SPECIAL_CLASS_BIKE_LAYOUT } from "@/lib/config/branch-bike-layouts"
 
 const prisma = new PrismaClient()
 
@@ -17,14 +17,16 @@ export async function GET(request: NextRequest) {
 
     const scheduledClass = await prisma.scheduledClass.findUnique({
       where: { id: Number(scheduledClassId) },
-      select: { id: true, branch_id: true },
+      select: { id: true, branch_id: true, isSpecial: true, maxCapacity: true },
     })
 
     if (!scheduledClass) {
       return NextResponse.json({ error: "Clase no encontrada" }, { status: 404 })
     }
 
-    const layout = getBranchBikeLayout(scheduledClass.branch_id)
+    const layout = scheduledClass.isSpecial
+      ? { ...SPECIAL_CLASS_BIKE_LAYOUT, bikeCount: scheduledClass.maxCapacity }
+      : getBranchBikeLayout(scheduledClass.branch_id)
 
     // Verificar autenticación para obtener el userId
     const token = request.cookies.get("auth_token")?.value
