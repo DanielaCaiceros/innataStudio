@@ -51,6 +51,7 @@ import { es } from 'date-fns/locale'
 // Removed: import { sendPackagePurchaseConfirmationEmail } from "@/lib/email"
 import { Checkbox } from "@/components/ui/checkbox"
 import { AdminBranchFilter } from "@/components/admin/AdminBranchFilter"
+import { AdminCart } from "@/components/admin/AdminCart"
 
 interface Payment {
   id: number
@@ -946,9 +947,10 @@ export default function PaymentsPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
+          <AdminCart onPaymentComplete={loadPayments} />
           <AlertDialog open={isNewPaymentOpen} onOpenChange={setIsNewPaymentOpen}>
             <AlertDialogTrigger asChild>
-              <Button 
+              <Button
                 className="bg-[#4A102A] hover:bg-[#5A1A3A]"
                 onClick={handleNewPaymentClick}
               >
