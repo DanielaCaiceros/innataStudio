@@ -1141,7 +1141,7 @@ export default function ReservationsPage() {
                         </div>
 
                         {/* Lista scrollable */}
-                        <div className="max-h-64 overflow-y-auto">
+                        <div className="max-h-64 overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
                           {users.length === 0 ? (
                             <p className="py-4 text-center text-sm text-gray-500">Cargando clientes...</p>
                           ) : filteredUsers.length === 0 ? (
