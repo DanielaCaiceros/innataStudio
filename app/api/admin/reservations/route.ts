@@ -243,12 +243,12 @@ export async function POST(request: NextRequest) {
     const scheduledDateUTC = parseAdminDateInput(date);
     const scheduledTimeUTC = parseAdminTimeInput(time);
 
-    // Validar número de bicicleta si se especifica (solo rango; el conflicto real se verifica después de resolver scheduledClass)
+    // Parse bike number early; range check happens after resolving the scheduled class
     let parsedBikeNumber = null;
     if (bikeNumber !== undefined && bikeNumber !== null) {
       parsedBikeNumber = Number(bikeNumber);
-      if (isNaN(parsedBikeNumber) || parsedBikeNumber < 1 || parsedBikeNumber > 13) {
-        return NextResponse.json({ error: "El número de bicicleta debe estar entre 1 y 13" }, { status: 400 });
+      if (isNaN(parsedBikeNumber) || parsedBikeNumber < 1) {
+        return NextResponse.json({ error: "Número de bicicleta inválido" }, { status: 400 });
       }
     }
 
@@ -336,6 +336,16 @@ export async function POST(request: NextRequest) {
           // Consider adding a DB constraint for availableSpots >= 0 if not already present.
         }
       });
+    }
+
+    // Validar rango de bicicleta usando la capacidad real de la clase
+    if (parsedBikeNumber !== null) {
+      const bikeCapacity = scheduledClass.isSpecial
+        ? scheduledClass.maxCapacity
+        : getBranchBikeCapacity(branchIdInt);
+      if (parsedBikeNumber > bikeCapacity) {
+        return NextResponse.json({ error: `El número de bicicleta debe estar entre 1 y ${bikeCapacity}` }, { status: 400 });
+      }
     }
 
     // Verificar conflicto de bicicleta usando el scheduledClassId real
