@@ -11,6 +11,7 @@ import { es } from 'date-fns/locale'
 import { formatInTimeZone } from 'date-fns-tz'
 import { UnlimitedWeekService } from '@/lib/services/unlimited-week.service'
 import { SystemConfigService } from '@/lib/services/system-config.service'
+import { getBranchBikeCapacity } from '@/lib/config/branch-bike-layouts'
 
 const prisma = new PrismaClient()
 
@@ -123,8 +124,8 @@ export async function POST(request: NextRequest) {
     let parsedBikeNumber = null
     if (bikeNumber !== undefined && bikeNumber !== null) {
       parsedBikeNumber = Number(bikeNumber)
-      if (isNaN(parsedBikeNumber) || parsedBikeNumber < 1 || parsedBikeNumber > 13) {
-        return NextResponse.json({ error: "El número de bicicleta debe estar entre 1 y 13" }, { status: 400 })
+      if (isNaN(parsedBikeNumber) || parsedBikeNumber < 1) {
+        return NextResponse.json({ error: "Número de bicicleta inválido" }, { status: 400 })
       }
 
       // Verificar si la bicicleta ya está reservada para esta clase (parsedBikeNumber is a number here)
@@ -274,6 +275,15 @@ export async function POST(request: NextRequest) {
 
     if (!scheduledClass) {
       return NextResponse.json({ error: "Clase no encontrada" }, { status: 404 })
+    }
+
+    if (parsedBikeNumber !== null) {
+      const bikeCapacity = scheduledClass.isSpecial
+        ? scheduledClass.maxCapacity
+        : getBranchBikeCapacity(scheduledClass.branch_id)
+      if (parsedBikeNumber > bikeCapacity) {
+        return NextResponse.json({ error: `El número de bicicleta debe estar entre 1 y ${bikeCapacity}` }, { status: 400 })
+      }
     }
 
     if (scheduledClass.status !== "scheduled") {
