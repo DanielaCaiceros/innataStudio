@@ -43,6 +43,13 @@ export interface ScheduledClass {
       lastName: string;
     };
   };
+  coInstructors?: Array<{
+    instructorId: number;
+    instructor: {
+      id: number;
+      user: { firstName: string; lastName: string };
+    };
+  }>;
   reservations: Array<{
     user: {
       firstName: string;

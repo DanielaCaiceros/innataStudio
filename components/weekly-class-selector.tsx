@@ -19,6 +19,11 @@ export interface WeeklyScheduledClass {
     name: string
     profileImage?: string | null
   }
+  coInstructors?: Array<{
+    id: number
+    name: string
+    profileImage?: string | null
+  }>
   date: string
   time: string
   maxCapacity: number
@@ -385,7 +390,7 @@ function ClassCard({ cls, isSelected, isDisabled, onClick, compact = false }: Cl
               isSelected ? "text-white/75" : isDisabled ? "text-gray-400" : "text-gray-500"
             }`}
           >
-            {cls.instructor.name.split(" ")[0]}
+            {[cls.instructor.name.split(" ")[0], ...(cls.coInstructors?.map((ci) => ci.name.split(" ")[0]) ?? [])].join(" & ")}
           </p>
         </div>
       </div>

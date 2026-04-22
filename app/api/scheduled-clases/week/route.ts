@@ -55,10 +55,15 @@ export async function GET(request: NextRequest) {
         instructor: {
           include: {
             user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                profileImage: true,
+              select: { firstName: true, lastName: true, profileImage: true },
+            },
+          },
+        },
+        coInstructors: {
+          include: {
+            instructor: {
+              include: {
+                user: { select: { firstName: true, lastName: true, profileImage: true } },
               },
             },
           },
@@ -84,6 +89,11 @@ export async function GET(request: NextRequest) {
         name: `${cls.instructor.user.firstName} ${cls.instructor.user.lastName}`,
         profileImage: cls.instructor.user.profileImage ?? null,
       },
+      coInstructors: cls.coInstructors.map((ci) => ({
+        id: ci.instructor.id,
+        name: `${ci.instructor.user.firstName} ${ci.instructor.user.lastName}`,
+        profileImage: ci.instructor.user.profileImage ?? null,
+      })),
       date: cls.date.toISOString(),
       time: cls.time.toISOString(),
       maxCapacity: cls.maxCapacity,

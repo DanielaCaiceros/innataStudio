@@ -107,6 +107,7 @@ model Instructor {
   updatedAt        DateTime?        @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
   user             User             @relation(fields: [userId], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
   scheduledClasses ScheduledClass[]
+  coTaughtClasses  ScheduledClassCoInstructor[]
 
   @@map("instructors")
 }
@@ -148,11 +149,22 @@ model ScheduledClass {
   classType      ClassType     @relation(fields: [classTypeId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   instructor     Instructor    @relation(fields: [instructorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   waitlist       Waitlist[]
+  coInstructors  ScheduledClassCoInstructor[]
 
   @@unique([date, time, branch_id])
   @@index([date], map: "idx_scheduled_classes_date")
   @@index([branch_id], map: "idx_scheduled_classes_branch_id")
   @@map("scheduled_classes")
+}
+
+model ScheduledClassCoInstructor {
+  scheduledClassId Int            @map("scheduled_class_id")
+  instructorId     Int            @map("instructor_id")
+  scheduledClass   ScheduledClass @relation(fields: [scheduledClassId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  instructor       Instructor     @relation(fields: [instructorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([scheduledClassId, instructorId])
+  @@map("scheduled_class_co_instructors")
 }
 
 model Package {

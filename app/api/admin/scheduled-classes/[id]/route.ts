@@ -54,6 +54,11 @@ export async function PUT(
       )
     }
 
+    // Parsear co-instructores (excluir el instructor principal si aparece)
+    const coInstructorIdsParsed: number[] = Array.isArray(body.coInstructorIds)
+      ? body.coInstructorIds.map((id: any) => Number.parseInt(id)).filter((id: number) => !isNaN(id) && id !== parseInt(body.instructorId))
+      : []
+
     if (body.isSpecial === true) {
       const parsedPrice = parseFloat(body.specialPrice)
       if (!body.specialPrice || isNaN(parsedPrice) || parsedPrice <= 0) {
@@ -124,6 +129,11 @@ export async function PUT(
       }, { status: 400 })
     }
 
+    // Reemplazar co-instructores: borrar existentes y crear los nuevos
+    await prisma.scheduledClassCoInstructor.deleteMany({
+      where: { scheduledClassId: parseInt(id) },
+    })
+
     const updatedClass = await prisma.scheduledClass.update({
       where: { id: parseInt(id) },
       data: {
@@ -137,15 +147,22 @@ export async function PUT(
         isSpecial: body.isSpecial === true,
         specialPrice: body.isSpecial && body.specialPrice ? parseFloat(body.specialPrice) : null,
         specialMessage: body.isSpecial && body.specialMessage ? body.specialMessage : null,
+        coInstructors: coInstructorIdsParsed.length > 0 ? {
+          create: coInstructorIdsParsed.map((coId) => ({ instructorId: coId })),
+        } : undefined,
       },
       include: {
         classType: true,
         instructor: {
           include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
+            user: { select: { firstName: true, lastName: true } },
+          },
+        },
+        coInstructors: {
+          include: {
+            instructor: {
+              include: {
+                user: { select: { firstName: true, lastName: true } },
               },
             },
           },
@@ -153,9 +170,7 @@ export async function PUT(
         reservations: {
           where: { status: "confirmed" },
           include: {
-            user: {
-              select: { firstName: true, lastName: true, email: true },
-            },
+            user: { select: { firstName: true, lastName: true, email: true } },
           },
         },
       },

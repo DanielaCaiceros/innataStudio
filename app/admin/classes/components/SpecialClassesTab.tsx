@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { PlusCircle, Star, Trash2, Edit, Users, Clock, CalendarDays, ChevronRight, Loader2 } from "lucide-react"
+import { PlusCircle, Star, Trash2, Edit, Users, Clock, CalendarDays, ChevronRight, Loader2, X } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { format, startOfWeek, endOfWeek } from "date-fns"
 import { ClassType, Instructor, ScheduledClass, timeSlots, convertUtcToLocalDateForDisplay, formatTime } from "../typesAndConstants"
@@ -63,6 +63,9 @@ export default function SpecialClassesTab({
 
   const [createForm, setCreateForm] = useState(emptyForm)
   const [editForm, setEditForm] = useState(emptyForm)
+  // Co-instructores seleccionados para cada formulario
+  const [createCoInstructorIds, setCreateCoInstructorIds] = useState<string[]>([])
+  const [editCoInstructorIds, setEditCoInstructorIds] = useState<string[]>([])
 
   const loadClasses = async (mode: ViewMode) => {
     setIsFetching(true)
@@ -121,6 +124,7 @@ const openCreate = () => {
       specialMessage: cls.specialMessage || "",
       maxCapacity: cls.maxCapacity?.toString() || "",
     })
+    setEditCoInstructorIds(cls.coInstructors?.map((ci) => ci.instructorId.toString()) ?? [])
     setIsEditOpen(true)
   }
 
@@ -150,6 +154,7 @@ const openCreate = () => {
           specialPrice: cost,
           specialMessage: createForm.specialMessage || null,
           maxCapacity: createForm.maxCapacity ? parseInt(createForm.maxCapacity) : undefined,
+          coInstructorIds: createCoInstructorIds.map(Number),
         }),
       })
       if (!response.ok) {
@@ -159,6 +164,7 @@ const openCreate = () => {
       toast({ title: "Éxito", description: `Clase especial creada en ${getBranchName(branchId)}` })
       setIsCreateOpen(false)
       setCreateForm(emptyForm)
+      setCreateCoInstructorIds([])
       // Si la clase creada no está en la semana actual, cambiar a "Próximas" para verla
       const createdDate = new Date(date)
       const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 })
@@ -202,6 +208,7 @@ const openCreate = () => {
           specialPrice: cost,
           specialMessage: editForm.specialMessage || null,
           maxCapacity: editForm.maxCapacity ? parseInt(editForm.maxCapacity) : undefined,
+          coInstructorIds: editCoInstructorIds.map(Number),
         }),
       })
       if (!response.ok) {
@@ -246,7 +253,9 @@ const openCreate = () => {
 
   const classFormFields = (
     form: typeof createForm,
-    setForm: Dispatch<SetStateAction<typeof createForm>>
+    setForm: Dispatch<SetStateAction<typeof createForm>>,
+    coInstructorIds: string[],
+    setCoInstructorIds: Dispatch<SetStateAction<string[]>>
   ) => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className="space-y-2">
@@ -259,13 +268,55 @@ const openCreate = () => {
         </Select>
       </div>
       <div className="space-y-2">
-        <Label>Instructor</Label>
+        <Label>Instructor principal</Label>
         <Select value={form.instructorId} onValueChange={(v) => setForm((p) => ({ ...p, instructorId: v }))}>
           <SelectTrigger className="bg-white border-gray-200 text-zinc-900"><SelectValue placeholder="Seleccionar instructor" /></SelectTrigger>
           <SelectContent className="bg-white border-gray-200 text-zinc-900">
             {instructors.map((i) => <SelectItem key={i.id} value={i.id.toString()}>{i.user.firstName} {i.user.lastName}</SelectItem>)}
           </SelectContent>
         </Select>
+      </div>
+      {/* Co-instructores (multi-select mediante checkboxes) */}
+      <div className="space-y-2 md:col-span-2">
+        <Label>Co-instructores <span className="text-gray-400 font-normal">(opcional)</span></Label>
+        <div className="border border-gray-200 rounded-md p-3 bg-white">
+          {instructors.filter((i) => i.id.toString() !== form.instructorId).length === 0 ? (
+            <p className="text-sm text-gray-400">No hay otros instructores disponibles</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {instructors
+                .filter((i) => i.id.toString() !== form.instructorId)
+                .map((i) => {
+                  const idStr = i.id.toString()
+                  const selected = coInstructorIds.includes(idStr)
+                  return (
+                    <button
+                      key={i.id}
+                      type="button"
+                      onClick={() =>
+                        setCoInstructorIds((prev) =>
+                          selected ? prev.filter((x) => x !== idStr) : [...prev, idStr]
+                        )
+                      }
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                        selected
+                          ? "bg-[#4A102A] text-white border-[#4A102A]"
+                          : "bg-white text-gray-700 border-gray-300 hover:border-[#4A102A]"
+                      }`}
+                    >
+                      {i.user.firstName} {i.user.lastName}
+                      {selected && <X className="h-3 w-3" />}
+                    </button>
+                  )
+                })}
+            </div>
+          )}
+          {coInstructorIds.length > 0 && (
+            <p className="text-xs text-gray-500 mt-2">
+              {coInstructorIds.length} co-instructor{coInstructorIds.length > 1 ? "es" : ""} seleccionado{coInstructorIds.length > 1 ? "s" : ""}
+            </p>
+          )}
+        </div>
       </div>
       <div className="space-y-2">
         <Label>Fecha</Label>
@@ -440,6 +491,11 @@ const openCreate = () => {
                       </div>
                       <div className="text-sm text-gray-500">
                         Instructor: {cls.instructor.user.firstName} {cls.instructor.user.lastName}
+                        {cls.coInstructors && cls.coInstructors.length > 0 && (
+                          <span className="ml-2 text-gray-400">
+                            + {cls.coInstructors.map((ci) => `${ci.instructor.user.firstName} ${ci.instructor.user.lastName}`).join(", ")}
+                          </span>
+                        )}
                       </div>
                       {cls.specialMessage && (
                         <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
@@ -473,7 +529,7 @@ const openCreate = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            {classFormFields(createForm, setCreateForm)}
+            {classFormFields(createForm, setCreateForm, createCoInstructorIds, setCreateCoInstructorIds)}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="border-gray-200 text-zinc-900">Cancelar</Button>
@@ -492,7 +548,7 @@ const openCreate = () => {
             <DialogDescription className="text-gray-600">Modifica los detalles de la clase especial</DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            {classFormFields(editForm, setEditForm)}
+            {classFormFields(editForm, setEditForm, editCoInstructorIds, setEditCoInstructorIds)}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setIsEditOpen(false); setSelectedClass(null) }} className="border-gray-200 text-zinc-900">Cancelar</Button>

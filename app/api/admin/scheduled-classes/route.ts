@@ -53,9 +53,15 @@ export async function GET(request: NextRequest) {
         instructor: {
           include: {
             user: {
-              select: {
-                firstName: true,
-                lastName: true,
+              select: { firstName: true, lastName: true },
+            },
+          },
+        },
+        coInstructors: {
+          include: {
+            instructor: {
+              include: {
+                user: { select: { firstName: true, lastName: true } },
               },
             },
           },
@@ -63,31 +69,19 @@ export async function GET(request: NextRequest) {
         reservations: {
           include: {
             user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
+              select: { firstName: true, lastName: true, email: true },
             },
           },
         },
         waitlist: {
           include: {
             user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
+              select: { firstName: true, lastName: true, email: true },
             },
           },
         },
         branches: {
-          select: {
-            id: true,
-            name: true,
-            address: true,
-          },
+          select: { id: true, name: true, address: true },
         },
       },
       orderBy: [{ date: "asc" }, { time: "asc" }],
@@ -134,7 +128,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { classTypeId, instructorId, date, time, branchId, isSpecial, specialPrice, specialMessage, maxCapacity } = body
+    const { classTypeId, instructorId, date, time, branchId, isSpecial, specialPrice, specialMessage, maxCapacity, coInstructorIds } = body
 
     if (!branchId) {
       return NextResponse.json({ error: "branchId es requerido" }, { status: 400 })
@@ -204,6 +198,18 @@ export async function POST(request: NextRequest) {
       ? parsedMaxCapacity
       : defaultCapacity
 
+    // Validar co-instructores si se proporcionan
+    const coInstructorIdsParsed: number[] = Array.isArray(coInstructorIds)
+      ? coInstructorIds.map((id: any) => Number.parseInt(id)).filter((id: number) => !isNaN(id) && id !== Number.parseInt(instructorId))
+      : []
+
+    if (coInstructorIdsParsed.length > 0) {
+      const coInstructorCount = await prisma.instructor.count({ where: { id: { in: coInstructorIdsParsed } } })
+      if (coInstructorCount !== coInstructorIdsParsed.length) {
+        return NextResponse.json({ error: "Uno o más co-instructores no encontrados" }, { status: 404 })
+      }
+    }
+
     // Crear la clase programada
     const scheduledClass = await prisma.scheduledClass.create({
       data: {
@@ -218,24 +224,27 @@ export async function POST(request: NextRequest) {
         isSpecial: isSpecial === true,
         specialPrice: isSpecial && specialPrice ? parseFloat(specialPrice) : null,
         specialMessage: isSpecial && specialMessage ? specialMessage : null,
+        coInstructors: coInstructorIdsParsed.length > 0 ? {
+          create: coInstructorIdsParsed.map((id) => ({ instructorId: id })),
+        } : undefined,
       },
       include: {
         classType: true,
         instructor: {
           include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
+            user: { select: { firstName: true, lastName: true } },
+          },
+        },
+        coInstructors: {
+          include: {
+            instructor: {
+              include: {
+                user: { select: { firstName: true, lastName: true } },
               },
             },
           },
         },
-        reservations: {
-          where: {
-            status: "confirmed",
-          },
-        },
+        reservations: { where: { status: "confirmed" } },
         waitlist: true,
       },
     })

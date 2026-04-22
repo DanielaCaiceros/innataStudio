@@ -45,6 +45,11 @@ interface ScheduledClass {
     name: string
     profileImage?: string | null
   }
+  coInstructors?: Array<{
+    id: number
+    name: string
+    profileImage?: string | null
+  }>
   date: string
   time: string
   maxCapacity: number
@@ -766,9 +771,13 @@ export default function BookingPage() {
                   </div>
 
                   <div className="flex justify-between items-center pb-2 border-b border-brand-red/10">
-                    <span className="text-zinc-700">Instructor:</span>
-                    <span className="font-medium text-brand-burgundy">
-                      {selectedClassDetails?.instructor.name ?? "No seleccionado"}
+                    <span className="text-zinc-700">
+                      {selectedClassDetails?.coInstructors && selectedClassDetails.coInstructors.length > 0 ? "Coaches:" : "Instructor:"}
+                    </span>
+                    <span className="font-medium text-brand-burgundy text-right">
+                      {selectedClassDetails
+                        ? [selectedClassDetails.instructor.name, ...(selectedClassDetails.coInstructors?.map((ci) => ci.name) ?? [])].join(" & ")
+                        : "No seleccionado"}
                     </span>
                   </div>
 
@@ -1218,7 +1227,10 @@ export default function BookingPage() {
                 </p>
                 <p className="font-medium">Horario: {selectedClassDetails ? formatTimeFromDB(selectedClassDetails.time) : ""}</p>
                 <p className="font-medium">
-                  Instructor: {selectedClassDetails?.instructor?.name ?? ""}
+                  {selectedClassDetails?.coInstructors && selectedClassDetails.coInstructors.length > 0 ? "Coaches: " : "Instructor: "}
+                  {selectedClassDetails
+                    ? [selectedClassDetails.instructor.name, ...(selectedClassDetails.coInstructors?.map((ci) => ci.name) ?? [])].join(" & ")
+                    : ""}
                 </p>
                 <p className="font-medium">
                   Duración: {selectedClassDetails ? `${selectedClassDetails.classType.duration} minutos` : ""}
@@ -1269,7 +1281,10 @@ export default function BookingPage() {
                   <p><strong>Clase:</strong> {selectedClassDetails.classType.name}</p>
                   <p><strong>Fecha:</strong> {format(new Date(selectedClassDetails.date.slice(0, 10) + "T12:00:00"), "EEEE, d 'de' MMMM", { locale: es })}</p>
                   <p><strong>Hora:</strong> {formatTimeFromDB(selectedClassDetails.time)}</p>
-                  <p><strong>Instructor:</strong> {selectedClassDetails.instructor.name}</p>
+                  <p>
+                    <strong>{selectedClassDetails.coInstructors && selectedClassDetails.coInstructors.length > 0 ? "Coaches:" : "Instructor:"}</strong>{" "}
+                    {[selectedClassDetails.instructor.name, ...(selectedClassDetails.coInstructors?.map((ci) => ci.name) ?? [])].join(" & ")}
+                  </p>
                 </div>
               </div>
             )}
