@@ -15,11 +15,11 @@ export default function Home() {
           {/* Hero Banner */}
           <div className="relative w-full h-[600px] rounded-3xl overflow-hidden">
             {/* Background Gradient */}
-            <div className="absolute inset-0 bg-gradient-to-r from-brand-gray/70 via-brand-sage/30 to-transparent z-10"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-brand-gray/80 via-brand-gray/50 to-transparent z-10"></div>
 
             {/* Background Image */}
             <Image
-              src="/innataAsset2.JPG"
+              src="/hero_innata.JPG"
               alt="cycling studio bike"
               fill
               className="object-cover object-center rounded-3xl"

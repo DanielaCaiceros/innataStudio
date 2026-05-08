@@ -213,6 +213,15 @@ export async function POST(request: NextRequest) {
         })
       }
 
+      // Verificar si es paquete "mes ilimitado" (ID 6): solo permite una reserva por clase
+      const existingHasMesIlimitado = existingReservations.some(r => r.userPackage?.package?.id === 6)
+      const currentIsMesIlimitado = currentPackage?.package?.id === 6
+      if (existingHasMesIlimitado || currentIsMesIlimitado) {
+        return NextResponse.json({
+          error: "Solo puedes reservar una bicicleta por clase con el paquete Mes Ilimitado."
+        }, { status: 409 })
+      }
+
       // Verificar si es paquete "semana ilimitada" (ID 3)
       const isUnlimitedWeekPackage = (packageToCheck: any) => {
         return packageToCheck?.package?.id === 3 || packageToCheck?.package?.name?.toLowerCase().includes('semana ilimitada')

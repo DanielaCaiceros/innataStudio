@@ -104,7 +104,7 @@ function SeleccionarSucursalContent() {
             {/* Background Image */}
             <div className="absolute inset-0">
               <Image
-                src={branch.imageUrl || "/innataAsset2.JPG"}
+                src={branch.imageUrl || "/sahagun_inicio.JPG"}
                 alt={branch.name}
                 fill
                 className="object-cover"
@@ -165,7 +165,7 @@ function SeleccionarSucursalContent() {
             {/* Background Image */}
             <div className="absolute inset-0">
               <Image
-                src={branch.imageUrl || "/innataAsset2.JPG"}
+                src={branch.imageUrl || "/sahagun_inicio.JPG"}
                 alt={branch.name}
                 fill
                 className="object-cover"

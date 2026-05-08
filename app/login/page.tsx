@@ -228,7 +228,7 @@ function LoginContent() {
     <div className="flex min-h-screen">
       {/* Imagen lateral */}
       <div className="hidden md:block md:w-1/2 relative overflow-hidden rounded-3xl m-2">
-        <Image src="/innataAsset1.png" alt="Innata Cycling Studio" fill className="object-cover" priority />
+        <Image src="/welcome.JPG" alt="Innata Cycling Studio" fill className="object-cover object-bottom" priority />
         <div className="absolute inset-0 bg-gradient-to-r from-brand-sage/80 to-transparent mix-blend-multiply" />
       </div>
 
