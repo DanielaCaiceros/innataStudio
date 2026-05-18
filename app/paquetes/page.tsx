@@ -386,7 +386,7 @@ Sí, algunos paquetes tienen validez de 30 días y otros 60 días desde la compr
       </section>
       {/* Floating cart bar */}
       {totalItems > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 bg-[#4A102A] text-white px-6 py-3 rounded-full shadow-xl">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 bg-brand-cream text-white px-6 py-3 rounded-full shadow-xl">
           <span className="text-sm font-medium">
             {totalItems} {totalItems === 1 ? "paquete" : "paquetes"} en tu carrito
           </span>

@@ -202,7 +202,7 @@ function CheckoutForm({
           <Button
             type="submit"
             disabled={!stripe || processing || submitted}
-            className="flex-[2] bg-[#4A102A] hover:bg-[#85193C] text-white font-medium"
+            className="flex-[2] bg-brand-cream hover:bg-brand-cream/90 text-white font-medium"
           >
             {submitted ? (
               <span className="flex items-center justify-center gap-2">

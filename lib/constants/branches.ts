@@ -8,7 +8,7 @@ export const MOCK_BRANCHES: Branch[] = [
     address: "Sahagún, Hidalgo, México",
     phone: "52-775-357-1894",
     schedule: "Lun-Sab missing",
-    imageUrl: "/innataAsset1.png",
+    imageUrl: "/sahagun_inicio.JPG",
     isActive: true,
     color: "#2845D6" // Azul principal
   },
@@ -18,7 +18,7 @@ export const MOCK_BRANCHES: Branch[] = [
     address: "Apan, Hidalgo, México",
     phone: "52-775-357-1894",
     schedule: "Lun-Sab missing",
-    imageUrl: "/innataAsset2.JPG",
+    imageUrl: "/innataAsset1.png",
     isActive: true,
     color: "#2845D6" // Azul principal
   }

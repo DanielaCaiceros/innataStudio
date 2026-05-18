@@ -13,6 +13,7 @@ const instructors = [
   { id: 6, name: "Ximena",  role: "Coach de Indoor", image: "/ximena_c.jpeg",  scale: 1.4 },
   { id: 7, name: "Danny",   role: "Coach de Indoor", image: "/danny_f.jpeg",   scale: 1.4 },
   { id: 8, name: "Tanis",   role: "Coach de Indoor", image: "/tanis_g.jpeg",   scale: 1.4 },
+  { id: 9, name: "Alex",    role: "Coach de Indoor", image: "/coach_alex.jpeg", scale: 1.4 },
 ]
 
 export default function TeamCarousel() {
