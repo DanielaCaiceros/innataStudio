@@ -64,11 +64,18 @@ export async function GET(request: NextRequest) {
       ? reservations.filter(r => r.userId === userId)
       : []
 
-    // Verificar si el usuario tiene paquete semana ilimitada
-    const hasUnlimitedPackage = userReservations.some(r => 
-      r.userPackage?.package?.id === 3 || 
-      r.userPackage?.package?.name?.toLowerCase().includes('semana ilimitada')
-    )
+    // Verificar si el usuario tiene paquete ilimitado (Semana Ilimitada id 3 o Mes Ilimitado id 6):
+    // ambos solo permiten una reserva por clase.
+    const hasUnlimitedPackage = userReservations.some(r => {
+      const pkgId = r.userPackage?.package?.id
+      const pkgName = r.userPackage?.package?.name?.toLowerCase() ?? ''
+      return (
+        pkgId === 3 ||
+        pkgId === 6 ||
+        pkgName.includes('semana ilimitada') ||
+        pkgName.includes('mes ilimitado')
+      )
+    })
 
     // Crear array de bicicletas basado en configuración de la sucursal.
     const allBikes = Array.from({ length: layout.bikeCount }, (_, i) => {
