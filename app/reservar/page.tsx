@@ -596,9 +596,7 @@ export default function BookingPage() {
           <div className="flex items-center justify-center gap-4 md:gap-6 flex-wrap">
             {[
               { name: "Inés",   image: "/coach3.jpeg" },
-              { name: "Dani",   image: "/dani_m.jpeg" },
               { name: "Alo",    image: "/alondra_m.jpeg" },
-              { name: "Kevin",  image: "/kevin.jpeg" },
               { name: "Óscar",  image: "/oscar_f.jpeg" },
               { name: "Ximena", image: "/ximena_c.jpeg" },
               { name: "Danny",  image: "/danny_f.jpeg" },
