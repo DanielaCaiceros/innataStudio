@@ -20,8 +20,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Acceso denegado" }, { status: 403 })
     }
 
-    // Obtener todos los usuarios
+    // Obtener todos los usuarios. Los instructores archivados desde el panel de
+    // configuración quedan como "inactive" con el email liberado, así que se
+    // excluyen para que no aparezcan aquí como usuarios "deleted_...".
     const users = await db.user.findMany({
+      where: {
+        NOT: {
+          role: "instructor",
+          status: "inactive",
+        },
+      },
       select: {
         user_id: true,
         firstName: true,
