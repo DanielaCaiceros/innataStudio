@@ -178,12 +178,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Ya existe una clase programada en este horario para esta sucursal" }, { status: 400 })
     }
 
-    // Verificar que el instructor existe
+    // Verificar que el instructor existe y no está archivado. Los instructores
+    // eliminados desde el panel quedan con el usuario en "inactive": el selector
+    // ya no los muestra, pero una pestaña abierta antes del borrado sí podría
+    // seguir enviando su id.
     const instructor = await prisma.instructor.findUnique({
       where: { id: Number.parseInt(instructorId) },
+      include: { user: { select: { status: true } } },
     })
 
-    if (!instructor) {
+    if (!instructor || instructor.user.status === "inactive") {
       return NextResponse.json({ error: "Instructor no encontrado" }, { status: 404 })
     }
 

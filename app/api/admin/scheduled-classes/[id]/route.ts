@@ -82,6 +82,16 @@ export async function PUT(
       return NextResponse.json({ error: "Clase no encontrada" }, { status: 404 })
     }
 
+    // Verificar que el instructor existe y no está archivado (usuario "inactive")
+    const instructor = await prisma.instructor.findUnique({
+      where: { id: parseInt(body.instructorId) },
+      include: { user: { select: { status: true } } },
+    })
+
+    if (!instructor || instructor.user.status === "inactive") {
+      return NextResponse.json({ error: "Instructor no encontrado" }, { status: 404 })
+    }
+
     const utcDate = new Date(body.date + "T00:00:00.000Z");
     const classTime = new Date(`1970-01-01T${body.time}:00.000Z`)
 

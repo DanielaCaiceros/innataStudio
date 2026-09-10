@@ -86,7 +86,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const existingInstructor = await db.instructor.findUnique({
       where: { id: instructorId },
       include: {
-        scheduledClasses: true,
+        user: true,
+        scheduledClasses: { select: { id: true } },
       },
     })
 
@@ -94,28 +95,46 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Instructor no encontrado" }, { status: 404 })
     }
 
-    // Verificar si tiene clases programadas
-    if (existingInstructor.scheduledClasses.length > 0) {
-      return NextResponse.json(
-        { error: "No se puede eliminar el instructor porque tiene clases programadas" },
-        { status: 400 },
-      )
-    }
+    // Sin clases asociadas se puede eliminar por completo
+    if (existingInstructor.scheduledClasses.length === 0) {
+      await db.$transaction(async (prisma) => {
+        await prisma.instructor.delete({
+          where: { id: instructorId },
+        })
 
-    // Eliminar instructor y usuario en una transacción
-    await db.$transaction(async (prisma) => {
-      // Eliminar instructor
-      await prisma.instructor.delete({
-        where: { id: instructorId },
+        await prisma.user.delete({
+          where: { user_id: existingInstructor.userId },
+        })
       })
 
-      // Eliminar usuario
-      await prisma.user.delete({
+      return NextResponse.json({ message: "Instructor eliminado correctamente" })
+    }
+
+    // Con clases asociadas no se puede borrar el registro: la llave foránea de
+    // scheduled_classes es ON DELETE CASCADE y arrastraría las clases con todas
+    // sus reservaciones. Se archiva igual que en el borrado de usuarios, así el
+    // historial queda intacto y el instructor desaparece de los listados.
+    await db.$transaction(async (prisma) => {
+      await prisma.user.update({
         where: { user_id: existingInstructor.userId },
+        data: {
+          status: "inactive",
+          // Libera el email para que se pueda volver a dar de alta
+          email: `deleted_${Date.now()}_${existingInstructor.user.email}`.slice(0, 100),
+        },
+      })
+
+      await prisma.instructor.update({
+        where: { id: instructorId },
+        data: { isFeatured: false },
       })
     })
 
-    return NextResponse.json({ message: "Instructor eliminado correctamente" })
+    return NextResponse.json({
+      message: "Instructor eliminado correctamente",
+      archived: true,
+      scheduledClasses: existingInstructor.scheduledClasses.length,
+    })
   } catch (error) {
     console.error("Error deleting instructor:", error)
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })

@@ -5,7 +5,15 @@ import bcrypt from "bcryptjs"
 // GET - Obtener todos los instructores
 export async function GET(request: NextRequest) {
   try {
+    // Los instructores archivados (borrados desde el panel) quedan con el
+    // usuario en "inactive" y no deben aparecer en los listados ni en el
+    // selector de instructores al programar clases.
     const instructors = await db.instructor.findMany({
+      where: {
+        user: {
+          status: { not: "inactive" },
+        },
+      },
       include: {
         user: {
           select: {
