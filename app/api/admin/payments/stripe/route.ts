@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client"
 import { cookies } from 'next/headers'
 import Stripe from "stripe"
 import { getUnlimitedWeekExpiryDate } from '@/lib/utils/unlimited-week'
+import { hasFirstTimePackage, FIRST_TIME_PACKAGE_ERROR } from '@/lib/utils/first-time-package'
 
 const prisma = new PrismaClient()
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -47,6 +48,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: "Usuario o paquete no encontrado" 
       }, { status: 404 })
+    }
+
+    // Los paquetes de primera vez solo pueden otorgarse una vez por usuario.
+    // Se valida antes de consultar Stripe para no registrar un cobro que luego se rechaza.
+    if (packageData.is_first_time_only && await hasFirstTimePackage(prisma, userId)) {
+      return NextResponse.json({ error: FIRST_TIME_PACKAGE_ERROR }, { status: 409 })
     }
 
     // Verificar el payment intent de Stripe

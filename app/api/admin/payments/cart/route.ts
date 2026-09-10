@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifyToken } from "@/lib/jwt"
 import { db } from "@/lib/db"
 import { getUnlimitedWeekExpiryDate } from "@/lib/utils/unlimited-week"
+import { hasFirstTimePackage, FIRST_TIME_PACKAGE_ERROR } from "@/lib/utils/first-time-package"
 
 interface CartItem {
   packageId: number
@@ -31,6 +32,29 @@ export async function POST(request: NextRequest) {
 
     const branch = await db.branch.findUnique({ where: { id: branch_id } })
     if (!branch) return NextResponse.json({ error: "Sucursal no encontrada" }, { status: 404 })
+
+    // Los paquetes de primera vez solo pueden otorgarse una vez por usuario.
+    // Se valida sobre el carrito completo porque un mismo paquete puede venir
+    // repetido en varios items o con quantity > 1.
+    const firstTimeIds = (
+      await db.package.findMany({
+        where: {
+          id: { in: (items as CartItem[]).map((i) => i.packageId).filter(Boolean) },
+          is_first_time_only: true,
+        },
+        select: { id: true },
+      })
+    ).map((p) => p.id)
+
+    if (firstTimeIds.length > 0) {
+      const requested = (items as CartItem[])
+        .filter((i) => firstTimeIds.includes(i.packageId))
+        .reduce((total, i) => total + (i.quantity ?? 0), 0)
+
+      if (requested > 1 || (requested === 1 && (await hasFirstTimePackage(db, user_id)))) {
+        return NextResponse.json({ error: FIRST_TIME_PACKAGE_ERROR }, { status: 409 })
+      }
+    }
 
     const results = await db.$transaction(async (tx) => {
       const created: { paymentId: number; packageName: string; amount: number }[] = []

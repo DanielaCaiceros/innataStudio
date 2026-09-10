@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyToken } from "@/lib/jwt"
 import { db } from "@/lib/db"
+import { hasFirstTimePackage, FIRST_TIME_PACKAGE_ERROR } from "@/lib/utils/first-time-package"
 
 export async function GET(
   request: NextRequest,
@@ -125,6 +126,11 @@ export async function POST(
 
     if (!userExists) {
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 })
+    }
+
+    // Los paquetes de primera vez solo pueden otorgarse una vez por usuario.
+    if (packageExists.is_first_time_only && await hasFirstTimePackage(db, userId)) {
+      return NextResponse.json({ error: FIRST_TIME_PACKAGE_ERROR }, { status: 409 })
     }
 
     // Crear el paquete de usuario
