@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifyToken } from "@/lib/jwt"
 import { db } from "@/lib/db"
 import { getUnlimitedWeekExpiryDate } from '@/lib/utils/unlimited-week'
+import { hasFirstTimePackage, FIRST_TIME_PACKAGE_ERROR } from '@/lib/utils/first-time-package'
 
 // GET - Obtener todos los pagos
 export async function GET(request: NextRequest) {
@@ -181,6 +182,16 @@ export async function POST(request: NextRequest) {
       if (!packageData) {
         console.error(`[PAYMENT_API_LOG] Error: Paquete no encontrado con id: ${bodyPackageId}`);
         return NextResponse.json({ error: "Paquete no encontrado" }, { status: 404 });
+      }
+    }
+
+    // Los paquetes de primera vez solo pueden otorgarse una vez por usuario.
+    // Cuando se envía userPackageId no se crea un paquete nuevo (solo se marca
+    // como pagado uno existente), por lo que ese caso queda fuera de la regla.
+    if (packageData?.is_first_time_only && !userPackageId) {
+      const alreadyGranted = await hasFirstTimePackage(db, user_id)
+      if (alreadyGranted) {
+        return NextResponse.json({ error: FIRST_TIME_PACKAGE_ERROR }, { status: 409 })
       }
     }
 

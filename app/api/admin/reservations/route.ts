@@ -17,6 +17,7 @@ import {
   isWithinUnlimitedWeekSchedule 
 } from '@/lib/utils/unlimited-week';
 import { getBranchBikeCapacity } from '@/lib/config/branch-bike-layouts';
+import { hasFirstTimePackage, FIRST_TIME_PACKAGE_ERROR } from '@/lib/utils/first-time-package';
 
 
 
@@ -446,6 +447,11 @@ export async function POST(request: NextRequest) {
               throw new Error(err.message || "Error en validación de semana ilimitada");
             }
           } else { // Para "primera-vez" o "10classes" si no se pasó userPackageId
+            // Los paquetes de primera vez solo pueden otorgarse una vez por usuario.
+            if (packageInfo.is_first_time_only && await hasFirstTimePackage(tx, userId)) {
+              throw new Error(FIRST_TIME_PACKAGE_ERROR);
+            }
+
             let expiryDate = new Date();
             expiryDate.setDate(expiryDate.getDate() + packageInfo.validityDays);
             userPackage = await tx.userPackage.create({
