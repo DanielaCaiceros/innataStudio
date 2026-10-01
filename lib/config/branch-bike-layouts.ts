@@ -10,7 +10,7 @@ export interface BranchBikeLayout {
   positions: Record<number, BikePosition>
 }
 
-// Apan studio distribution (11 bikes).
+// Apan studio distribution (12 bikes).
 const apanLayoutPositions: Record<number, BikePosition> = {
   1: { x: 24, y: 56 },
   2: { x: 34, y: 56 },
@@ -18,6 +18,7 @@ const apanLayoutPositions: Record<number, BikePosition> = {
   4: { x: 54, y: 56 },
   5: { x: 64, y: 56 },
   6: { x: 76, y: 56 },
+  12: { x: 79, y: 76 },
   11: { x: 69, y: 76 },
   10: { x: 59, y: 76 },
   9: { x: 49, y: 76 },
@@ -53,7 +54,7 @@ const specialClassLayoutPositions: Record<number, BikePosition> = {
   14: { x: 85, y: 77 },
 }
 
-// Sahagun studio distribution (14 bikes).
+// Sahagun studio distribution (13 bikes).
 const sahagunLayoutPositions: Record<number, BikePosition> = {
   6: { x: 70, y: 58 },
   1: { x: 20, y: 50 },
@@ -68,13 +69,12 @@ const sahagunLayoutPositions: Record<number, BikePosition> = {
   11: { x: 50, y: 77 },
   12: { x: 60, y: 77 },
   13: { x: 70, y: 77 },
-  14: { x: 80, y: 77 },
 }
 
 const defaultLayout: BranchBikeLayout = {
   branchId: 2,
   name: "APAN",
-  bikeCount: 11,
+  bikeCount: 12,
   positions: apanLayoutPositions,
 }
 
@@ -89,7 +89,7 @@ export const BRANCH_BIKE_LAYOUTS: Record<number, BranchBikeLayout> = {
   1: {
     branchId: 1,
     name: "SAHAGUN",
-    bikeCount: 14,
+    bikeCount: 13,
     positions: sahagunLayoutPositions,
   },
   2: defaultLayout,
